@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package>
+  <name>theta_star</name>
+  <version>1.0.1</version>
+  <description>Three-dimensional Lazy Theta Star with Optimization implementation</description>
+
+  <maintainer email="ragel4@hotmail.com">ricardo</maintainer>
+
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  <build_depend>octomap_msgs</build_depend>
+  <build_depend>octomap_ros</build_depend>
+  <build_depend>pcl_conversions</build_depend>
+  <build_depend>pcl_ros</build_depend>
+  <build_depend>roscpp</build_depend>
+  
+  <run_depend>octomap_msgs</run_depend>
+  <run_depend>octomap_ros</run_depend>
+  <run_depend>pcl_conversions</run_depend>
+  <run_depend>pcl_ros</run_depend>
+  <run_depend>roscpp</run_depend>
+
+  <export>
+  </export>
+</package>

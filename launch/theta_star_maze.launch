@@ -1,0 +1,103 @@
+<!-- 
+	Launch Theta Star Server Example
+	
+	To command a goal, run 'rqt' and send a position using /euroc5/goal_position topic
+-->
+
+<launch>  
+  <!-- Octree File -->
+  <arg name="static_map_file" 	default="$(find theta_star)/resource/maze.bt"/>	
+   
+  <!-- Theta star path calculation parameters-->
+  <arg name="ws_x_max" 							default="50.0"/>		# workspace in world frame [meters]
+  <arg name="ws_y_max" 							default="50.0"/>
+  <arg name="ws_z_max" 							default="5.0"/>
+  <arg name="ws_x_min" 							default="0.0"/>
+  <arg name="ws_y_min" 							default="0.0"/>
+  <arg name="ws_z_min" 							default="-0.0"/>	
+  <arg name="map_resolution" 					default="0.20"/>	# Discrete matrix resolution [meters]
+  <arg name="map_h_inflaction" 					default="0.4"/>		# Obstacles inflaction for real UAV size and safe distance [meters]
+  <arg name="map_v_inflaction" 					default="0.4"/>
+  <arg name="goal_weight" 						default="10.0"/>	# Weight of the target position for the Lazy theta* with Optimz.[positive]. Bigger: Minnor Runtime and Greater Path Lenght
+  <arg name="z_weight_cost" 					value="10.0"/>		# Weight of heigth changes 
+  <arg name="z_not_inflate" 					value="0.5"/>		# Max Z at not inflate vertically
+
+  <!-- Result trajectory parameters-->
+  <arg name="traj_dxy_max" 		default="0.5"/>			# Maximum horizontal position increment [m] 
+  <arg name="traj_dz_max" 		default="0.5"/>			# Maximum vertical position increment [m] 
+  <arg name="traj_vxy_m" 		default="0.5"/>			# Horizontal velocity average [m/s] 
+  <arg name="traj_vz_m" 		default="0.5"/>			# Vertical velocity average [m/s] 
+  <arg name="traj_vxy_m_1" 		default="0.4"/>			# Horizontal velocity for the first and the last wp [m/s] 
+  <arg name="traj_vz_m_1" 		default="0.3"/>			# Vertical velocity for the first and the last wp [m/s] 
+  <arg name="traj_wyaw_m" 		default="0.4"/>			# Yaw angular velocity estimated [rad/s] 
+  <arg name="traj_pos_tol" 		default="0.2"/>			# Position tolerance to wps division [m]
+  <arg name="traj_yaw_tol" 		default="0.2"/>			# Min position diff btwn wp to set yaw ahead [m]
+  
+  <group ns="euroc5" >
+	  <!-- Convert args to params-->
+	  <param name="/theta_star/ws_x_max" 				value="$(arg ws_x_max)"/>
+	  <param name="/theta_star/ws_y_max" 				value="$(arg ws_y_max)"/>
+	  <param name="/theta_star/ws_z_max" 				value="$(arg ws_z_max)"/>
+	  <param name="/theta_star/ws_x_min" 				value="$(arg ws_x_min)"/>
+	  <param name="/theta_star/ws_y_min" 				value="$(arg ws_y_min)"/>
+	  <param name="/theta_star/ws_z_min" 				value="$(arg ws_z_min)"/>
+	  <param name="/theta_star/map_resolution" 			value="$(arg map_resolution)"/>
+	  <param name="/theta_star/map_h_inflaction"		value="$(arg map_h_inflaction)"/>
+	  <param name="/theta_star/map_v_inflaction"		value="$(arg map_v_inflaction)"/>
+	  <param name="/theta_star/goal_weight" 			value="$(arg goal_weight)"/>
+	  <param name="/theta_star/z_weight_cost" 			value="$(arg z_weight_cost)"/>
+	  <param name="/theta_star/z_not_inflate" 			value="$(arg z_not_inflate)"/>
+	  <param name="/theta_star/traj_dxy_max" 			value="$(arg traj_dxy_max)"/>
+	  <param name="/theta_star/traj_dz_max" 			value="$(arg traj_dz_max)"/>
+	  <param name="/theta_star/traj_vxy_m" 				value="$(arg traj_vxy_m)"/>
+	  <param name="/theta_star/traj_vz_m" 				value="$(arg traj_vz_m)"/>
+	  <param name="/theta_star/traj_vxy_m_1" 			value="$(arg traj_vxy_m_1)"/>
+	  <param name="/theta_star/traj_vz_m_1" 			value="$(arg traj_vz_m_1)"/>
+	  <param name="/theta_star/traj_wyaw_m" 			value="$(arg traj_wyaw_m)"/>
+	  <param name="/theta_star/traj_pos_tol" 			value="$(arg traj_pos_tol)"/>
+	  <param name="/theta_star/traj_yaw_tol" 			value="$(arg traj_yaw_tol)"/>
+	  
+	  <!-- Theta* server-->
+	  <node pkg="theta_star" type="theta_star_example" name="theta_star_example" args="" output="screen"/>
+	  
+	  <!-- Octomap Server -->
+	  <node name="octomap_server" pkg="octomap_server" type="octomap_server_node" respawn="true" clear_params="true" output="screen" args="$(arg static_map_file)">  
+		<param name="frame_id" type="str" value="/world" />
+	  </node>
+  </group>
+	  
+  <!-- Simulator and trajectory tracker--> 
+  <include file="$(find euroc_motion_planning_launch)/launch/simulator_linear_mpc.launch">
+	<arg name="gazebo_paused" value="false" />
+  </include>
+  <group ns="euroc5" > 
+	<include file="$(find trajectory_tracking)/launch/trajectory_tracker.launch">
+		<arg name="odometry_topic" 		 value="odometry_sensor1/odometry" />
+		<arg name="sim" 				 value="true" />
+		<arg name="exec_rate" 			 value="50.0"/>		# Node execution rate [Hz]
+		<arg name="m_x_model" 			 value="2.5"/>		# Max slope at Xb axis [m/s2]
+		<arg name="m_y_model" 			 value="2.0"/>		# Max slope at Yb axis [m/s2]
+		<arg name="m_z_model" 			 value="2.0"/>		# Max slope at Zb axis [m/s2]
+		<arg name="To_x_model" 			 value="0.3"/>		# Response delay at Xb axis [sec]
+		<arg name="To_y_model" 			 value="0.3"/>		# Response delay at Xb axis [sec]
+		<arg name="To_z_model" 			 value="0.5"/>		# Response delay at Xb axis [sec]
+		<arg name="iters_num" 			 value="10"/>		# Traj Computation iters
+		<arg name="reach_impossible_wps" value="false"/>	# Try to reach the impossible waypoints
+		<arg name="auto_tune_limiters" 	 value="true"/>		# Set true to enable the rate limiters auto-tune
+		<arg name="auto_tune_pos_gain"	 value="1.35"/>		# Auto-tune rate limiters gain
+		<arg name="auto_tune_vel_gain"	 value="1.0"/>		# Auto-tune rate limiters gain
+		<arg name="auto_tune_min"		 value="0.2"/>		# Auto-Tune minimum rate limiter value
+		<arg name="auto_tune_max"		 value="2.0"/>		# Auto-Tune maximum rate limiter value
+		<arg name="H_pos_rate_limiter" 	 value="0.5"/>		# Position rate limiter at XYb axis [m/s]
+		<arg name="V_pos_rate_limiter" 	 value="0.5"/>		# Position rate limiter at XYb axis [m/s]
+		<arg name="H_vel_rate_limiter" 	 value="0.5"/>		# Velocity rate limiter at XYb axis [m/s2]
+		<arg name="V_vel_rate_limiter" 	 value="0.5"/>		# Velocity rate limiter at Zb axis [m/s2]
+		<arg name="Yaw_rate_limiter" 	 value="0.4"/>		# Yaw rate limiter [rad/s]. Example: 0.8 rad/s --> 90 deg in 2 sec
+		<arg name="debug_topics" 		 value="true"/>		# Yaw rate limiter [rad/s]. Example: 0.8 rad/s --> 90 deg in 2 sec
+	</include>  
+  </group>
+  
+  <!-- RViZ -->
+  <node name="rviz" pkg="rviz" type="rviz" respawn="true" output="screen" args="-d $(find theta_star)/viz/theta_star_example.rviz "/> 
+  
+</launch>
