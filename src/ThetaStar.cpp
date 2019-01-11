@@ -1375,9 +1375,9 @@ float ThetaStar::weightedDistanceFromInitialPoint(ThetaStarNode node, ThetaStarN
             res = parent.distanceFromInitialPoint;
         else
         {
-            res = parent.distanceFromInitialPoint + (sqrt(				pow(node.point.x-parent.point.x,2) +
-																								pow(node.point.y-parent.point.y,2) +
-																				z_weight_cost *	pow(node.point.z-parent.point.z,2)));
+            res = parent.distanceFromInitialPoint + (sqrt(	pow(node.point.x-parent.point.x,2) +
+															pow(node.point.y-parent.point.y,2) +
+											z_weight_cost *	pow(node.point.z-parent.point.z,2)));
         }
 
     return res;
