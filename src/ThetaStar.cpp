@@ -35,17 +35,17 @@ ThetaStar::ThetaStar()
 
 // Constructor with arguments
 ThetaStar::ThetaStar(char* plannerName, char* frame_id, 
-					float ws_x_max_, float ws_y_max_, float ws_z_max_, float ws_x_min_, float ws_y_min_, float ws_z_min_, 
-					float step_, float h_inflation_, float v_inflation_, float goal_weight_, float z_weight_cost_, float z_not_inflate_, ros::NodeHandle *n)
+					float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_,  
+					float step_, float h_inflation_,  float goal_weight_, ros::NodeHandle *n)
 {
 	// Call to initialization
-	init(plannerName, frame_id, ws_x_max_, ws_y_max_, ws_z_max_, ws_x_min_, ws_y_min_, ws_z_min_, step_, h_inflation_, v_inflation_, goal_weight_, z_weight_cost_, z_not_inflate_, n);
+	init(plannerName, frame_id, ws_x_max_, ws_y_max_, ws_x_min_, ws_y_min_,  step_, h_inflation_, goal_weight_, n);
 }
 
 // Initialization: creates the occupancy matrix (discrete nodes) from the bounding box sizes, resolution, inflation and optimization arguments
 void ThetaStar::init(char* plannerName, char* frame_id, 
-					float ws_x_max_, float ws_y_max_, float ws_z_max_, float ws_x_min_, float ws_y_min_, float ws_z_min_, 
-					float step_, float h_inflation_, float v_inflation_, float goal_weight_, float z_weight_cost_, float z_not_inflate_, ros::NodeHandle *n)
+					float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
+					float step_, float h_inflation_,  float goal_weight_, ros::NodeHandle *n)
 {
 	// Pointer to the nodeHandler
 	nh = n;
@@ -60,34 +60,34 @@ void ThetaStar::init(char* plannerName, char* frame_id,
     // Init asymetric and inflated occupancy matrix
     ws_x_max = ((ws_x_max_/step_) + 1);
     ws_y_max = ((ws_y_max_/step_) + 1);
-    ws_z_max = ((ws_z_max_/step_) + 1);
+    //ws_z_max = ((ws_z_max_/step_) + 1);
     ws_x_min = ((ws_x_min_/step_) - 1);
     ws_y_min = ((ws_y_min_/step_) - 1);
-    ws_z_min = ((ws_z_min_/step_) - 1);
+    //ws_z_min = ((ws_z_min_/step_) - 1);
     step = step_;
     step_inv = 1.0/step_;
 	h_inflation = (int) (h_inflation_/step_);
-	v_inflation = (int) (v_inflation_/step_);
+	//v_inflation = (int) (v_inflation_/step_);
 	ws_x_max_inflated = (ws_x_max + 2 * h_inflation);
     ws_y_max_inflated = (ws_y_max + 2 * h_inflation);
-    ws_z_max_inflated = (ws_z_max + 2 * v_inflation);
+    //ws_z_max_inflated = (ws_z_max + 2 * v_inflation);
     ws_x_min_inflated = (ws_x_min - 2 * h_inflation);
     ws_y_min_inflated = (ws_y_min - 2 * h_inflation);
-    ws_z_min_inflated = (ws_z_min - 2 * v_inflation);
-	matrix_size = (abs(ws_x_max_inflated) - ws_x_min_inflated + 1)*(abs(ws_y_max_inflated) - ws_y_min_inflated + 1)*(abs(ws_z_max_inflated) - ws_z_min_inflated + 1);
+    //ws_z_min_inflated = (ws_z_min - 2 * v_inflation);
+	matrix_size = (abs(ws_x_max_inflated) - ws_x_min_inflated + 1)*(abs(ws_y_max_inflated) - ws_y_min_inflated + 1);//*(abs(ws_z_max_inflated) - ws_z_min_inflated + 1);
 	printf("ThetaStar (%s): Occupancy Matrix has %d nodes [%d MB]\n", plannerName, matrix_size, (int)(matrix_size * sizeof(ThetaStarNode))/(1024*1024));
     discrete_world.resize(matrix_size);
 	Lx = ws_x_max_inflated - ws_x_min_inflated + 1;
     Ly = ws_y_max_inflated - ws_y_min_inflated + 1;
-    Lz = ws_z_max_inflated - ws_z_min_inflated + 1;
+    //Lz = ws_z_max_inflated - ws_z_min_inflated + 1;
     Lx_inv = 1.0/Lx;
     Ly_inv = 1.0/Ly;
-    Lz_inv = 1.0/Lz;
+    //Lz_inv = 1.0/Lz;
     // Optimization
     goal_weight = goal_weight_;
-	z_weight_cost = z_weight_cost_;
+	//z_weight_cost = z_weight_cost_;
 	// Floor condition
-	z_not_inflate = z_not_inflate_;
+	//z_not_inflate = z_not_inflate_;
 	
 	// Visualitazion Markers
 	char topicPath[100];
@@ -138,16 +138,16 @@ ThetaStar::~ThetaStar()
 {
 }
 
-void ThetaStar::setTrajectoryParams(float dxy_max_, float dz_max_, float dxyz_tolerance_, float vm_xy_, float vm_z_, float vm_xy_1_, float vm_z_1_, float w_yaw_, float min_yaw_ahead_)
+void ThetaStar::setTrajectoryParams(float dxy_max_, float dxyz_tolerance_, float vm_xy_, float vm_xy_1_, float w_yaw_, float min_yaw_ahead_)
 {
 	// Parse params
 	dxy_max = dxy_max_;
-	dz_max = dz_max_;
+	//dz_max = dz_max_;
 	dxyz_tolerance = dxyz_tolerance_;
 	vm_xy = vm_xy_;
-	vm_z = vm_z_;
+	//vm_z = vm_z_;
 	vm_xy_1 = vm_xy_1_;
-	vm_z_1 = vm_z_1_;
+	//vm_z_1 = vm_z_1_;
 	w_yaw = w_yaw_;
 	min_yaw_ahead = min_yaw_ahead_;	
 	
@@ -188,18 +188,14 @@ void ThetaStar::updateMap(octomap_msgs::Octomap message)
                 int z_ = (int)(z_w*step_inv);
 
 				// Set as occupied in the discrete matrix
-                if(isInside(x_, y_, z_))
+                if(isInside(x_, y_))
                 {
-                    unsigned int world_index_ = getWorldIndex(x_, y_, z_);
+                    unsigned int world_index_ = getWorldIndex(x_, y_);
                     discrete_world[world_index_].notOccupied = false;					
 					
 					// Inflates nodes
-					if(h_inflation >= step || v_inflation >= step)
+					if(h_inflation >= step )
 					{
-						if(z_w > z_not_inflate)
-							//inflateNodeAsCube(x_, y_, z_);
-							inflateNodeAsCylinder(x_, y_, z_);
-						else
 							inflateNodeAsXyRectangle(x_, y_, z_);
 					}
                 }
@@ -240,18 +236,14 @@ void ThetaStar::updateMap(PointCloud cloud)
 			int y_ = (int)(y_w*step_inv);
 			int z_ = (int)(z_w*step_inv);
 
-			if(isInside(x_, y_, z_))
+			if(isInside(x_, y_))
 			{
-				unsigned int world_index_ = getWorldIndex(x_, y_, z_);
+				unsigned int world_index_ = getWorldIndex(x_, y_);
 				discrete_world[world_index_].notOccupied = false;
 				
 				// Inflates nodes
-				if(h_inflation >= step || v_inflation >= step)
+				if(h_inflation >= step )
 				{
-					if(z_w > z_not_inflate)
-						//inflateNodeAsCube(x_, y_, z_);
-						inflateNodeAsCylinder(x_, y_, z_);
-					else
 						inflateNodeAsXyRectangle(x_, y_, z_);
 				}
 			}
@@ -270,13 +262,14 @@ void ThetaStar::clearMap()
 // Puplish to RViz the occupancy map matrix as point cloud markers
 void ThetaStar::publishOccupationMarkersMap()
 {
+	 
 	//~ occupancy_marker.points.clear();
 	occupancy_marker.clear();
 	for(int i=ws_x_min_inflated;i<=ws_x_max_inflated; i++)
 		for(int j=ws_y_min_inflated;j<= ws_y_max_inflated; j++)
-			for(int k=ws_z_min_inflated ;k<= ws_z_max_inflated; k++)
-			{
-				unsigned int matrixIndex = getWorldIndex(i,j,k);
+			//for(int k=ws_z_min_inflated ;k<= ws_z_max_inflated; k++)
+			{	
+				unsigned int matrixIndex = getWorldIndex(i,j);
 				
 				if(!discrete_world[matrixIndex].notOccupied)
 				{
@@ -284,7 +277,7 @@ void ThetaStar::publishOccupationMarkersMap()
 					pcl::PointXYZ point;
 					point.x = i*step;
 					point.y = j*step;
-					point.z = k*step;
+					point.z = 0;
 					//~ occupancy_marker.points.push_back(point);
 					occupancy_marker.push_back(point);
 				}
@@ -309,12 +302,11 @@ octomap::OcTree *ThetaStar::getMap()
 
 bool ThetaStar::setInitialPosition(DiscretePosition p_)
 {
-    if(isInside(p_.x,p_.y,p_.z))
+    if(isInside(p_.x,p_.y))
     {
         ThetaStartNodeLink *initialNodeInWorld = &discrete_world[getWorldIndex(
                     p_.x,
-                    p_.y,
-                    p_.z)];
+                    p_.y)];
 
         if(initialNodeInWorld->node==NULL)
         {
@@ -348,12 +340,11 @@ bool ThetaStar::setInitialPosition(Vector3 p)
     initial_position = p;
     DiscretePosition p_ = discretizePosition(p);
 		
-	if(isInside(p_.x,p_.y,p_.z))
+	if(isInside(p_.x,p_.y))
     {
         ThetaStartNodeLink *initialNodeInWorld = &discrete_world[getWorldIndex(
                     p_.x,
-                    p_.y,
-                    p_.z)];
+                    p_.y)];
 
         if(initialNodeInWorld->node==NULL)
         {
@@ -381,12 +372,11 @@ bool ThetaStar::setInitialPosition(Vector3 p)
 
 bool ThetaStar::setFinalPosition(DiscretePosition p_)
 {
-    if(isInside(p_.x,p_.y,p_.z))
+    if(isInside(p_.x,p_.y))
     {
         ThetaStartNodeLink *finalNodeInWorld = &discrete_world[getWorldIndex(
                     p_.x,
-                    p_.y,
-                    p_.z)];
+                    p_.y)];
 
         if(finalNodeInWorld->node==NULL)
         {
@@ -418,12 +408,11 @@ bool ThetaStar::setFinalPosition(Vector3 p)
 {
     DiscretePosition p_ = discretizePosition(p);
     
-    if(isInside(p_.x,p_.y,p_.z))
+    if(isInside(p_.x,p_.y))
     {
         ThetaStartNodeLink *finalNodeInWorld = &discrete_world[getWorldIndex(
                     p_.x,
-                    p_.y,
-                    p_.z)];
+                    p_.y)];
 
         if(finalNodeInWorld->node==NULL)
         {
@@ -473,21 +462,21 @@ bool ThetaStar::lineofsight(ThetaStarNode &p1, ThetaStarNode &p2)
     int x1 = min(max(p1.point.x,p2.point.x) + extra_cells,ws_x_max);
     int y0 = max(min(p1.point.y,p2.point.y) - extra_cells,ws_y_min);
     int y1 = min(max(p1.point.y,p2.point.y) + extra_cells,ws_y_max);
-    int z0 = max(min(p1.point.z,p2.point.z) - extra_cells,ws_z_min);
-    int z1 = min(max(p1.point.z,p2.point.z) + extra_cells,ws_z_max);
+    //int z0 = max(min(p1.point.z,p2.point.z) - extra_cells,ws_z_min);
+    //int z1 = min(max(p1.point.z,p2.point.z) + extra_cells,ws_z_max);
 
 
     if(isOccupied(p1) || isOccupied(p2))
         return false;
 
-
+	
     float base = distanceBetween2nodes(p1,p2);
     for(int x= x0; x <= x1; x++)
         for(int y= y0; y <= y1; y++)
-            for(int z = z0; z <= z1; z++)
+            //for(int z = z0; z <= z1; z++)
             {
                 //If the point is occupied, we have to calculate distance to the line.
-                if(!discrete_world[getWorldIndex(x,y,z)].notOccupied)
+                if(!discrete_world[getWorldIndex(x,y)].notOccupied)
                 {
                     //If base is zero and node is occcupied, directly does not exist line of sight
                     if(base==0)
@@ -507,8 +496,8 @@ bool ThetaStar::lineofsight(ThetaStarNode &p1, ThetaStarNode &p2)
                     }
 
                     //cout << "Cell is occupied" << endl;
-                    float a = sqrt(pow(x-p1.point.x,2)+ pow(p1.point.y-y,2) + pow(p1.point.z-z,2));
-                    float c = sqrt(pow(p2.point.x-x,2)+ pow(p2.point.y-y,2) + pow(p2.point.z-z,2));
+                    float a = sqrt(pow(x-p1.point.x,2)+ pow(p1.point.y-y,2));// + pow(p1.point.z-z,2));
+                    float c = sqrt(pow(p2.point.x-x,2)+ pow(p2.point.y-y,2));// + pow(p2.point.z-z,2));
                     float l = (pow(base,2) + pow(a,2) - pow(c,2))/(2*base);
                     float distance = sqrt(abs(pow(a,2) - pow(l,2)));
 
@@ -534,7 +523,7 @@ bool ThetaStar::lineofsight(ThetaStarNode &p1, ThetaStarNode &p2)
 
 bool ThetaStar::isOccupied(ThetaStarNode n)
 {
-    return !discrete_world[getWorldIndex(n.point.x,n.point.y,n.point.z)].notOccupied;
+    return !discrete_world[getWorldIndex(n.point.x,n.point.y)].notOccupied;
 }
 
 bool ThetaStar::isInitialPositionOccupied()
@@ -588,53 +577,6 @@ bool ThetaStar::searchInitialPosition2d(float maxDistance)
 	
 	return false;
 }
-
-bool ThetaStar::searchInitialPosition3d(float maxDistance)
-{
-	DiscretePosition init_ = discretizePosition(initial_position);			// Start coordinates
-	
-	int maxDistance_ = maxDistance / step;	 		// celdas mas lejanas a 1 metro
-	
-	// Check init point, first if is inside the workspace and second if is occupied	
-	if(setValidInitialPosition(init_))
-		return true;
-		
-	// Check from z=0 to d from the near xy ring to the far xy ring
-	for (int d = 1; d<=maxDistance_; d++)
-	{
-		for(int z=init_.z; z<=init_.z+d; z++)
-		{
-			if(searchInitialPositionInXyRing(init_.x, init_.y, z, d-(z-init_.z)))
-				return true;
-		}
-	}
-	
-	return false;
-}
-
-bool ThetaStar::searchInitialPosition3dBack(float maxDistance)
-{
-	DiscretePosition init_ = discretizePosition(initial_position);			// Start coordinates
-	
-	int maxDistance_ = maxDistance / step;						// celdas mas lejanas a compromabar a maxDistance meters
-	
-	// Check init point, first if is inside the workspace and second if is occupied	
-	if(setValidInitialPosition(init_))
-		return true;
-	
-	// Check from z=0 to d from the near xy ring to the far xy ring
-	for (int d = 1; d<=maxDistance_; d++)
-	{
-		for(int z=init_.z; z<=init_.z+d; z++)
-		{
-			if(searchInitialPositionInXyRingBack(init_.x, init_.y, z, d-(z-init_.z)))
-				return true;
-		}
-	}
-		
-	return false;
-}
-
 bool ThetaStar::searchFinalPosition2d(float maxDistance)
 {
 	DiscretePosition final_ = discretizePosition(final_position);			// Start coordinates
@@ -654,76 +596,6 @@ bool ThetaStar::searchFinalPosition2d(float maxDistance)
 	
 	return false;
 }
-
-bool ThetaStar::searchFinalPosition3d(float maxDistance)
-{
-	DiscretePosition final_ = discretizePosition(final_position);		// Start coordinates
-	
-	int maxDistance_ = maxDistance / step;	 					// celdas mas lejanas a compromabar a maxDistance meters
-	
-	// Check final point, first if is inside the workspace and second if is occupied	
-	if(setValidFinalPosition(final_))
-		return true;
-		
-	// Check from z=0 to d from the near xy ring to the far xy ring
-	for (int d = 1; d<=maxDistance_; d++)
-	{
-		for(int z=final_.z; z<=final_.z+d; z++)
-		{
-			if(searchFinalPositionInXyRing(final_.x, final_.y, z, d-(z-final_.z)))
-				return true;
-		}
-	}
-	
-	return false;
-}
-
-bool ThetaStar::searchFinalPosition3dAhead(float maxDistance)
-{
-	DiscretePosition final_ = discretizePosition(final_position);		// Start coordinates
-	
-	int maxDistance_ = maxDistance / step;	 					// celdas mas lejanas a compromabar a maxDistance meters
-	
-	// Check final point, first if is inside the workspace and second if is occupied	
-	if(setValidFinalPosition(final_))
-		return true;
-		
-	// Check from z=0 to d from the near xy ring to the far xy ring
-	for (int d = 1; d<=maxDistance_; d++)
-	{
-		for(int z=final_.z; z<=final_.z+d; z++)
-		{
-			if(searchFinalPositionInXyRingAhead(final_.x, final_.y, z, d-(z-final_.z)))
-				return true;
-		}
-	}
-	
-	return false;
-}
-
-bool ThetaStar::searchFinalPosition3dAheadHorizontalPrior(float maxDistance)
-{
-	DiscretePosition final_ = discretizePosition(final_position);		// Start coordinates
-	
-	int maxDistance_ = maxDistance / step;	 					// celdas mas lejanas a compromabar a maxDistance meters
-	
-	// Check final point, first if is inside the workspace and second if is occupied	
-	if(setValidFinalPosition(final_))
-		return true;
-		
-	// Check from z=0 to d from the near xy ring to the far xy ring
-	for (int d = 1; d<=maxDistance_; d++)
-	{
-		for(int z=final_.z; z<=final_.z+d; z++)
-		{
-			if(searchFinalPositionInXyRingAheadHorPriority(final_.x, final_.y, z, d-(z-final_.z)))
-				return true;
-		}
-	}
-	
-	return false;
-}
-
 void ThetaStar::setTimeOut(int sec)
 {
     timeout = sec;
@@ -945,7 +817,7 @@ bool ThetaStar::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw)
 	bool pathPointGot = false;	// to know if a middle point is necessary
 
 	// trajectory times
-	double dt_h, dt_v, dt;
+	double dt_h, dt;//dt_v
 	
 	// entire path loop
 	int i = 0;
@@ -972,17 +844,17 @@ bool ThetaStar::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw)
 				if(isFirst)
 				{
 					dt_h = getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) / vm_xy_1;
-					dt_v = fabs(middle_position.z - last_position.z) / vm_z_1;
+					//dt_v = fabs(middle_position.z - last_position.z) / vm_z_1;
 					isFirst = false;
 				}
 				else
 				{
 					dt_h = getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) / vm_xy;
-					dt_v = fabs(middle_position.z - last_position.z) / vm_z;
+					//dt_v = fabs(middle_position.z - last_position.z) / vm_z;
 				}
 				
 				// Set the maximum neccesary elapse time
-				dt = max(dt_h, dt_v);
+				dt = dt_h;// max(dt_h, dt_v);
 				total_time+=dt;
 					
 				// Set path position (last_position is the original last_position or the last middle_position if it exists)				
@@ -994,13 +866,13 @@ bool ThetaStar::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw)
 			}
 			
 		}
-
+	
 		// Set path position, always as Vm_1 (last_position is the original last_position or the last middle_position if it exists)
 		dt_h = getHorizontalNorm(next_position.x - last_position.x, next_position.y - last_position.y) / vm_xy_1;
-		dt_v = fabs(next_position.z - last_position.z) / vm_z_1;
+		//dt_v = fabs(next_position.z - last_position.z) / vm_z_1;
 
 		// Set the maximum neccesary elapse time
-		dt = max(dt_h, dt_v);	
+		dt = dt_h; //max(dt_h, dt_v);	
 		total_time+=dt;
 		
 		setPositionYawAndTime(trajectory_point, next_position, fixed_yaw, total_time);
@@ -1252,20 +1124,20 @@ void ThetaStar::getNeighbors(ThetaStarNode &node, set<ThetaStarNode*,NodePointer
     {
         for(int j=-1;j<2;j++)
         {
-            for(int k=-1;k<2;k++)
-            {
+            //for(int k=-1;k<2;k++)
+            //{
                 /*
                  *Ignore ourselves
                 */
-                if(i!=0 || j!=0 || k!=0)
+                if(i!=0 || j!=0 )//|| k!=0)
                 {
 					node_temp.x = node.point.x + i;
 					node_temp.y = node.point.y + j;
-					node_temp.z = node.point.z + k;
+					node_temp.z = node.point.z;// + k;
                     
-                    if(isInside(node_temp.x, node_temp.y, node_temp.z))
+                    if(isInside(node_temp.x, node_temp.y))
                     {
-                        int nodeInWorld = getWorldIndex(node_temp.x, node_temp.y, node_temp.z);
+                        int nodeInWorld = getWorldIndex(node_temp.x, node_temp.y);
                         
                         ThetaStartNodeLink *new_neighbor = &discrete_world[nodeInWorld];
 
@@ -1289,7 +1161,7 @@ void ThetaStar::getNeighbors(ThetaStarNode &node, set<ThetaStarNode*,NodePointer
                         // delete new_neighbor;
                     }
                 }
-            }
+            //}
         }
     }
 }
@@ -1322,29 +1194,25 @@ void ThetaStar::publishMarker(ThetaStarNode &s, bool publish)
 float ThetaStar::distanceToGoal(ThetaStarNode node)
 {
     return sqrt(pow(disc_final->point.x-node.point.x,2) +
-                pow(disc_final->point.y-node.point.y,2) +
-                pow(disc_final->point.z-node.point.z,2));
+                pow(disc_final->point.y-node.point.y,2));
 }
 
 float ThetaStar::weightedDistanceToGoal(ThetaStarNode node)
 {
-    return goal_weight * sqrt(				pow(disc_final->point.x-node.point.x,2) +
-								pow(disc_final->point.y-node.point.y,2) +
-                z_weight_cost * pow(disc_final->point.z-node.point.z,2));
+    return goal_weight * sqrt(	pow(disc_final->point.x-node.point.x,2) +
+								pow(disc_final->point.y-node.point.y,2) );
 }
 
 float ThetaStar::distanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2)
 {
     return sqrt(pow(n1.point.x-n2.point.x,2) +
-                pow(n1.point.y-n2.point.y,2) +
-                pow(n1.point.z-n2.point.z,2));
+                pow(n1.point.y-n2.point.y,2) );
 }
 
 float ThetaStar::weightedDistanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2)
 {
     return sqrt(				pow(n1.point.x-n2.point.x,2) +
-								pow(n1.point.y-n2.point.y,2) +
-                z_weight_cost * pow(n1.point.z-n2.point.z,2));
+								pow(n1.point.y-n2.point.y,2) );
 }
 
 float ThetaStar::distanceFromInitialPoint(ThetaStarNode node, ThetaStarNode parent)
@@ -1358,8 +1226,7 @@ float ThetaStar::distanceFromInitialPoint(ThetaStarNode node, ThetaStarNode pare
         else
         {
             res = parent.distanceFromInitialPoint +  (sqrt(	pow(node.point.x-parent.point.x,2) +
-																					pow(node.point.y-parent.point.y,2) +
-																					pow(node.point.z-parent.point.z,2)));
+															pow(node.point.y-parent.point.y,2) ));
         }
 
     return res;
@@ -1376,8 +1243,7 @@ float ThetaStar::weightedDistanceFromInitialPoint(ThetaStarNode node, ThetaStarN
         else
         {
             res = parent.distanceFromInitialPoint + (sqrt(	pow(node.point.x-parent.point.x,2) +
-															pow(node.point.y-parent.point.y,2) +
-											z_weight_cost *	pow(node.point.z-parent.point.z,2)));
+															pow(node.point.y-parent.point.y,2) ));
         }
 
     return res;
@@ -1506,13 +1372,13 @@ bool ThetaStar::checkMiddlePosition(Vector3 last_position, Vector3 next_position
 {
 	// Flag
 	bool pathPointGot = true;	// to know if a middle point is necessary (funtion returned value)
-	bool Limited_V = false;		// to know if a the next point is limited vertically, to check correctly the horizontal limitation
+	//bool Limited_V = false;		// to know if a the next point is limited vertically, to check correctly the horizontal limitation
 	
 	// Position max increments (where descomposes dxy_max)
 	double DXmax, DYmax;
 	
 	// Check Vertically Limit
-	if(fabs(next_position.z - last_position.z) > (dz_max + dxyz_tolerance))
+	/*if(fabs(next_position.z - last_position.z) > (dz_max + dxyz_tolerance))
 	{
 		// Z to the max
 		if(next_position.z - last_position.z > 0.0)
@@ -1528,15 +1394,15 @@ bool ThetaStar::checkMiddlePosition(Vector3 last_position, Vector3 next_position
 		// Exist limitation, so the point is not directly reached 
 		pathPointGot = false;
 		Limited_V = true;
-	}
+	}*/
 	
 	// Check Horizontal Limit 
 		/* WARNING: it is necessary to distinguish between if Z has been limited or not: 
 		 *	- If not: The current X Y target are the next position in the path --> the next_position 
 		 *	- If yes: The current X Y target are the proportional to the Z limited --> the current middle_position */					
-	switch(Limited_V)
-	{
-		case false:
+	//switch(Limited_V)
+	//{
+		/*case false:
 					if(getHorizontalNorm(next_position.x - last_position.x, next_position.y - last_position.y) > (dxy_max + dxyz_tolerance))
 					{
 						// X and Y to the max (It exists a singularity at DX = 0.0, so if that directly set the known values)
@@ -1569,9 +1435,9 @@ bool ThetaStar::checkMiddlePosition(Vector3 last_position, Vector3 next_position
 						pathPointGot = false;
 					}
 					
-					break;
+					break;*/
 									
-		case true:
+		//case true:
 					if(getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) > (dxy_max + dxyz_tolerance))
 					{
 						// X and Y to the max (It exists a singularity at DX = 0.0, so if that directly set the known values)
@@ -1587,8 +1453,8 @@ bool ThetaStar::checkMiddlePosition(Vector3 last_position, Vector3 next_position
 						}
 						
 						// Z proportional to the XY limited (it need to be do previous to modificate middle_position.x and .y)
-						double beta =  dxy_max / getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y);
-						middle_position.z = last_position.z + beta * (middle_position.z - last_position.z);
+						//double beta =  dxy_max / getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y);
+						//middle_position.z = last_position.z + beta * (middle_position.z - last_position.z);
 						
 						if(next_position.x - last_position.x > 0.0)
 							middle_position.x = last_position.x + DXmax;
@@ -1604,8 +1470,8 @@ bool ThetaStar::checkMiddlePosition(Vector3 last_position, Vector3 next_position
 						pathPointGot = false;
 					}
 					
-					break;
-	}
+					//break;
+	//}
 	
 	return pathPointGot;	
 }

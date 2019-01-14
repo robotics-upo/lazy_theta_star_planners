@@ -110,8 +110,8 @@ class ThetaStarNode//Solo eliminar la parte que compara la componente z en la so
 	   friend bool operator != (const ThetaStarNode& lhs, const ThetaStarNode& rhs)
 	   {
 		  return lhs.point.x!=rhs.point.x ||
-				 lhs.point.y!=rhs.point.y ||
-				 lhs.point.z!=rhs.point.z; //Eliminar
+				 lhs.point.y!=rhs.point.y; //||
+				 //lhs.point.z!=rhs.point.z; //Eliminar
 	   }
 };
 
@@ -133,10 +133,10 @@ struct NodePointerComparator//Similar a a lo anterior, eliminar la parte del cod
       {
          res = lhs->point.y - rhs->point.y;
       }
-      if(res==0)//Eliminar
+      /*if(res==0)//Eliminar
       {
          res = lhs->point.z - rhs->point.z;
-      }
+      }*/
 
       if(res==0)
       {
@@ -146,10 +146,10 @@ struct NodePointerComparator//Similar a a lo anterior, eliminar la parte del cod
       {
          res = lhs->parentNode->point.y - rhs->parentNode->point.y;
       }
-      if(res==0)//Eliminar
+      /*if(res==0)//Eliminar
       {
          res = lhs->parentNode->point.z - rhs->parentNode->point.z;
-      }
+      }*/
 
       return res < 0;
    }
@@ -180,8 +180,8 @@ class ThetaStar
 		   @param NodeHandle 
 		**/ // Eliminar ws_z_max y min, inflation vertical, z not inflated y z weight cost
 		ThetaStar(char* plannerName, char* frame_id, 
-		float ws_x_max_, float ws_y_max_, float ws_z_max_, float ws_x_min_, float ws_y_min_, float ws_z_min_, 
-		float step_, float h_inflation_, float v_inflation_, float goal_weight_, float z_weight_cost_, float z_not_inflate_, ros::NodeHandle *n);
+		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
+		float step_, float h_inflation_, float goal_weight_, ros::NodeHandle *n);
 
 		/**
 		  Initialization
@@ -196,8 +196,8 @@ class ThetaStar
 		   @param NodeHandle 
 		**/ //Analogo al constructor anterior
 		void init(char* plannerName, char* frame_id, 
-		float ws_x_max_, float ws_y_max_, float ws_z_max_, float ws_x_min_, float ws_y_min_, float ws_z_min_, 
-		float step_, float h_inflation_, float v_inflation_, float goal_weight_, float z_weight_cost_, float z_not_inflate_, ros::NodeHandle *n);
+		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
+		float step_, float h_inflation_, float goal_weight_, ros::NodeHandle *n);
 
 		/**
 		  Default destructor
@@ -213,7 +213,7 @@ class ThetaStar
 			@param w_yaw:			Mean angular velocity at yaw [rad/s]
 			@param min_yaw_ahead:	Minimum position increment to set yaw ahead [meters]
 		**///Eliminar dz_max, las mean linear velocities para z 
-		void setTrajectoryParams(float dxy_max_, float dz_max_, float dxyz_tolerance_, float vm_xy_, float vm_z_, float vm_xy_1_, float vm_z_1_, float w_yaw_, float min_yaw_ahead_);
+		void setTrajectoryParams(float dxy_max_, float dxyz_tolerance_, float vm_xy_, float vm_xy_1_, float w_yaw_, float min_yaw_ahead_);
 
 		/**
 		  Override actual occupancy matrix
@@ -342,8 +342,7 @@ class ThetaStar
 		   @return true if a initial valid position has been set
 		**/
 		bool searchInitialPosition2d(float maxDistance); 		// Symetric search in nearest XY neighbours //Puede que nos podamos quedar con esta funcion, adapatandola y eliminar la 3d y 3dback directamente
-		bool searchInitialPosition3d(float maxDistance);		// Symetric search in nearest XY-Zup neighbours
-		bool searchInitialPosition3dBack(float maxDistance);	// Symetric search in nearest Xback-Y-Zup neighbours
+		
 
 		/**
 		 Check if the current final position is VALID and, if it
@@ -353,9 +352,7 @@ class ThetaStar
 		   @return true if a initial valid position has been set
 		**/
 		bool searchFinalPosition2d(float maxDistance); 						// Symetric search in nearest XY neighbours //Lo mismo que en el caso de initial position
-		bool searchFinalPosition3d(float maxDistance);						// Symetric search in nearest XY-Zup neighbours
-		bool searchFinalPosition3dAhead(float maxDistance);					// Symetric search in nearest XinFront-Y-Zup neighbours
-		bool searchFinalPosition3dAheadHorizontalPrior(float maxDistance);	// Asymetric search in nearest XinFront-Y-Zup neighbours
+		
 
 		/**
 		  Returns current initial/final position
@@ -505,9 +502,9 @@ class ThetaStar
 		   @param x, y, z discrete position values
 		   @return the index in the occupancy matrix
 		**/
-		inline unsigned int getWorldIndex(int &x, int &y, int &z) //ELiminar la z
+		inline unsigned int getWorldIndex(int &x, int &y) //ELiminar la z
 		{
-			return (unsigned int)((x - ws_x_min_inflated) + (Lx)*((y - ws_y_min_inflated) + (Ly)*(z - ws_z_min_inflated))); //quitar z
+			return (unsigned int)((x - ws_x_min_inflated) + (Lx)*((y - ws_y_min_inflated))); // + (Ly)*(z - ws_z_min_inflated))); //quitar z
 		}
 
 		/**
@@ -521,12 +518,12 @@ class ThetaStar
 			//		for			   Y=WS_Y_MIN	  Y=WS_Y_MIN+1  ... Y=WS_Y_MAX     |  Y=WS_Y_MIN	  Y=WS_Y_MIN+1  ... Y=WS_Y_MAX   | ............. | Y=WS_Y_MIN	  Y=WS_Y_MIN+1  ... Y=WS_Y_MAX    
 			//		for			   				  Z = WS_Z_MIN 					   |                  Z = WS_Z_MIN+1				 | ............. |            Z = WS_Z_MAX = WS_Z_MIN+Lz      
 			
-			int z_n_segmts = floor( index * Lx_inv * Ly_inv );					// Index z segment (0 to Lz)
-			int y_n_segmts = floor( (index - z_n_segmts * Lx * Ly) * Ly_inv );	// Index y segment (0 to Ly)
+								
+			int y_n_segmts = floor( index  * Ly_inv );	// Index y segment (0 to Ly)
 			
-			x = ws_x_min_inflated + (index - z_n_segmts*Lx*Ly - y_n_segmts*Lx);
+			x = ws_x_min_inflated + (index -  y_n_segmts*Lx);
 			y = ws_y_min_inflated + y_n_segmts;
-			z = ws_z_min_inflated + z_n_segmts; // quitar?
+			z = 0; // quitar?
 		}
 
 		/**
@@ -536,20 +533,20 @@ class ThetaStar
 		**/
 		inline bool isInside(ThetaStarNode n)
 		{
-			return  isInside(n.point.x,n.point.y,n.point.z); //Qutar z
+			return  isInside(n.point.x,n.point.y); //Qutar z
 		}
 		inline bool isInside(Vector3 &v) //Sustituir vector3
 		{
 			int x_ = v.x*step_inv;
 			int y_ = v.y*step_inv;
-			int z_ = v.z*step_inv; //Quitar z
-			return  isInside(x_, y_, z_); //Quitar z
+			
+			return  isInside(x_, y_); //Quitar z
 		}
-		inline bool isInside(int &x, int &y, int &z) //quitar z
+		inline bool isInside(int &x, int &y) //quitar z
 		{
 			return  (x < (ws_x_max-1) && x > (ws_x_min+1)) &&
-					(y < (ws_y_max-1) && y > (ws_y_min+1)) &&
-					(z < (ws_z_max-1) && z > (ws_z_min+1)); //quitar z
+					(y < (ws_y_max-1) && y > (ws_y_min+1)); //&&
+					//(z < (ws_z_max-1) && z > (ws_z_min+1)); //quitar z
 		}
 
 		/**
@@ -573,7 +570,7 @@ class ThetaStar
 			for(int j = y_inflated_min; j <= y_inflated_max; j++)
 				for(int k = z_inflated_min; k <= z_inflated_max; k++)
 				{
-					unsigned int world_index_x_inflated_min = getWorldIndex(x_inflated_min, j, k);
+					unsigned int world_index_x_inflated_min = getWorldIndex(x_inflated_min, j);
 					memset(&discrete_world[world_index_x_inflated_min], 0, (x_inflated_max - x_inflated_min)*sizeof(ThetaStartNodeLink)); 
 				}
 		}
@@ -604,7 +601,7 @@ class ThetaStar
 					{
 						if(isInsideTheCylinder(i,j, x_,y_, R))
 						{
-							unsigned int world_index_ = getWorldIndex(i, j, k);
+							unsigned int world_index_ = getWorldIndex(i, j);
 							discrete_world[world_index_].notOccupied = false;
 							discrete_world[world_index_].lastTimeSeen = 0;
 						}
@@ -627,7 +624,7 @@ class ThetaStar
 			for(int i = x_inflated_min; i <= x_inflated_max; i++)
 				for(int j = y_inflated_min; j <= y_inflated_max; j++)
 				{
-					unsigned int world_index_ = getWorldIndex(i, j, z_);
+					unsigned int world_index_ = getWorldIndex(i, j);
 					discrete_world[world_index_].notOccupied = false;
 				}
 		}

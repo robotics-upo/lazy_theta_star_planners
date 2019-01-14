@@ -156,13 +156,13 @@ int main(int argc, char **argv)
     printf("\t Trajectory Angular vel: [%.2f], Minimum Dpos: [%.2f]\n\n", traj_wyaw_m, traj_yaw_tol);
     
     // Init Theta*
-    ThetaStar theta((char*)node_name.c_str(), (char*)"/world", ws_x_max, ws_y_max, ws_z_max, ws_x_min, ws_y_min, ws_z_min, map_resolution, map_h_inflaction, map_v_inflaction, goal_weight, z_weight_cost, z_not_inflate, &n);
+    ThetaStar theta((char*)node_name.c_str(), (char*)"/world", ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, map_h_inflaction, goal_weight, &n);
 	
 	// Set timeout
 	theta.setTimeOut(20);
 	
 	// Set resulting trajectroy parameters
-	theta.setTrajectoryParams(traj_dxy_max, traj_dz_max, traj_pos_tol, traj_vxy_m, traj_vz_m, traj_vxy_m_1, traj_vz_m_1, traj_wyaw_m, traj_yaw_tol);
+	theta.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_vxy_m, traj_vxy_m_1, traj_wyaw_m, traj_yaw_tol);
 	
 	// Path solution visualization marker
     visualization_msgs::Marker path_marker;

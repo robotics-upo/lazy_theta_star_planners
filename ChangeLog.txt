@@ -1,0 +1,62 @@
+
+ThetaStar.cpp:
+
+    Linea 38-48: Eliminados los parametros en z de las declaraciones del constructor ThetaStar e init
+
+
+    Lineas 60-90: Eliminados todos los parametros relativos a z 
+
+    Lineas 141-156: Eliminado el uso de la z en la funcion SetTrajectoryParams
+
+    Lineas 158-259: Eliminado el uso de la z en las funciones updateMap paraç
+    point clouds y octomaps ( habra que eliminarlas enteras y sustituirlas en el futuro)
+
+    Linea 273: En la funcion publishOccupationMarkersMap se ha quitado el bucle en z (el mas interno
+    y se ha añadido una variable provisional k=0 para que no de error
+
+    Lineas 310-452: Eliminado el uso de la componente z en las funciones setInitialPosition y
+    setFinalPosition tanto en sus versiones para Vector3 como para getDiscreteWorldPositionIndex
+
+    Linea 476-Modificada funcion lineofsight para no tener en cuenta las z
+
+    Linea 537: La funcion isOccupied ya no tiene en cuenta la componente vm_z
+
+    Linea 591-638: Eliminadas funciones searchInitialPosition3d y 3dback
+
+    Linea 658-727: Eliminadas funciones searchFinalPosition3d y sus variantes
+    
+    Linea 791: En la funcion getTrajectoryYawFixed ya no se usa vm_z y dt_v 
+    
+    Lineas 1245-1295: La funcion getNeighbours ya no tiene en cuenta la z 
+
+    Lineas 1322-1380: Eliminados los aportes de z de las funciones que calculan distancias
+    de esa forma solo tienen en cuenta las componentes x e y para el calculo
+    
+    //funcion checkmiddleposition
+
+    //funciones getTrajectoryYaw varias
+    
+ThetaStar.hpp:
+
+    Lineas 114: Eliminada la comprobacion en z en la sobrecarga del operador !=
+    
+    Linea 136-139 y 149-152: Eliminada la comprobacion de la igualdad de las componentes z
+    
+    Lineas 182 y 199: Eliminados los parametros relacionados con z de los argumentos del constructor ThetaStar
+    y la funcion init
+
+    Linea 216: Eliminados los parametros relacionados con z de la funcion SetTrajectoryParams
+    
+    Lineas 345-358: Eliminadas las declaraciones de las funcione searchInitialPosition y searchFinalPosition en
+    sus variantes 3d
+
+    Linea 508 y 518: Funciones getWorldIndex y getDiscreteWorldPositionIndex:
+    Hemos reducido a 2d-> Tambien se ha modificado las llamadas a estas para pasar de 3 argumentos
+    a dos argumentos
+
+    Linea 537-553: Funciones isInside cambiadas de 3d a 2d, tanto variables como inputs
+    Se han cambiado toda sus llamadas tambien
+    
+
+
+
