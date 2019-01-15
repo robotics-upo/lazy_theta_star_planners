@@ -38,6 +38,8 @@ ThetaStar.cpp:
     
 ThetaStar.hpp:
 
+    Linea 67: Eliminada la componente z de DiscretePosition y por consecuencia todo lo que la usa
+    en el algoritmo
     Lineas 114: Eliminada la comprobacion en z en la sobrecarga del operador !=
     
     Linea 136-139 y 149-152: Eliminada la comprobacion de la igualdad de las componentes z
@@ -54,9 +56,13 @@ ThetaStar.hpp:
     Hemos reducido a 2d-> Tambien se ha modificado las llamadas a estas para pasar de 3 argumentos
     a dos argumentos
 
+    Lineas 558 - 615: Eliminado el uso de la z en las funciones de inflate
+
+    Lineas 654-841: Eliminado el uso de la z en las funciones searchInitialPositionInXyRing y sus variantes
+
     Linea 537-553: Funciones isInside cambiadas de 3d a 2d, tanto variables como inputs
     Se han cambiado toda sus llamadas tambien
     
-
+    Lineas 845- : Eliminadas las declaraciones de variables relacionadas con z
 
 

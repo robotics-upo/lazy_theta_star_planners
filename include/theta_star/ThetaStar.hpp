@@ -20,6 +20,8 @@
 //las herramientas aplicables a estos objetos tridimensionales
 #include <visualization_msgs/Marker.h>
 
+#include <nav_msgs/OccupancyGrid.h>
+
 //Eliminar lo relacionado con octomap porque usaremos occupancy grids
 #include <octomap_msgs/Octomap.h> //Octomap Binary
 #include <octomap/OcTree.h>
@@ -64,7 +66,7 @@ typedef visualization_msgs::Marker RVizMarker;
 class DiscretePosition//Eliminar la z
 {
 	public:
-	   int x,y,z;
+	   int x,y;
 };
 
 // Nodes (declaration)
@@ -214,13 +216,17 @@ class ThetaStar
 			@param min_yaw_ahead:	Minimum position increment to set yaw ahead [meters]
 		**///Eliminar dz_max, las mean linear velocities para z 
 		void setTrajectoryParams(float dxy_max_, float dxyz_tolerance_, float vm_xy_, float vm_xy_1_, float w_yaw_, float min_yaw_ahead_);
-
+		/**
+		  
+		 
+		 **/
+		void getMap(nav_msgs::OccupancyGrid message);
 		/**
 		  Override actual occupancy matrix
 		   @param octomap msg
 		**/ 
 		void updateMap(octomap_msgs::Octomap message);//Cambiar octomap por occupancy grid...
-
+		
 		/**
 		  Add a cloud to the actual occupancy matrix
 		   @param pcl pointCloud 
@@ -291,7 +297,7 @@ class ThetaStar
 			{
 				if(!isInitialPositionOccupied())	
 				{
-					ROS_INFO("ThetaStar: Initial discrete position [%d, %d, %d] set correctly", p.x,p.y,p.z); //Quitar p.z
+					ROS_INFO("ThetaStar: Initial discrete position [%d, %d] set correctly", p.x,p.y); //Quitar p.z
 					return true;
 				}
 			}
@@ -315,7 +321,7 @@ class ThetaStar
 			{
 				if(!isFinalPositionOccupied())	
 				{
-					ROS_INFO("ThetaStar: Final discrete position [%d, %d, %d] set correctly", p.x,p.y,p.z);//Quitar pz?
+					ROS_INFO("ThetaStar: Final discrete position [%d, %d] set correctly", p.x,p.y);//Quitar pz?
 					return true;
 				}
 			}
@@ -504,7 +510,7 @@ class ThetaStar
 		**/
 		inline unsigned int getWorldIndex(int &x, int &y) //ELiminar la z
 		{
-			return (unsigned int)((x - ws_x_min_inflated) + (Lx)*((y - ws_y_min_inflated))); // + (Ly)*(z - ws_z_min_inflated))); //quitar z
+			return (unsigned int)((x - ws_x_min_inflated) + (Lx)*((y - ws_y_min_inflated))); 
 		}
 
 		/**
@@ -512,18 +518,24 @@ class ThetaStar
 		   @param x, y, z discrete position values (output)
 		   @param index (input)
 		**/
-		inline void getDiscreteWorldPositionFromIndex(int &x, int &y, int &z, int index)
+		inline void getDiscreteWorldPositionFromIndex(int &x, int &y, int index)
 		{
 			// Discrete matrix = [(ALL_X_SEGMENT)(ALL_X_SEGMENT)...(ALL_X_SEGMENT) | (ALL_X_SEGMENT)(ALL_X_SEGMENT)...(ALL_X_SEGMENT)| ............. |(ALL_X_SEGMENT)(ALL_X_SEGMENT)...(ALL_X_SEGMENT)]
 			//		for			   Y=WS_Y_MIN	  Y=WS_Y_MIN+1  ... Y=WS_Y_MAX     |  Y=WS_Y_MIN	  Y=WS_Y_MIN+1  ... Y=WS_Y_MAX   | ............. | Y=WS_Y_MIN	  Y=WS_Y_MIN+1  ... Y=WS_Y_MAX    
 			//		for			   				  Z = WS_Z_MIN 					   |                  Z = WS_Z_MIN+1				 | ............. |            Z = WS_Z_MAX = WS_Z_MIN+Lz      
 			
-								
-			int y_n_segmts = floor( index  * Ly_inv );	// Index y segment (0 to Ly)
+			//Review index calculation and matrix index calculation					
+			//int z_n_segmts = floor( index * Lx_inv * Ly_inv );					// Index z segment (0 to Lz)
+			//int y_n_segmts = floor( (index - z_n_segmts * Lx * Ly) * Ly_inv );	// Index y segment (0 to Ly)
 			
-			x = ws_x_min_inflated + (index -  y_n_segmts*Lx);
-			y = ws_y_min_inflated + y_n_segmts;
-			z = 0; // quitar?
+			//x = ws_x_min_inflated + (index - z_n_segmts*Lx*Ly - y_n_segmts*Lx);
+			//y = ws_y_min_inflated + y_n_segmts;
+			//z = ws_z_min_inflated + z_n_segmts; // quitar?
+			//Provisional para map_server map con tamaño fijo conocido
+			int y_n_segmts = floor( index  /(Lx-3) );	// Index y segment (0 to Ly)
+			
+			x =  (index -  y_n_segmts*(Lx-3));
+			y =  y_n_segmts;
 		}
 
 		/**
@@ -545,8 +557,7 @@ class ThetaStar
 		inline bool isInside(int &x, int &y) //quitar z
 		{
 			return  (x < (ws_x_max-1) && x > (ws_x_min+1)) &&
-					(y < (ws_y_max-1) && y > (ws_y_min+1)); //&&
-					//(z < (ws_z_max-1) && z > (ws_z_min+1)); //quitar z
+					(y < (ws_y_max-1) && y > (ws_y_min+1)); 
 		}
 
 		/**
@@ -555,21 +566,17 @@ class ThetaStar
 		  occupation matrix nodes that have to be inflated
 			@param discrete position of the cell to inflate		
 		**/
-		inline void inflateNodeAsCube(int &x_, int &y_, int &z_)
+		inline void inflateNodeAsCube(int &x_, int &y_)
 		{
 			// Inflation limits around the node
 			int x_inflated_max = (x_ + h_inflation) + 1;
 			int x_inflated_min = (x_ - h_inflation) - 1;
 			int y_inflated_max = (y_ + h_inflation) + 1;
 			int y_inflated_min = (y_ - h_inflation) - 1;
-			int z_inflated_max = (z_ + v_inflation) + 1;
-			int z_inflated_min = (z_ - v_inflation) - 1;
-
+			
 			// Loop 'x axis' by 'x axis' for all discrete occupancy matrix cube around the node that must be inflated
 			// Due to the inflated occupancy matrix size increment, the inside checking is not neccesary
-			for(int j = y_inflated_min; j <= y_inflated_max; j++)
-				for(int k = z_inflated_min; k <= z_inflated_max; k++)
-				{
+			for(int j = y_inflated_min; j <= y_inflated_max; j++){
 					unsigned int world_index_x_inflated_min = getWorldIndex(x_inflated_min, j);
 					memset(&discrete_world[world_index_x_inflated_min], 0, (x_inflated_max - x_inflated_min)*sizeof(ThetaStartNodeLink)); 
 				}
@@ -580,7 +587,7 @@ class ThetaStar
 		  the occupancy matrix. 
 			@param discrete position of the cell to inflate
 		**/
-		inline void inflateNodeAsCylinder(int &x_, int &y_, int &z_)
+		inline void inflateNodeAsCylinder(int &x_, int &y_)
 		{
 			// Get discretized radius of the inflation cylinder
 			int R = h_inflation;
@@ -590,15 +597,12 @@ class ThetaStar
 			int x_inflated_min = (x_ - h_inflation) - 1;
 			int y_inflated_max = (y_ + h_inflation) + 1;
 			int y_inflated_min = (y_ - h_inflation) - 1;
-			int z_inflated_max = (z_ + v_inflation) + 1;
-			int z_inflated_min = (z_ - v_inflation) - 1;
+	
 			
 			// Loop throug inflation limits checking if it is inside the cylinder	
 			// Due to the inflated occupancy matrix size increment, the inside checking is not neccesary
 			for(int i = x_inflated_min; i <= x_inflated_max; i++)
-				for(int j = y_inflated_min; j <= y_inflated_max; j++)
-					for(int k = z_inflated_min; k <= z_inflated_max; k++)
-					{
+				for(int j = y_inflated_min; j <= y_inflated_max; j++){
 						if(isInsideTheCylinder(i,j, x_,y_, R))
 						{
 							unsigned int world_index_ = getWorldIndex(i, j);
@@ -612,7 +616,7 @@ class ThetaStar
 		  Inflate a occupied cells filling all cells around in the occupancy matrix ONLY HORIZONTALLY
 			@param discrete position of the cell to inflate
 		**/
-		inline void inflateNodeAsXyRectangle(int &x_, int &y_, int &z_)
+		inline void inflateNodeAsXyRectangle(int &x_, int &y_)
 		{
 			// Inflation limits
 			int x_inflated_max = (x_ + h_inflation) + 1;
@@ -651,7 +655,7 @@ class ThetaStar
 		   @param 'd' search radius
 		   @return true if is a valid initial/final position and has been set correctly
 		**/
-		inline bool searchInitialPositionInXyRing(int xs, int ys, int zs, int d)
+		inline bool searchInitialPositionInXyRing(int xs, int ys, int d)
 		{
 			// 2 sides of the rectangular ring ..
 			for (int i = 0; i < d + 1; i++)
@@ -659,7 +663,7 @@ class ThetaStar
 				DiscretePosition p1;
 				p1.x = xs - d + i;
 				p1.y = ys - i;
-				p1.z = zs;
+				
 				
 				if(setValidInitialPosition(p1))
 					return true;
@@ -680,7 +684,6 @@ class ThetaStar
 				DiscretePosition p2;
 				p2.x = xs - i;
 				p2.y = ys + d - i;
-				p2.z = zs;
 
 				if(setValidInitialPosition(p2))
 					return true;
@@ -695,7 +698,7 @@ class ThetaStar
 			return false;
 		}
 
-		inline bool searchInitialPositionInXyRingBack(int xs, int ys, int zs, int d)
+		inline bool searchInitialPositionInXyRingBack(int xs, int ys, int d)
 		{
 			// 2 sides of the rectangular ring ..
 			for (int i = 0; i < d + 1; i++)
@@ -703,8 +706,7 @@ class ThetaStar
 				DiscretePosition p1;
 				p1.x = xs - d + i;
 				p1.y = ys - i;
-				p1.z = zs;
-				
+		
 				if(p1.x < -1)
 					if(setValidInitialPosition(p1))
 						return true;
@@ -726,7 +728,6 @@ class ThetaStar
 				DiscretePosition p2;
 				p2.x = xs - i;
 				p2.y = ys + d - i;
-				p2.z = zs;
 
 				if(p2.x < -1)
 					if(setValidInitialPosition(p2))
@@ -743,7 +744,7 @@ class ThetaStar
 			return false;
 		}
 
-		inline bool searchFinalPositionInXyRing(int xs, int ys, int zs, int d)
+		inline bool searchFinalPositionInXyRing(int xs, int ys, int d)
 		{
 			// 2 sides of the rectangular ring ..
 			for (int i = 0; i < d + 1; i++)
@@ -751,7 +752,6 @@ class ThetaStar
 				DiscretePosition p1;
 				p1.x = xs - d + i;
 				p1.y = ys - i;
-				p1.z = zs;
 				
 				if(setValidFinalPosition(p1))
 					return true;
@@ -772,7 +772,6 @@ class ThetaStar
 				DiscretePosition p2;
 				p2.x = xs - i;
 				p2.y = ys + d - i;
-				p2.z = zs;
 
 				if(setValidFinalPosition(p2))
 					return true;
@@ -787,7 +786,7 @@ class ThetaStar
 			return false;
 		}
 
-		inline bool searchFinalPositionInXyRingAhead(int xs, int ys, int zs, int d)
+		inline bool searchFinalPositionInXyRingAhead(int xs, int ys, int d)
 		{	
 			// 2 sides of the rectangular ring ..
 			for (int i = 0; i < d + 1; i++)
@@ -795,7 +794,6 @@ class ThetaStar
 				DiscretePosition p1;
 				p1.x = xs - d + i;
 				p1.y = ys - i;
-				p1.z = zs;
 				
 				if(p1.x > 1)
 					if(setValidFinalPosition(p1))
@@ -818,7 +816,6 @@ class ThetaStar
 				DiscretePosition p2;
 				p2.x = xs - i;
 				p2.y = ys + d - i;
-				p2.z = zs;
 
 				if(p2.x > 1)
 					if(setValidFinalPosition(p2))
@@ -835,10 +832,10 @@ class ThetaStar
 			return false;
 		}
 
-		inline bool searchFinalPositionInXyRingAheadHorPriority(int xs, int ys, int zs, int d)
+		inline bool searchFinalPositionInXyRingAheadHorPriority(int xs, int ys, int d)
 		{
 			// Force search more horizontally
-			return searchFinalPositionInXyRingAhead(xs, ys, zs, 2*d);
+			return searchFinalPositionInXyRingAhead(xs, ys, 2*d);
 		}
 
 
@@ -847,14 +844,14 @@ class ThetaStar
 		// Global Occupancy Matrix
 		std::vector<ThetaStartNodeLink> discrete_world;	// Occupancy Matrix and its size 
 		int matrix_size;
-		int ws_x_max, ws_y_max, ws_z_max; // WorkSpace lenghts from origin (0,0,0)
-		int ws_x_min, ws_y_min, ws_z_min;
+		int ws_x_max, ws_y_max; // WorkSpace lenghts from origin (0,0,0)
+		int ws_x_min, ws_y_min;
 		int h_inflation; // Inflation (Real and Safe distances from the MAV CoG)
-		int v_inflation;
-		int ws_x_max_inflated, ws_y_max_inflated, ws_z_max_inflated; // Inflated WorkSpace, the real size of the Occupancy Matrix
-		int ws_x_min_inflated, ws_y_min_inflated, ws_z_min_inflated; // ... less isInside() checking
-		int Lx, Ly, Lz;	// Inflated WorkSpace lenghts and theirs pre-computed inverses
-		float Lx_inv, Ly_inv, Lz_inv;
+		
+		int ws_x_max_inflated, ws_y_max_inflated; // Inflated WorkSpace, the real size of the Occupancy Matrix
+		int ws_x_min_inflated, ws_y_min_inflated; // ... less isInside() checking
+		int Lx, Ly;	// Inflated WorkSpace lenghts and theirs pre-computed inverses
+		float Lx_inv, Ly_inv;
 		float step;	// Resolution of the Matrix and its inverse
 		float step_inv;
 
@@ -873,8 +870,7 @@ class ThetaStar
 
 		// Lazy Theta* with Optimization:  
 		float goal_weight; // Reduction of the initial position distance weight C(s) = factor * g(s) + h(s) 
-		float z_weight_cost; // Weight for height changes
-		float z_not_inflate; // Altitude to not be inflated
+		
 
 		// Debug Visualization markers and theirs topics
 		ros::NodeHandle *nh; // Pointer to the process NodeHandle to publish topics
@@ -890,9 +886,9 @@ class ThetaStar
 		float dz_max;
 		float dxyz_tolerance; // Position tolerance for the path to trajectory segmentation [meters]
 		float vm_xy; // Mean linear velocities [m/s]
-		float vm_z;
+		
 		float vm_xy_1; // Mean linear velocities for initial and final displacement [m/s]
-		float vm_z_1;
+
 		float w_yaw; // Mean angular velocity at yaw [rad/s]
 		float min_yaw_ahead; // Minimum position increment to set yaw ahead [meters]
 		bool trajectoryParamsConfigured; // Flag to enable the Trajectory Computation
