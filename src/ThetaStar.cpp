@@ -149,118 +149,16 @@ void ThetaStar::getMap(nav_msgs::OccupancyGrid message){
     clearMap();
     int t = message.info.width * message.info.height;
     int n = 0;
-    for(unsigned int i = 0; i <= t;  i++){
+    for(unsigned int i = 0; i < t;  i++){
         int x,y;
         
         getDiscreteWorldPositionFromIndex(x, y, i);
+        
         if(isInside(x,y) && message.data[i] == 100){
-                discrete_world[i].notOccupied = false;       
-        }
-        if( n < 105 ){
-            if(!discrete_world[i].notOccupied)
-                cout<<"-";
-            n++;
-        }else{
-            n = 0;
-            cout<<"\n";
+            discrete_world[i].notOccupied = false;   
         }
     }
 }
-void ThetaStar::updateMap(octomap_msgs::Octomap message)
-{
-	// Clear current map in the discrete occupancy
-	clearMap();
-	
-    // Read occupation data from the octomap_server
-    m = (octomap::OcTree*)octomap_msgs::binaryMsgToMap(message);
-
-    /*
-     * Update discrete world with the read octomap data
-     */
-
-	// Occupied and not occupied points, only for debug
-    u_int64_t occupied_leafs=0, free_leafs=0;
-
-	// Read from first to the last leaf of the tree set its xyz (discretized) if it is occupied into the occupancy matrix
-    if(m->begin_leafs()!=NULL)
-    {
-        for(octomap::OcTree::leaf_iterator it = m->begin_leafs(), end=m->end_leafs();   it!= end;    ++it)
-        {
-            if(m->isNodeOccupied(*it))
-            {
-				// Get occupied cells
-				float x_w = it.getX();
-				float y_w = it.getY();
-				float z_w = it.getZ();
-
-				// Exact discretization
-                int x_ = (int)(x_w*step_inv);
-                int y_ = (int)(y_w*step_inv);
-                int z_ = (int)(z_w*step_inv);
-
-				// Set as occupied in the discrete matrix
-                if(isInside(x_, y_))
-                {
-                    unsigned int world_index_ = getWorldIndex(x_, y_);
-                    discrete_world[world_index_].notOccupied = false;					
-					
-					// Inflates nodes
-					if(h_inflation >= step )
-					{
-							inflateNodeAsXyRectangle(x_, y_);
-					}
-                }
-                
-				#ifdef PRINT_OCTREE_STATS				
-					occupied_leafs++;
-				#endif          
-            }
-            else
-            {
-				#ifdef PRINT_OCTREE_STATS				
-					free_leafs++;
-				#endif				
-			}
-        }
-    }
-    
-	#ifdef PRINT_OCTREE_STATS    
-		std::cout << "Occupied cells: " << occupied_leafs  << " NO occupied cells: " << free_leafs << std::endl;
-	#endif
-}
-
-void ThetaStar::updateMap(PointCloud cloud)
-{	
-    /*
-     * Update discrete world with the Point Cloud = ocuppieds cells
-     */
-	for(int it = 0; it<cloud.points.size(); it++)
-	{
-			// Get occupied points
-			const pcl::PointXYZ &p = cloud.points[it];
-			float x_w = p.x;
-			float y_w = p.y;
-			float z_w = p.z;
-
-			// Exact discretization
-			int x_ = (int)(x_w*step_inv);
-			int y_ = (int)(y_w*step_inv);
-			int z_ = (int)(z_w*step_inv);
-
-			if(isInside(x_, y_))
-			{
-				unsigned int world_index_ = getWorldIndex(x_, y_);
-				discrete_world[world_index_].notOccupied = false;
-				
-				// Inflates nodes
-				if(h_inflation >= step )
-				{
-						inflateNodeAsXyRectangle(x_, y_);
-				}
-			}
-	}
-}
-
 // Clear the map
 void ThetaStar::clearMap()
 {
@@ -305,10 +203,6 @@ void ThetaStar::publishOccupationMarkersMap()
     occupancy_marker_pub_.publish( occupancy_marker );
 }
 
-octomap::OcTree *ThetaStar::getMap()
-{
-    return m;
-}
 
 bool ThetaStar::setInitialPosition(DiscretePosition p_)
 {
@@ -529,7 +423,7 @@ bool ThetaStar::isInitialPositionOccupied()
 {
     if(isOccupied(*disc_initial))
     	return true;
-	else
+    else
 		return false;
 }
 

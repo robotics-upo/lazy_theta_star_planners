@@ -8,9 +8,11 @@ ThetaStar.cpp:
 
     Lineas 141-156: Eliminado el uso de la z en la funcion SetTrajectoryParams
 
-    Lineas 158-259: Eliminado el uso de la z en las funciones updateMap paraç
+    Lineas 158-259: Eliminado el uso de la z en las funciones updateMap para
     point clouds y octomaps ( habra que eliminarlas enteras y sustituirlas en el futuro)
 
+    Eliminadas las funciones updateMap que usaban pointClouds y octomaps
+    
     Linea 273: En la funcion publishOccupationMarkersMap se ha quitado el bucle en z (el mas interno
     y se ha añadido una variable provisional k=0 para que no de error
 

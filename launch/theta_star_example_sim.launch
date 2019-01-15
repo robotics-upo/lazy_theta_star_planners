@@ -13,7 +13,7 @@
   <arg name="ws_y_min" 							default="0.0"/>
   <arg name="map_resolution" 					default="0.10"/>	# Discrete matrix resolution [meters]
   <arg name="map_h_inflaction" 					default="0.0"/>		# Obstacles inflaction for real UAV size and safe distance [meters]
-  <arg name="goal_weight" 						default="10.0"/>	# Weight of the target position for the Lazy theta* with Optimz.[positive]. Bigger: Minnor Runtime and Greater Path Lenght
+  <arg name="goal_weight" 						default="1.0"/>	# Weight of the target position for the Lazy theta* with Optimz.[positive]. Bigger: Minnor Runtime and Greater Path Lenght
 
   <!-- Result trajectory parameters-->
   <arg name="traj_dxy_max" 		default="0.2"/>			# Maximum horizontal position increment [m] 

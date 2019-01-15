@@ -22,10 +22,6 @@
 
 #include <nav_msgs/OccupancyGrid.h>
 
-//Eliminar lo relacionado con octomap porque usaremos occupancy grids
-#include <octomap_msgs/Octomap.h> //Octomap Binary
-#include <octomap/OcTree.h>
-#include <octomap_msgs/conversions.h>
 
 #include <trajectory_msgs/MultiDOFJointTrajectory.h>
 
@@ -221,17 +217,6 @@ class ThetaStar
 		 
 		 **/
 		void getMap(nav_msgs::OccupancyGrid message);
-		/**
-		  Override actual occupancy matrix
-		   @param octomap msg
-		**/ 
-		void updateMap(octomap_msgs::Octomap message);//Cambiar octomap por occupancy grid...
-		
-		/**
-		  Add a cloud to the actual occupancy matrix
-		   @param pcl pointCloud 
-		**/
-		void updateMap(PointCloud cloud);// ?
 
 		/** 
 		   Clear occupancy discrete matrix
@@ -242,12 +227,6 @@ class ThetaStar
 		  Publish via topic the discrete map constructed
 		**/
 		void publishOccupationMarkersMap();
-
-		/**
-		  Returns current collision map
-			@return current collision map
-		**/
-		octomap::OcTree * getMap(); //Cambiar por occupancy grid
 
 		/**	
 		  Returns map resolution
@@ -295,6 +274,7 @@ class ThetaStar
 		{
 			if(setInitialPosition(p))
 			{
+				
 				if(!isInitialPositionOccupied())	
 				{
 					ROS_INFO("ThetaStar: Initial discrete position [%d, %d] set correctly", p.x,p.y); //Quitar p.z
@@ -510,7 +490,8 @@ class ThetaStar
 		**/
 		inline unsigned int getWorldIndex(int &x, int &y) //ELiminar la z
 		{
-			return (unsigned int)((x - ws_x_min_inflated) + (Lx)*((y - ws_y_min_inflated))); 
+			//return (unsigned int)((x - ws_x_min_inflated) + (Lx)*((y - ws_y_min_inflated))); 
+			return (unsigned int)((Lx-3)*y +x );
 		}
 
 		/**
@@ -856,8 +837,7 @@ class ThetaStar
 		float step_inv;
 
 		// Input octomap octree used to create the Occupancy Matrix
-		octomap::OcTree *m;
-
+		
 		// Origin and target position.
 		Vector3 initial_position, final_position;	// Continuous
 		ThetaStarNode *disc_initial, *disc_final;	// Discretes

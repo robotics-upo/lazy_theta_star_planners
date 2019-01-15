@@ -28,14 +28,6 @@ using namespace PathPlanners;
 
 // Odometry message callback. Simply remap the pose data in the odom_pose var.
 geometry_msgs::Transform odom_pose;
-void odometryCallback(const nav_msgs::Odometry::ConstPtr& odom_msg)
-{
-  odom_pose.translation.x = odom_msg->pose.pose.position.x;
-  odom_pose.translation.y = odom_msg->pose.pose.position.y;
-  odom_pose.translation.z = odom_msg->pose.pose.position.z;
-  
-  odom_pose.rotation = odom_msg->pose.pose.orientation;
-}
 
 // Odometry message callback. Simply remap the octomap msg
 nav_msgs::OccupancyGrid m;
@@ -46,16 +38,28 @@ void CollisionMapCallBack(const nav_msgs::OccupancyGrid::ConstPtr& fp)
     map_received = true;
 }
 
-// Goal message callback. Simply remap the goal position
-geometry_msgs::Vector3 goal;
-bool goal_received = true;/*
-void GoalPositionCallBack(const geometry_msgs::Vector3 goal_)
-{
-	goal = goal_;
-	goal_received = true;
-	ROS_INFO("Theta Star Example: New goal received!!");
+geometry_msgs::Vector3 goal,init;
+bool goal_received = true;
+void setGoal(float x_, float y_, float z_){
+	goal.x = x_;
+	goal.y = y_;
+	goal.z = z_;
 }
-*/
+void setPose(float x_, float y_, float z_, float xw_, float yw_, float zw_, float w_){
+	odom_pose.translation.x = x_;
+  	odom_pose.translation.y = y_;
+  	odom_pose.translation.z = z_;
+  	odom_pose.rotation.x = xw_;
+	odom_pose.rotation.y = yw_;
+	odom_pose.rotation.z = zw_;
+	odom_pose.rotation.w = w_;
+}
+void setIni(float x_, float y_, float z_){
+	init.x = x_;
+	init.y = y_;
+	init.z = z_;
+}
+
 int main(int argc, char **argv)
 {
     struct timeb startT, finishT;
@@ -67,10 +71,7 @@ int main(int argc, char **argv)
 
 	// Odometry data topic subscriber
 	char topicPath[100];
-	/*sprintf(topicPath, "odometry_sensor1/odometry");
-    ros::Subscriber odom_sub = n.subscribe(topicPath, 1, odometryCallback);
-    ROS_INFO("Theta Star Example: odometry topic: %s", topicPath);
-	*/
+	
 	// Trajectory list topic publisher to trajectory_tracker_node
 	sprintf(topicPath, "trajectory_tracker/input_trajectory");
 	ros::Publisher trajectory_pub = n.advertise<trajectory_msgs::MultiDOFJointTrajectory>(topicPath, 10);
@@ -82,27 +83,12 @@ int main(int argc, char **argv)
 	// Trajectory solution visualization topic
     ros::Publisher vis_pub_traj = n.advertise<visualization_msgs::Marker>(node_name + "/visualization_marker_trajectory", 0 );
 
-	// Octomap topic subscriber
+	// Map server topic subscriber
 	sprintf(topicPath, "map");
     ros::Subscriber sub_map = n.subscribe(topicPath, 0, CollisionMapCallBack);
     ROS_INFO("Theta Star Example: map input topic: %s", topicPath);
 
-	/* Goal position topic subscriber
-	sprintf(topicPath, "goal_position");
-    ros::Subscriber sub_goal = n.subscribe(topicPath, 0, GoalPositionCallBack);
-	ROS_INFO("Theta Star Example: trajectory input topic: %s", topicPath);
-	*/
-	
 
-    /* Wait to get the Octomap
-    ros::AsyncSpinner as(0);
-    as.start();
-    while(ros::ok() && !octomap_received)
-    {
-		ROS_INFO("Waiting for octomap...");
-		ros::Duration(0.1).sleep();
-	}
-	*/
 	// Read parameters
 	double ws_x_max = 0.0;
 	double ws_y_max = 0.0;
@@ -183,17 +169,13 @@ int main(int argc, char **argv)
     traj_marker.color.g = 0.0;
     traj_marker.color.b = 0.5;    
 
-	/* Build theta* discrete map with the offset from /map to /world
-	ftime(&startT);
-		theta.updateMap(m);
-	ftime(&finishT);*/
 	
 	seconds = finishT.time - startT.time - 1;
 	milliseconds = (1000 - startT.millitm) + finishT.millitm;
 	cout << "Time spend in construct the occupancy map: " << (milliseconds + seconds * 1000) << " ms" << endl;
 
 	// Start and Goal positions
-	Vector3 init,fin;
+	Vector3 fin;
 
 	// Result Trajectory
 	Trajectory trajectory;
@@ -205,9 +187,8 @@ int main(int argc, char **argv)
 	
 	ROS_INFO("Waiting for new goal...");
 	bool map_created = false;
-	goal.x = 8;
-	goal.y = 1;
-	goal.z = 0;
+	setGoal(0.5,7,0);
+	setIni(1,9,0);
 	while(ros::ok())
 	{
 		// Waiting for new goal and reading odometry
@@ -220,15 +201,11 @@ int main(int argc, char **argv)
 		
 		
 		if(goal_received && map_created){
-			// Get initial (= current) and goal position 
-			init.x = 1;
-			init.y = 1;
-			init.z = 0;
-			fin = goal;
+			
+			
 			
 			// Set initial and final position to theta* and calculate the trajectory only if these are valid positions
-			// if(theta.setInitialPosition(init) && theta.setFinalPosition(fin)) --> This version only check if is inside the workspace, not if they are occupied
-			if(theta.setValidInitialPosition(init) && theta.setValidFinalPosition(fin))
+			if(theta.setValidInitialPosition(init) && theta.setValidFinalPosition(goal))
 			{
 				// Path calculation
 				ROS_INFO("Path calculation...");
@@ -267,16 +244,9 @@ int main(int argc, char **argv)
 				trajectory.points.clear();
 				trajectory.header.stamp = ros::Time::now();
 				ROS_INFO("Trajectory calculation...");
-				//~ theta.getTrajectoryYawAtTime(trajectory, odom_pose);
-				odom_pose.translation.x = 0;
-  				odom_pose.translation.y = 0;
-  				odom_pose.translation.z = 0;
-  
-  				odom_pose.rotation.x = 0;
-				odom_pose.rotation.y = 0;
-				odom_pose.rotation.z = 0;
-				odom_pose.rotation.w = 1;
-
+				
+				
+				setPose(0,0,0,0,0,0,1);
 				theta.getTrajectoryYawInAdvance(trajectory, odom_pose);
 			
 				// Send the trajectory
@@ -303,8 +273,6 @@ int main(int argc, char **argv)
 			goal_received = false;
 			ROS_INFO("Waiting for new goal...");
 		}
-		
-		
 		
 	    usleep(1e5);
 	}
