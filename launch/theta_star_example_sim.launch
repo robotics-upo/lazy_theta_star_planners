@@ -7,14 +7,17 @@
 <launch>  
    
   <!-- Theta star path calculation parameters-->
-  <arg name="ws_x_max" 							default="10.5"/>		# workspace in world frame [meters]
-  <arg name="ws_y_max" 							default="15.5"/>
+  <arg name="ws_x_max" 							default="7.15"/>		# workspace in world frame [meters]
+  <arg name="ws_y_max" 							default="13.95"/>
   <arg name="ws_x_min" 							default="0.0"/>
   <arg name="ws_y_min" 							default="0.0"/>
-  <arg name="map_resolution" 					default="0.10"/>	# Discrete matrix resolution [meters]
+  <arg name="map_resolution" 					default="0.05"/>	# Discrete matrix resolution [meters]
   <arg name="map_h_inflaction" 					default="0.0"/>		# Obstacles inflaction for real UAV size and safe distance [meters]
   <arg name="goal_weight" 						default="1.0"/>	# Weight of the target position for the Lazy theta* with Optimz.[positive]. Bigger: Minnor Runtime and Greater Path Lenght
-
+  <arg name="start_x"                         default="71"/>
+  <arg name="start_y"                         default="28"/>
+  <arg name="goal_x"                         default="71"/>
+  <arg name="goal_y"                         default="195"/>
   <!-- Result trajectory parameters-->
   <arg name="traj_dxy_max" 		default="0.2"/>			# Maximum horizontal position increment [m] 
   <arg name="traj_vxy_m" 		default="0.1"/>			# Horizontal velocity average [m/s] 
@@ -38,11 +41,14 @@
 	  <param name="/theta_star/traj_wyaw_m" 			value="$(arg traj_wyaw_m)"/>
 	  <param name="/theta_star/traj_pos_tol" 			value="$(arg traj_pos_tol)"/>
 	  <param name="/theta_star/traj_yaw_tol" 			value="$(arg traj_yaw_tol)"/>
-	  
+	  <param name="/theta_star/start_x"           value="$(arg start_x)"/>
+    <param name="/theta_star/start_y"           value="$(arg start_y)"/>
+    <param name="/theta_star/goal_x"           value="$(arg goal_x)"/>
+    <param name="/theta_star/goal_y"           value="$(arg goal_y)"/>
 	  <!-- Theta* server-->
 	  <node pkg="theta_star" type="theta_star_example" name="theta_star_example" args="" output="screen"/>
 	  <!-- Map server-->
-	  <node pkg= "map_server" type="map_server" name="map_server" args="/home/fali/catkin_ws_ts/src/theta_star/resource/second_lab_map_cut.yaml">
+	  <node pkg= "map_server" type="map_server" name="map_server" args="/home/fali/catkin_ws_ts/src/theta_star/resource/lab_map.yaml">
      </node>
   </group>
 

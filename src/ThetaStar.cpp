@@ -14,14 +14,12 @@ namespace PathPlanners
 {
 
 // Uncomment to printf the explored nodes number
-//#define PRINT_EXPLORED_NODES_NUMBER			
+#define PRINT_EXPLORED_NODES_NUMBER			
 // Uncomment to get the explored nodes (at time or slowly step_by_step)
-//#define SEND_EXPLORED_NODES_MARKERS
-//#define STEP_BY_STEP
+#define SEND_EXPLORED_NODES_MARKERS
+#define STEP_BY_STEP
 // Uncomment to get non-LineOfSight visual markers
 //#define SEND_NO_LOFS_NODES_MARKERS
-// Uncomment to printf octree leaf free and occupied
-//#define PRINT_OCTREE_STATS
 // Uncomment to printf if setVertex() fails at no-LofS
 //#define PRINT_SETVERTEX_FAILS
 
@@ -54,8 +52,8 @@ void ThetaStar::init(char* plannerName, char* frame_id,
 	disc_initial = NULL;
 	disc_final = NULL;
 	
-	// by default ~not timeout
-	timeout = 100;
+	// by default ~not timeout ESTO LO HE TOCADO PERO NO HIZO EFECTO, PORQUE?
+	timeout = std::numeric_limits<int>::max();
 	
     // Init asymetric and inflated occupancy matrix
     ws_x_max = ((ws_x_max_/step_) + 1);
@@ -147,15 +145,19 @@ void ThetaStar::setTrajectoryParams(float dxy_max_, float dxyz_tolerance_, float
 void ThetaStar::getMap(nav_msgs::OccupancyGrid message){
 
     clearMap();
-    int t = message.info.width * message.info.height;
-    int n = 0;
-    for(unsigned int i = 0; i < t;  i++){
+    int size = message.info.width * message.info.height;
+    ROS_WARN("%d, %d", message.info.width, message.info.height);
+    ROS_WARN("%d",matrix_size);
+    ROS_WARN("%d",size);
+    for(unsigned int i = 0; i < size;  i++){
         int x,y;
         
         getDiscreteWorldPositionFromIndex(x, y, i);
-        
+
         if(isInside(x,y) && message.data[i] == 100){
             discrete_world[i].notOccupied = false;   
+            if( x == 7 && y == 187)
+                ROS_WARN("[%d, %d]",x,y);
         }
     }
 }
@@ -163,9 +165,7 @@ void ThetaStar::getMap(nav_msgs::OccupancyGrid message){
 void ThetaStar::clearMap()
 {
 	for(int i = 0; i< matrix_size; i++)
-	{
 		discrete_world[i].notOccupied = true;
-	}
 }
 
 // Puplish to RViz the occupancy map matrix as point cloud markers
@@ -181,29 +181,16 @@ void ThetaStar::publishOccupationMarkersMap()
 				
 				if(!discrete_world[matrixIndex].notOccupied)
 				{
-					//~ geometry_msgs::Point point;
+					
 					pcl::PointXYZ point;
 					point.x = i*step;
 					point.y = j*step;
-					//point.z = 0;
-					//~ occupancy_marker.points.push_back(point);
+		
 					occupancy_marker.push_back(point);
 				}
 			}
-
-//    //Downsample published cloud
-//    cloud_voxel_grid.setLeafSize (0.2, 0.2, 0.2);
-//    PointCloud::Ptr cloud_ptr 			(new PointCloud);
-//    PointCloud::Ptr cloud_filtered_ptr 	(new PointCloud);
-//    *cloud_ptr = occupancy_marker;
-//    cloud_voxel_grid.setInputCloud (cloud_ptr);
-//    cloud_voxel_grid.filter (*cloud_filtered_ptr);
-//    occupancy_marker = *cloud_filtered_ptr;
-				
     occupancy_marker_pub_.publish( occupancy_marker );
 }
-
-
 bool ThetaStar::setInitialPosition(DiscretePosition p_)
 {
     if(isInside(p_.x,p_.y))
@@ -578,7 +565,9 @@ int  ThetaStar::computePath(void)
         {
             if((ros::Time::now() - last_time_).toSec() > timeout)
             {
-                noSolution= true;
+                //esto lo he apañado como false (normalmente se pone a true ) para evitar que para cuando alcanza
+                //los 2000 nodos(no se donde esta este parametro)
+                noSolution= false;
                 std::cerr << "Theta Star: Timeout. Iteractions:" << iter << std::endl;
             }
         }
@@ -1014,38 +1003,34 @@ void ThetaStar::getNeighbors(ThetaStarNode &node, set<ThetaStarNode*,NodePointer
                 /*
                  *Ignore ourselves
                 */
-                if(i!=0 || j!=0 )//|| k!=0)
+            if(i!=0 || j!=0 )
+            {
+				node_temp.x = node.point.x + i;
+				node_temp.y = node.point.y + j;
+				
+                if(isInside(node_temp.x, node_temp.y))
                 {
-					node_temp.x = node.point.x + i;
-					node_temp.y = node.point.y + j;
-					
+                    int nodeInWorld = getWorldIndex(node_temp.x, node_temp.y);
                     
-                    if(isInside(node_temp.x, node_temp.y))
+                    ThetaStartNodeLink *new_neighbor = &discrete_world[nodeInWorld];
+                    if(new_neighbor->node==NULL)
                     {
-                        int nodeInWorld = getWorldIndex(node_temp.x, node_temp.y);
-                        
-                        ThetaStartNodeLink *new_neighbor = &discrete_world[nodeInWorld];
-
-                        if(new_neighbor->node==NULL)
-                        {
-                            new_neighbor->node = new ThetaStarNode();
-                            new_neighbor->node->point.x = node_temp.x;
-                            new_neighbor->node->point.y = node_temp.y;
-                            new_neighbor->node->nodeInWorld = new_neighbor;
-                            new_neighbor->node->parentNode = &node;
-                        }
-
-                        if(new_neighbor->isInCandidateList || lineofsight(node,*new_neighbor->node))
-                        {
-                            neighbors.insert (new_neighbor->node);
-                        }
+                        new_neighbor->node = new ThetaStarNode();
+                        new_neighbor->node->point.x = node_temp.x;
+                        new_neighbor->node->point.y = node_temp.y;
+                        new_neighbor->node->nodeInWorld = new_neighbor;
+                        new_neighbor->node->parentNode = &node;
                     }
-                    else
+                    if(new_neighbor->isInCandidateList || lineofsight(node,*new_neighbor->node))
                     {
-                        // delete new_neighbor;
+                        neighbors.insert (new_neighbor->node);
                     }
                 }
-            //}
+                else
+                {
+                    // delete new_neighbor;
+                }
+            }
         }
     }
 }
@@ -1056,7 +1041,6 @@ void ThetaStar::publishMarker(ThetaStarNode &s, bool publish)
     point.x = s.point.x * step;
     point.y = s.point.y * step;
     
-
     marker.points.push_back(point);
 
 	#ifdef STEP_BY_STEP				

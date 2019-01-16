@@ -22,6 +22,9 @@
 
 #include <nav_msgs/Odometry.h>
 
+#include <iostream>
+#include <fstream>
+#include <string>
 
 using namespace std;
 using namespace PathPlanners;
@@ -38,12 +41,14 @@ void CollisionMapCallBack(const nav_msgs::OccupancyGrid::ConstPtr& fp)
     map_received = true;
 }
 
+double map_resolution = 0.0;
 geometry_msgs::Vector3 goal,init;
 bool goal_received = true;
+//The inputs x_ etc are pixels(more confortable sometimes)
 void setGoal(float x_, float y_, float z_){
-	goal.x = x_;
-	goal.y = y_;
-	goal.z = z_;
+	goal.x = x_*map_resolution;
+	goal.y = y_*map_resolution;
+	goal.z = z_*map_resolution;
 }
 void setPose(float x_, float y_, float z_, float xw_, float yw_, float zw_, float w_){
 	odom_pose.translation.x = x_;
@@ -54,10 +59,12 @@ void setPose(float x_, float y_, float z_, float xw_, float yw_, float zw_, floa
 	odom_pose.rotation.z = zw_;
 	odom_pose.rotation.w = w_;
 }
+//The inputs x_ etc are pixels(more confortable sometimes)
 void setIni(float x_, float y_, float z_){
-	init.x = x_;
-	init.y = y_;
-	init.z = z_;
+	
+	init.x = x_*map_resolution;
+	init.y = y_*map_resolution;
+	init.z = z_*map_resolution;
 }
 
 int main(int argc, char **argv)
@@ -95,7 +102,7 @@ int main(int argc, char **argv)
 	double ws_z_max = 0.0;
 	double ws_x_min = 0.0;
 	double ws_y_min = 0.0;
-	double map_resolution = 0.0;
+	
 	double map_h_inflaction = 0.0;
 	double goal_weight = 1.0;
 	double traj_dxy_max = 1.0;
@@ -104,6 +111,12 @@ int main(int argc, char **argv)
 	double traj_wyaw_m = 1.0;
 	double traj_pos_tol = 1.0;
 	double traj_yaw_tol = 1.0;
+	int ixp,iyp,gxp,gyp;
+
+	ros::param::get("/theta_star/start_x", ixp);
+	ros::param::get("/theta_star/start_y", iyp);
+	ros::param::get("/theta_star/goal_x", gxp);
+	ros::param::get("/theta_star/goal_y", gyp);
     ros::param::get("/theta_star/ws_x_max", ws_x_max);	
     ros::param::get("/theta_star/ws_y_max", ws_y_max);	
     ros::param::get("/theta_star/ws_x_min", ws_x_min);	
@@ -185,10 +198,14 @@ int main(int argc, char **argv)
 	
 	int countToPublishOccMap = 0;
 	
+	//Save path points coordinates to file
+	ofstream file("/home/fali/catkin_ws_ts/src/theta_star/path.txt");
+	
+	
 	ROS_INFO("Waiting for new goal...");
 	bool map_created = false;
-	setGoal(0.5,7,0);
-	setIni(1,9,0);
+	setGoal(gxp,gyp,0);
+	setIni(ixp,iyp,0);
 	while(ros::ok())
 	{
 		// Waiting for new goal and reading odometry
@@ -226,7 +243,9 @@ int main(int argc, char **argv)
 				pIni.z = init.z;
 				path_marker.points.push_back(pIni);
 				double total_distance = 0.0;
-				for(unsigned int i=0; i < theta.getCurrentPath().size();i++)
+
+				file<<init.x/map_resolution+1<<","<<init.y/map_resolution+1<<endl;
+				for(unsigned int i = 0; i < theta.getCurrentPath().size();i++)
 				{
 					if(i!=0)
 						total_distance+= sqrtf((theta.getCurrentPath()[i].x - theta.getCurrentPath()[i-1].x) * (theta.getCurrentPath()[i].x - theta.getCurrentPath()[i-1].x) + (theta.getCurrentPath()[i].y - theta.getCurrentPath()[i-1].y)*(theta.getCurrentPath()[i].y - theta.getCurrentPath()[i-1].y) + (theta.getCurrentPath()[i].z - theta.getCurrentPath()[i-1].z)*(theta.getCurrentPath()[i].z - theta.getCurrentPath()[i-1].z));
@@ -234,9 +253,15 @@ int main(int argc, char **argv)
 					p.x = theta.getCurrentPath()[i].x;
 					p.y = theta.getCurrentPath()[i].y;
 					p.z = theta.getCurrentPath()[i].z;
-					ROS_WARN("Nodo %d : [%f, %f] ", i, p.x,p.y);
+					ROS_WARN("Nodo %d : [%f, %f] ", i, p.x/map_resolution,p.y/map_resolution);
+					//Save point coordinate to file
+					
+					file<<p.x/map_resolution+1<<","<<p.y/map_resolution+1<<endl;
+					
 					path_marker.points.push_back(p);
 				}
+				file.close();
+				
 				//vis_pub.publish(path_marker);
 				ROS_INFO("Path Length: %.4f", total_distance);
 				

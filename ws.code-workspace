@@ -9,7 +9,9 @@
 			"/opt/ros/kinetic/lib/python2.7/dist-packages"
 		],
 		"files.associations": {
-			"chrono": "cpp"
+			"chrono": "cpp",
+			"iostream": "cpp",
+			"bitset": "cpp"
 		}
 	}
 }
