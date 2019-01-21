@@ -14,10 +14,10 @@ namespace PathPlanners
 {
 
 // Uncomment to printf the explored nodes number
-#define PRINT_EXPLORED_NODES_NUMBER			
+//#define PRINT_EXPLORED_NODES_NUMBER			
 // Uncomment to get the explored nodes (at time or slowly step_by_step)
-#define SEND_EXPLORED_NODES_MARKERS
-#define STEP_BY_STEP
+//#define SEND_EXPLORED_NODES_MARKERS
+//#define STEP_BY_STEP
 // Uncomment to get non-LineOfSight visual markers
 //#define SEND_NO_LOFS_NODES_MARKERS
 // Uncomment to printf if setVertex() fails at no-LofS
@@ -114,7 +114,6 @@ void ThetaStar::init(char* plannerName, char* frame_id,
     marker_no_los.pose.orientation.w = 1.0;
     marker_no_los.scale.x = 1.0*step;
     marker_no_los.scale.y = 1.0*step;
-    //marker_no_los.scale.z = 1.0*step;
     marker_no_los.color.a = 1.0;
     marker_no_los.color.r = 1.0;
     marker_no_los.color.g = 1.0;
@@ -128,11 +127,11 @@ ThetaStar::~ThetaStar()
 {
 }
 
-void ThetaStar::setTrajectoryParams(float dxy_max_, float dxyz_tolerance_, float vm_xy_, float vm_xy_1_, float w_yaw_, float min_yaw_ahead_)
+void ThetaStar::setTrajectoryParams(float dxy_max_, float dxy_tolerance_, float vm_xy_, float vm_xy_1_, float w_yaw_, float min_yaw_ahead_)
 {
 	// Parse params
 	dxy_max = dxy_max_;
-	dxyz_tolerance = dxyz_tolerance_;
+	dxy_tolerance = dxy_tolerance_;
 	vm_xy = vm_xy_;
 	vm_xy_1 = vm_xy_1_;
 	w_yaw = w_yaw_;
@@ -146,18 +145,14 @@ void ThetaStar::getMap(nav_msgs::OccupancyGrid message){
 
     clearMap();
     int size = message.info.width * message.info.height;
-    ROS_WARN("%d, %d", message.info.width, message.info.height);
-    ROS_WARN("%d",matrix_size);
-    ROS_WARN("%d",size);
+    int x,y;
+
     for(unsigned int i = 0; i < size;  i++){
-        int x,y;
         
         getDiscreteWorldPositionFromIndex(x, y, i);
 
-        if(isInside(x,y) && message.data[i] == 100){
+        if(isInside(x,y) && message.data[i] >= 50){
             discrete_world[i].notOccupied = false;   
-            if( x == 7 && y == 187)
-                ROS_WARN("[%d, %d]",x,y);
         }
     }
 }
@@ -218,7 +213,7 @@ bool ThetaStar::setInitialPosition(DiscretePosition p_)
     }
     else
     {
-        //~ std::cerr << "ThetaStar: Initial point ["<< p.x << ";"<< p.y <<";"<< p.z <<"] not valid." << std::endl;
+        std::cerr << "ThetaStar: Initial point ["<< p_.x << ";"<< p_.y <<"] not valid." << std::endl;
         disc_initial = NULL;
         return false;
     }
@@ -228,34 +223,8 @@ bool ThetaStar::setInitialPosition(Vector3 p)
 {
     initial_position = p;
     DiscretePosition p_ = discretizePosition(p);
-		
-	if(isInside(p_.x,p_.y))
-    {
-        ThetaStartNodeLink *initialNodeInWorld = &discrete_world[getWorldIndex(
-                    p_.x,
-                    p_.y)];
-
-        if(initialNodeInWorld->node==NULL)
-        {
-            initialNodeInWorld->node = new ThetaStarNode();
-            initialNodeInWorld->node->point.x = p_.x;
-            initialNodeInWorld->node->point.x = p_.y;
-
-            initialNodeInWorld->node->nodeInWorld = initialNodeInWorld;
-        }
-        disc_initial = initialNodeInWorld->node;
-
-        disc_initial->point = p_;
-        disc_initial->parentNode = disc_initial;
-
-        return true;
-    }
-    else
-    {
-        //ROS_ERROR("ThetaStar: Initial point [%f, %f, %f] not valid.", p.x, p.y, p.z);
-        disc_initial = NULL;
-        return false;
-    }
+    
+    return setInitialPosition(p_);
 }
 
 bool ThetaStar::setFinalPosition(DiscretePosition p_)
@@ -294,34 +263,7 @@ bool ThetaStar::setFinalPosition(Vector3 p)
 {
     DiscretePosition p_ = discretizePosition(p);
     
-    if(isInside(p_.x,p_.y))
-    {
-        ThetaStartNodeLink *finalNodeInWorld = &discrete_world[getWorldIndex(
-                    p_.x,
-                    p_.y)];
-
-        if(finalNodeInWorld->node==NULL)
-        {
-            finalNodeInWorld->node = new ThetaStarNode();
-            finalNodeInWorld->node->point.x = p_.x;
-            finalNodeInWorld->node->point.y = p_.y;
-
-            finalNodeInWorld->node->nodeInWorld = finalNodeInWorld;
-        }
-        disc_final = finalNodeInWorld->node;
-
-        final_position = p;
-        disc_final->point = p_;
-
-        return true;
-    }
-    else
-    {
-
-        //~ std::cerr << "ThetaStar: Final point ["<< p.x << ";"<< p.y <<";"<< p.z <<"] not valid." << std::endl;
-        disc_final = NULL;
-        return false;
-    }
+    return setFinalPosition(p_);
 }
 
 Vector3 ThetaStar::getInitialPosition()
@@ -661,6 +603,7 @@ int  ThetaStar::computePath(void)
             break;
         }
     }
+    //ROS_WARN("Expanded Nodes: %d",expanded_nodes_number);
     return last_path.size();
 }
 
@@ -715,7 +658,7 @@ bool ThetaStar::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw)
 		while(!pathPointGot)
 		{			
 			// Check if it's neccesary a middle wp between last and next wps
-			pathPointGot = checkMiddlePosition(last_position, next_position, middle_position, dxyz_tolerance);
+			pathPointGot = checkMiddlePosition(last_position, next_position, middle_position, dxy_tolerance);
 			
 			// Set the intermediate position if path point has not been got
 			if(!pathPointGot)
@@ -996,39 +939,29 @@ void ThetaStar::getNeighbors(ThetaStarNode &node, set<ThetaStarNode*,NodePointer
     
     DiscretePosition node_temp;
     
-    for(int i=-1;i<2;i++)
-    {
-        for(int j=-1;j<2;j++)
-        {
+    for(int i =- 1; i < 2; i++){
+        for(int j =- 1; j < 2; j++){
                 /*
                  *Ignore ourselves
                 */
-            if(i!=0 || j!=0 )
-            {
+            if(i!=0 || j!=0 ){
 				node_temp.x = node.point.x + i;
 				node_temp.y = node.point.y + j;
 				
-                if(isInside(node_temp.x, node_temp.y))
-                {
+                if(isInside(node_temp.x, node_temp.y)){
                     int nodeInWorld = getWorldIndex(node_temp.x, node_temp.y);
                     
                     ThetaStartNodeLink *new_neighbor = &discrete_world[nodeInWorld];
-                    if(new_neighbor->node==NULL)
-                    {
+                    if(new_neighbor->node==NULL){
                         new_neighbor->node = new ThetaStarNode();
                         new_neighbor->node->point.x = node_temp.x;
                         new_neighbor->node->point.y = node_temp.y;
                         new_neighbor->node->nodeInWorld = new_neighbor;
                         new_neighbor->node->parentNode = &node;
                     }
-                    if(new_neighbor->isInCandidateList || lineofsight(node,*new_neighbor->node))
-                    {
-                        neighbors.insert (new_neighbor->node);
+                    if(new_neighbor->isInCandidateList || lineofsight(node,*new_neighbor->node)){
+                        neighbors.insert(new_neighbor->node);
                     }
-                }
-                else
-                {
-                    // delete new_neighbor;
                 }
             }
         }
@@ -1079,8 +1012,8 @@ float ThetaStar::distanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2)
 
 float ThetaStar::weightedDistanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2)
 {
-    return sqrt(				pow(n1.point.x-n2.point.x,2) +
-								pow(n1.point.y-n2.point.y,2) );
+    return sqrt(pow(n1.point.x-n2.point.x,2) +
+				pow(n1.point.y-n2.point.y,2) );
 }
 
 float ThetaStar::distanceFromInitialPoint(ThetaStarNode node, ThetaStarNode parent)
@@ -1199,13 +1132,10 @@ void ThetaStar::SetVertex(ThetaStarNode &s,set<ThetaStarNode*,NodePointerCompara
 
 double ThetaStar::g(ThetaStarNode &s)
 {
-    if(s.parentNode==NULL)
-    {
+    if(s.parentNode==NULL){
         std::cerr << "Error: Parent is null" << std::endl;
         return std::numeric_limits<double>::max();
-    }
-    else
-    {
+    }else{
         float distanceFromInitial_ = weightedDistanceFromInitialPoint(s,*s.parentNode);
         float distanceToGoal_ = weightedDistanceToGoal(s);
         return distanceFromInitial_ + distanceToGoal_;
@@ -1245,7 +1175,7 @@ bool ThetaStar::checkMiddlePosition(Vector3 last_position, Vector3 next_position
 	// Position max increments (where descomposes dxy_max)
 	double DXmax, DYmax;
 
-	if(getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) > (dxy_max + dxyz_tolerance))
+	if(getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) > (dxy_max + dxy_tolerance))
 	{
 		// X and Y to the max (It exists a singularity at DX = 0.0, so if that directly set the known values)
 		if(fabs(middle_position.x - last_position.x) >= 0.001)

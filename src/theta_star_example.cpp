@@ -85,10 +85,10 @@ int main(int argc, char **argv)
 	ROS_INFO("Theta Star Example: trajectory output topic: %s", topicPath);
 
 	// Path solution visualization topic
-    ros::Publisher vis_pub = n.advertise<visualization_msgs::Marker>(node_name + "/visualization_marker_path", 0 );
+    ros::Publisher vis_pub = n.advertise<visualization_msgs::Marker>(node_name + "/visualization_marker_path", 10 );
 
 	// Trajectory solution visualization topic
-    ros::Publisher vis_pub_traj = n.advertise<visualization_msgs::Marker>(node_name + "/visualization_marker_trajectory", 0 );
+    ros::Publisher vis_pub_traj = n.advertise<visualization_msgs::Marker>(node_name + "/visualization_marker_trajectory", 10 );
 
 	// Map server topic subscriber
 	sprintf(topicPath, "map");
@@ -151,15 +151,16 @@ int main(int argc, char **argv)
 	
 	// Path solution visualization marker
     visualization_msgs::Marker path_marker;
-    path_marker.header.frame_id = "world";
+    path_marker.header.frame_id = "map";
     path_marker.header.stamp = ros::Time();
     path_marker.ns = "theta_star";
     path_marker.id = 1;
     path_marker.type = visualization_msgs::Marker::LINE_STRIP;
     path_marker.action = visualization_msgs::Marker::ADD;
     path_marker.pose.orientation.w = 1.0;
-    path_marker.scale.x = 0.5;
-    path_marker.scale.y = 1;
+    path_marker.scale.x = 0.1;
+    path_marker.scale.y = 0.1;
+
     path_marker.color.a = 1.0;
     path_marker.color.r = 1.0;
     path_marker.color.g = 0.0;
@@ -168,7 +169,7 @@ int main(int argc, char **argv)
     // Trajectory solution visualization marker
     visualization_msgs::Marker traj_marker;
 	traj_marker.points.clear();
-    traj_marker.header.frame_id = "world";
+    traj_marker.header.frame_id = "map";
     traj_marker.header.stamp = ros::Time();
     traj_marker.ns = "theta_star";
     traj_marker.id = 2;
@@ -196,10 +197,11 @@ int main(int argc, char **argv)
 	trajectory.header.stamp = ros::Time::now();
 	trajectory.header.frame_id = "base_link";
 	
+
 	int countToPublishOccMap = 0;
 	
 	//Save path points coordinates to file
-	ofstream file("/home/fali/catkin_ws_ts/src/theta_star/path.txt");
+	ofstream file("/home/fali/catkin_ws_ts/src/theta_star/resource/output_path.txt");
 	
 	
 	ROS_INFO("Waiting for new goal...");
@@ -218,9 +220,6 @@ int main(int argc, char **argv)
 		
 		
 		if(goal_received && map_created){
-			
-			
-			
 			// Set initial and final position to theta* and calculate the trajectory only if these are valid positions
 			if(theta.setValidInitialPosition(init) && theta.setValidFinalPosition(goal))
 			{
@@ -229,7 +228,9 @@ int main(int argc, char **argv)
 				ftime(&startT);
 					int number_of_points = theta.computePath();
 				ftime(&finishT);
+
 				ROS_INFO("Number of points: %d", number_of_points);
+
 				seconds = finishT.time - startT.time - 1;
 				milliseconds = (1000 - startT.millitm) + finishT.millitm;
 				cout << "Time spend in path calculation: " << (milliseconds + seconds * 1000) << " ms" << endl;
@@ -237,59 +238,56 @@ int main(int argc, char **argv)
 				// Get, draw and compute length the new path
 				path_marker.points.clear();
 				path_marker.header.stamp = ros::Time();
+
 				geometry_msgs::Point pIni;
 				pIni.x = init.x;
 				pIni.y = init.y;
 				pIni.z = init.z;
 				path_marker.points.push_back(pIni);
-				double total_distance = 0.0;
 
-				file<<init.x/map_resolution+1<<","<<init.y/map_resolution+1<<endl;
+				float total_distance = 0.0;
+				float difx,dify;
+
+				file<<init.x/map_resolution+1<<" "<<init.y/map_resolution+1<<endl;
+				
+				geometry_msgs::Point p;
+
 				for(unsigned int i = 0; i < theta.getCurrentPath().size();i++)
 				{
-					if(i!=0)
-						total_distance+= sqrtf((theta.getCurrentPath()[i].x - theta.getCurrentPath()[i-1].x) * (theta.getCurrentPath()[i].x - theta.getCurrentPath()[i-1].x) + (theta.getCurrentPath()[i].y - theta.getCurrentPath()[i-1].y)*(theta.getCurrentPath()[i].y - theta.getCurrentPath()[i-1].y) + (theta.getCurrentPath()[i].z - theta.getCurrentPath()[i-1].z)*(theta.getCurrentPath()[i].z - theta.getCurrentPath()[i-1].z));
-					geometry_msgs::Point p;
 					p.x = theta.getCurrentPath()[i].x;
 					p.y = theta.getCurrentPath()[i].y;
-					p.z = theta.getCurrentPath()[i].z;
-					ROS_WARN("Nodo %d : [%f, %f] ", i, p.x/map_resolution,p.y/map_resolution);
+					
+					if(i == 0){
+						difx = pIni.x - p.x;
+						dify = pIni.y - p.y;
+					}else{
+						difx = (theta.getCurrentPath()[i-1].x - p.x);
+						dify = (theta.getCurrentPath()[i-1].y - p.y);
+					}
+
+					total_distance += sqrtf( difx*difx+dify*dify );
+
+					//ROS_WARN("Nodo %d : [%f, %f] ", i, p.x/map_resolution,p.y/map_resolution);
 					//Save point coordinate to file
-					
-					file<<p.x/map_resolution+1<<","<<p.y/map_resolution+1<<endl;
-					
+					file<<p.x/map_resolution+1<<" "<<p.y/map_resolution+1<<endl;
 					path_marker.points.push_back(p);
 				}
 				file.close();
 				
-				//vis_pub.publish(path_marker);
+				vis_pub.publish(path_marker);
 				ROS_INFO("Path Length: %.4f", total_distance);
 				
-				// Get the trajectory
+				/* Get the trajectory
 				trajectory.points.clear();
 				trajectory.header.stamp = ros::Time::now();
 				ROS_INFO("Trajectory calculation...");
 				
-				
 				setPose(0,0,0,0,0,0,1);
 				theta.getTrajectoryYawInAdvance(trajectory, odom_pose);
-			
+
 				// Send the trajectory
 				trajectory_pub.publish(trajectory);
-				
-				// Parse to markers and draw the new trajectory
-				traj_marker.points.clear();
-				traj_marker.header.stamp = ros::Time();
-				
-				for(unsigned int i=0; i < trajectory.points.size();i++)
-				{
-					geometry_msgs::Point p;
-					p.x = trajectory.points[i].transforms[0].translation.x;
-					p.y = trajectory.points[i].transforms[0].translation.y;
-					p.z = trajectory.points[i].transforms[0].translation.z;
-					traj_marker.points.push_back(p);
-				}
-				vis_pub_traj.publish(traj_marker);
+				*/
 				
 			}
 			else

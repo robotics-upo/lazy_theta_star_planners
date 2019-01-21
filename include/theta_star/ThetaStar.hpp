@@ -16,8 +16,7 @@
 
 #include <ros/ros.h>
 #include <geometry_msgs/Vector3.h>//Sustituir por un mensaje tipo vector2? 
-//En la documentacion de ROS aparece que es preferible usar objetos tridimensionales y si estamos en 2D simplemente proyectarlos, para aprovechar
-//las herramientas aplicables a estos objetos tridimensionales
+
 #include <visualization_msgs/Marker.h>
 
 #include <nav_msgs/OccupancyGrid.h>
@@ -59,8 +58,7 @@ typedef visualization_msgs::Marker RVizMarker;
 //*****************************************************************
 //				Auxiliar Class for ThetaStar Algorithm
 //*****************************************************************
-class DiscretePosition//Eliminar la z
-{
+class DiscretePosition{
 	public:
 	   int x,y;
 };
@@ -68,7 +66,7 @@ class DiscretePosition//Eliminar la z
 // Nodes (declaration)
 class ThetaStarNode;
 
-// Links ->Nada que cambiar en esta clase en principio
+
 class ThetaStartNodeLink
 {
 	public:
@@ -89,7 +87,7 @@ class ThetaStartNodeLink
 };
 
 // Nodes (definition)
-class ThetaStarNode//Solo eliminar la parte que compara la componente z en la sobrecarga del operador !=
+class ThetaStarNode
 {
 	public:
 	   ThetaStarNode():	parentNode(NULL), nodeInWorld(NULL), lineDistanceToFinalPoint( std::numeric_limits<float>::max() ), 
@@ -108,13 +106,13 @@ class ThetaStarNode//Solo eliminar la parte que compara la componente z en la so
 	   friend bool operator != (const ThetaStarNode& lhs, const ThetaStarNode& rhs)
 	   {
 		  return lhs.point.x!=rhs.point.x ||
-				 lhs.point.y!=rhs.point.y; //||
-				 //lhs.point.z!=rhs.point.z; //Eliminar
+				 lhs.point.y!=rhs.point.y; 
+				 
 	   }
 };
 
 // Comparator for pointer to ThetaStarNode objects
-struct NodePointerComparator//Similar a a lo anterior, eliminar la parte del codigo que compara la componente z
+struct NodePointerComparator
 {
    bool operator () (const ThetaStarNode* const& lhs__, const ThetaStarNode* const& rhs__) const
    {
@@ -131,10 +129,7 @@ struct NodePointerComparator//Similar a a lo anterior, eliminar la parte del cod
       {
          res = lhs->point.y - rhs->point.y;
       }
-      /*if(res==0)//Eliminar
-      {
-         res = lhs->point.z - rhs->point.z;
-      }*/
+     
 
       if(res==0)
       {
@@ -144,10 +139,7 @@ struct NodePointerComparator//Similar a a lo anterior, eliminar la parte del cod
       {
          res = lhs->parentNode->point.y - rhs->parentNode->point.y;
       }
-      /*if(res==0)//Eliminar
-      {
-         res = lhs->parentNode->point.z - rhs->parentNode->point.z;
-      }*/
+     
 
       return res < 0;
    }
@@ -173,10 +165,8 @@ class ThetaStar
 		   @param occupancy matrix resolution [meters]
 		   @param occupancy matrix nodes inflation (horizontal and vertical, real + safety) [meters]
 		   @param Lazy Theta* with Optimization: goal point factor [0 to inf]. Bigger -> distance to target more weight than distance to origin -> minor exploration -> shorter runtime, grater path length
-		   @param Lazy Theta* weighted: Z axis weight cost [0 to inf]. 0 to 1 for Z priority exploration, 1 for symetric exploration and inf(~100) to not explore in Z.
-		   @param Lazy Theta* bounded: Minimum Z that will be inflated vertically 
 		   @param NodeHandle 
-		**/ // Eliminar ws_z_max y min, inflation vertical, z not inflated y z weight cost
+		**/
 		ThetaStar(char* plannerName, char* frame_id, 
 		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
 		float step_, float h_inflation_, float goal_weight_, ros::NodeHandle *n);
@@ -189,10 +179,8 @@ class ThetaStar
 		   @param occupancy matrix resolution [meters]
 		   @param occupancy matrix nodes inflation (horizontal and vertical, real + safety) [meters]
 		   @param Lazy Theta* with Optimization: goal point factor [0 to inf]. Bigger -> distance to target more weight than distance to origin -> minor exploration -> shorter runtime, grater path length
-		   @param Lazy Theta* weighted: Z axis weight cost [0 to inf]. 0 to 1 for Z priority exploration, 1 for symetric exploration and inf(~100) to not explore in Z.
-		   @param Lazy Theta* bounded: Minimum Z that will be inflated vertically 
 		   @param NodeHandle 
-		**/ //Analogo al constructor anterior
+		**/ 
 		void init(char* plannerName, char* frame_id, 
 		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
 		float step_, float h_inflation_, float goal_weight_, ros::NodeHandle *n);
@@ -205,16 +193,16 @@ class ThetaStar
 		/**
 		 Configure the computed trajectories by getCurrentTrajectory() functions
 			@param dxy_max, dz_max: Maximum increment between wps [meters]
-			@param dxyz_tolerance: 	position tolerance for the path to trajectory segmentation [meters]
-			@param vm_xy, vm_z: 	Mean linear velocities [m/s]
-			@param vm_xy_1, vm_z_1:	Mean linear velocities for initial and final displacement [m/s]
+			@param dxy_tolerance: 	position tolerance for the path to trajectory segmentation [meters]
+			@param vm_xy: 			Mean linear velocities [m/s]
+			@param vm_xy_1:			Mean linear velocities for initial and final displacement [m/s]
 			@param w_yaw:			Mean angular velocity at yaw [rad/s]
 			@param min_yaw_ahead:	Minimum position increment to set yaw ahead [meters]
-		**///Eliminar dz_max, las mean linear velocities para z 
-		void setTrajectoryParams(float dxy_max_, float dxyz_tolerance_, float vm_xy_, float vm_xy_1_, float w_yaw_, float min_yaw_ahead_);
+		**/
+		void setTrajectoryParams(float dxy_max_, float dxy_tolerance_, float vm_xy_, float vm_xy_1_, float w_yaw_, float min_yaw_ahead_);
 		/**
-		  
-		 
+		 Read map and set up discrete world with occupancy matrix from map_server
+		 	@param message:			Occupancy grid message from map_server
 		 **/
 		void getMap(nav_msgs::OccupancyGrid message);
 
@@ -253,7 +241,7 @@ class ThetaStar
 			@return false if is outside the workspace
 		**/
 		bool setInitialPosition(DiscretePosition p_);
-		bool setInitialPosition(Vector3 p); //Cambiar por vector 2?
+		bool setInitialPosition(Vector3 p); 
 
 		/**
 		  Set final position of the path only check if 
@@ -262,7 +250,7 @@ class ThetaStar
 			@return false if is outside the workspace
 		**/
 		bool setFinalPosition(DiscretePosition p_);
-		bool setFinalPosition(Vector3 p); //Cambiar por vector 2?
+		bool setFinalPosition(Vector3 p); 
 
 		/**
 		  Set initial/final position of the path checking if 
@@ -272,24 +260,19 @@ class ThetaStar
 		**/
 		inline bool setValidInitialPosition(DiscretePosition p)
 		{
-			if(setInitialPosition(p))
-			{
-				
-				if(!isInitialPositionOccupied())	
-				{
-					ROS_INFO("ThetaStar: Initial discrete position [%d, %d] set correctly", p.x,p.y); //Quitar p.z
+			if(setInitialPosition(p)){
+				if(!isInitialPositionOccupied()){
+					ROS_INFO("ThetaStar: Initial discrete position [%d, %d] set correctly", p.x,p.y); 
 					return true;
 				}
-			}
-			else
-			{
+			}else{
 				if(PRINT_WARNINGS)
 					ROS_WARN("ThetaStar: Initial position outside the workspace attempt!!");
 			}
 			
 			return false;
 		}
-		inline bool setValidInitialPosition(Vector3 p) //Vector 3 por vector 2?
+		inline bool setValidInitialPosition(Vector3 p) 
 		{
 			DiscretePosition pp = discretizePosition(p);
 			
@@ -297,23 +280,19 @@ class ThetaStar
 		}
 		inline bool setValidFinalPosition(DiscretePosition p)
 		{
-			if(setFinalPosition(p))
-			{
-				if(!isFinalPositionOccupied())	
-				{
-					ROS_INFO("ThetaStar: Final discrete position [%d, %d] set correctly", p.x,p.y);//Quitar pz?
+			if(setFinalPosition(p)){
+				if(!isFinalPositionOccupied()){
+					ROS_INFO("ThetaStar: Final discrete position [%d, %d] set correctly", p.x,p.y);
 					return true;
 				}
-			}
-			else
-			{
+			}else{
 				if(PRINT_WARNINGS)
 					ROS_WARN("ThetaStar: Final position outside the workspace attempt!!");
 			}
 			
 			return false;
 		}
-		inline bool setValidFinalPosition(Vector3 p) //Vector 3 por vector2?
+		inline bool setValidFinalPosition(Vector3 p)
 		{
 			DiscretePosition pp = discretizePosition(p);
 			
@@ -343,7 +322,7 @@ class ThetaStar
 		/**
 		  Returns current initial/final position
 			@return current initial/final position
-		**/ //Cambiar el tipo de dato que devuelven por vector 2?
+		**/ 
 		Vector3 getInitialPosition();
 		Vector3 getFinalPosition();
 
@@ -357,7 +336,7 @@ class ThetaStar
 		  Get the current Path as vector [Xi Yi Zi]   
 		**/
 		vector<Vector3> getCurrentPath();//Cambiar los elementos del contenedor por los correspondientes
-			
+	
 		/**
 		  Get the current Trajectory from the thetaStar current path solution as 
 		  trajectory_msgs::MultiDOFJointTrajectory [Xi, Yi, Zi, Yawi, ti]. 
@@ -379,8 +358,7 @@ class ThetaStar
 			@param Position
 			@return Discretized position
 		**/
-		DiscretePosition discretizePosition(Vector3 p); //Cambiar por vector3 por el que corresponda?
-
+		DiscretePosition discretizePosition(Vector3 p); 
 		/**
 		 Get neighbors of a specified node
 		   @param node (input)
@@ -395,7 +373,7 @@ class ThetaStar
 		 Weighted version, using the 'z_weight_cost' param to increase the altitude change cost
 		**/
 		float distanceToGoal(ThetaStarNode node);
-		float weightedDistanceToGoal(ThetaStarNode node);//Eliminar esta porque es la parte z weighted
+		float weightedDistanceToGoal(ThetaStarNode node);
 
 		/**
 		 Returns distance between 2 nodes.
@@ -405,7 +383,7 @@ class ThetaStar
 		 Weighted version, using the 'z_weight_cost' param to increase the altitude change cost
 		**/
 		float distanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2);
-		float weightedDistanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2); //Eliminar weighted z version?
+		float weightedDistanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2); 
 
 		/**
 		 Returns distance from initial.
@@ -415,7 +393,7 @@ class ThetaStar
 		 Weighted version, using the 'z_weight_cost' param to increase the altitude change cost
 		**/
 		float distanceFromInitialPoint(ThetaStarNode node, ThetaStarNode parent);
-		float weightedDistanceFromInitialPoint(ThetaStarNode node, ThetaStarNode parent);//Eliminar weighted z version?
+		float weightedDistanceFromInitialPoint(ThetaStarNode node, ThetaStarNode parent);
 
 		/**
 		 Open and candidates node list, ordered by minor total distance (std::set --> listas ordenadas)
@@ -540,35 +518,13 @@ class ThetaStar
 			return  (x < (ws_x_max-1) && x > (ws_x_min+1)) &&
 					(y < (ws_y_max-1) && y > (ws_y_min+1)); 
 		}
-
-		/**
-		  Inflate a occupied cells filling all cells around in the occupancy matrix
-		  Improvement: fast version using memset() to set to zero (.notOccupied) all 
-		  occupation matrix nodes that have to be inflated
-			@param discrete position of the cell to inflate		
-		**/
-		inline void inflateNodeAsCube(int &x_, int &y_)
-		{
-			// Inflation limits around the node
-			int x_inflated_max = (x_ + h_inflation) + 1;
-			int x_inflated_min = (x_ - h_inflation) - 1;
-			int y_inflated_max = (y_ + h_inflation) + 1;
-			int y_inflated_min = (y_ - h_inflation) - 1;
-			
-			// Loop 'x axis' by 'x axis' for all discrete occupancy matrix cube around the node that must be inflated
-			// Due to the inflated occupancy matrix size increment, the inside checking is not neccesary
-			for(int j = y_inflated_min; j <= y_inflated_max; j++){
-					unsigned int world_index_x_inflated_min = getWorldIndex(x_inflated_min, j);
-					memset(&discrete_world[world_index_x_inflated_min], 0, (x_inflated_max - x_inflated_min)*sizeof(ThetaStartNodeLink)); 
-				}
-		}
-
+		
 		/**
 		  Inflate a occupied cells filling all cells inside the around cylinder in 
 		  the occupancy matrix. 
 			@param discrete position of the cell to inflate
 		**/
-		inline void inflateNodeAsCylinder(int &x_, int &y_)
+		inline void inflateNodeAsCircle(int &x_, int &y_)
 		{
 			// Get discretized radius of the inflation cylinder
 			int R = h_inflation;
@@ -584,7 +540,7 @@ class ThetaStar
 			// Due to the inflated occupancy matrix size increment, the inside checking is not neccesary
 			for(int i = x_inflated_min; i <= x_inflated_max; i++)
 				for(int j = y_inflated_min; j <= y_inflated_max; j++){
-						if(isInsideTheCylinder(i,j, x_,y_, R))
+						if(isInsideTheCircle(i,j, x_,y_, R))
 						{
 							unsigned int world_index_ = getWorldIndex(i, j);
 							discrete_world[world_index_].notOccupied = false;
@@ -615,11 +571,10 @@ class ThetaStar
 		}
 
 		/**
-		  Check if the [x,y] position is inside the cylinder [xo,yo,R] 
-		  (really is circle, yes...)
+		  Check if the [x,y] position is inside the circle [xo,yo,R] 
 			@return true if it is inside
 		**/
-		inline bool isInsideTheCylinder(int &x, int &y, int &xo, int &yo, int &R)
+		inline bool isInsideTheCircle(int &x, int &y, int &xo, int &yo, int &R)
 		{
 			int R_ = sqrt((x - xo)*(x - xo) + (y - yo)*(y - yo));
 			
@@ -631,8 +586,8 @@ class ThetaStar
 
 		/**
 		 Set and search a valid discrete initial/final position in a horizontal ring 
-		 centered in '(xs,ys,zs)' and radius 'd'
-		   @param [x,y,z] center
+		 centered in '(xs,ys)' and radius 'd'
+		   @param [x,y] center
 		   @param 'd' search radius
 		   @return true if is a valid initial/final position and has been set correctly
 		**/
@@ -864,13 +819,14 @@ class ThetaStar
 		// Trajectory parameters
 		float dxy_max; // Maximum increment between wps [meters]
 		float dz_max;
-		float dxyz_tolerance; // Position tolerance for the path to trajectory segmentation [meters]
+		float dxy_tolerance; // Position tolerance for the path to trajectory segmentation [meters]
 		float vm_xy; // Mean linear velocities [m/s]
 		
 		float vm_xy_1; // Mean linear velocities for initial and final displacement [m/s]
 
 		float w_yaw; // Mean angular velocity at yaw [rad/s]
 		float min_yaw_ahead; // Minimum position increment to set yaw ahead [meters]
+		float path_length;
 		bool trajectoryParamsConfigured; // Flag to enable the Trajectory Computation
 
 		// Flag to print the ROS_WARN()
