@@ -5,19 +5,16 @@ project(theta_star)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  octomap_msgs
-  octomap_ros
   moveit_msgs
-  pcl_conversions
-  pcl_ros
+  std_srvs
   roscpp
+  tf
 )
 
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES theta_star
-  CATKIN_DEPENDS octomap_msgs octomap_ros pcl_conversions pcl_ros roscpp
-  DEPENDS octomap_msgs octomap_ros
+  CATKIN_DEPENDS roscpp
 )
 
 ###########
@@ -31,6 +28,11 @@ include_directories(
 
 add_library(theta_star src/ThetaStar.cpp)
 
-add_executable(theta_star_example src/theta_star_example.cpp)
-target_link_libraries(theta_star_example ${catkin_LIBRARIES} theta_star ${octomap_ros_LIBRARIES} ${octomap_msgs_LIBRARIES})
-add_dependencies(theta_star_example ${catkin_EXPORTED_TARGETS})
+add_executable(global_planner_node src/global_planner_node.cpp)
+target_link_libraries(global_planner_node ${catkin_LIBRARIES} theta_star)
+add_dependencies(global_planner_node ${catkin_EXPORTED_TARGETS})
+
+add_executable(local_planner_node src/local_planner_node.cpp)
+target_link_libraries(local_planner_node ${catkin_LIBRARIES} theta_star)
+add_dependencies(local_planner_node ${catkin_EXPORTED_TARGETS})
+

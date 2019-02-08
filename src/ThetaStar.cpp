@@ -98,11 +98,7 @@ void ThetaStar::init(char* plannerName, char* frame_id,
     marker.color.r = 0.0;
     marker.color.g = 1.0;
     marker.color.b = 0.0;
-    
-    sprintf(topicPath, "%s/vis_marker_ocuppancy", plannerName);
-    occupancy_marker_pub_ = nh->advertise<PointCloud>( topicPath, 1);    
-    occupancy_marker.header.frame_id = frame_id; // "world";
-    
+ 
     sprintf(topicPath, "%s/vis_marker_no_lineOfSight", plannerName);
 	no_los_marker_pub_ = nh->advertise<RVizMarker>( topicPath, 1);
 	marker_no_los.header.frame_id = frame_id; //"world";
@@ -151,41 +147,19 @@ void ThetaStar::getMap(nav_msgs::OccupancyGrid message){
         
         getDiscreteWorldPositionFromIndex(x, y, i);
 
-        if(isInside(x,y) && message.data[i] >= 50){
-            discrete_world[i].notOccupied = false;   
+        if(isInside(x,y) && message.data[i] >= 85){
+            discrete_world[i].notOccupied = false;      
         }
+        discrete_world[i].cost = message.data[i];
     }
 }
 // Clear the map
 void ThetaStar::clearMap()
 {
-	for(int i = 0; i< matrix_size; i++)
+	for(int i = 0; i < matrix_size; i++)
 		discrete_world[i].notOccupied = true;
 }
 
-// Puplish to RViz the occupancy map matrix as point cloud markers
-void ThetaStar::publishOccupationMarkersMap()
-{
-	 
-	//~ occupancy_marker.points.clear();
-	occupancy_marker.clear();
-	for(int i=ws_x_min_inflated;i<=ws_x_max_inflated; i++)
-		for(int j=ws_y_min_inflated;j<= ws_y_max_inflated; j++)
-			{	
-				unsigned int matrixIndex = getWorldIndex(i,j);
-				
-				if(!discrete_world[matrixIndex].notOccupied)
-				{
-					
-					pcl::PointXYZ point;
-					point.x = i*step;
-					point.y = j*step;
-		
-					occupancy_marker.push_back(point);
-				}
-			}
-    occupancy_marker_pub_.publish( occupancy_marker );
-}
 bool ThetaStar::setInitialPosition(DiscretePosition p_)
 {
     if(isInside(p_.x,p_.y))
@@ -253,6 +227,7 @@ bool ThetaStar::setFinalPosition(DiscretePosition p_)
     }
     else
     {
+        ROS_WARN("is not Inside!");
         //~ std::cerr << "ThetaStar: Final point ["<< p.x << ";"<< p.y <<";"<< p.z <<"] not valid." << std::endl;
         disc_final = NULL;
         return false;
@@ -429,17 +404,17 @@ int  ThetaStar::getTimeOut()
 
 int  ThetaStar::computePath(void)
 {
-	//~ printf("Calculating...\n");
-
+	//printf("Calculating...\n");
     if(disc_initial==NULL || disc_final==NULL)
     {
         std::cerr << "ThetaStar: Cannot calculate path. Initial or Final point not valid." << std::endl;
         return 0;
     }
 
-
     marker.points.clear();
     marker_no_los.points.clear();
+
+    //Initial point to discrete 
     geometry_msgs::Point p;
     p.x = disc_initial->point.x * step;
     p.y = disc_initial->point.y * step;
@@ -458,7 +433,6 @@ int  ThetaStar::computePath(void)
             erase_node->nodeInWorld->isInOpenList = false;
         }
     }
-
     while(!candidates.empty())
     {
         erase_node = *candidates.begin();
@@ -469,7 +443,6 @@ int  ThetaStar::computePath(void)
             erase_node->nodeInWorld->isInOpenList = false;
         }
     }
-
     open.clear();
     candidates.clear();
 
@@ -479,15 +452,14 @@ int  ThetaStar::computePath(void)
     disc_initial->lineDistanceToFinalPoint = weightedDistanceToGoal(*disc_initial);
     disc_initial->totalDistance = disc_initial->lineDistanceToFinalPoint + 0;
     disc_initial->parentNode = disc_initial;
-
+    ROS_INFO("Distance to goal: %f", disc_initial->lineDistanceToFinalPoint);
     open.insert(disc_initial);
     disc_initial->nodeInWorld->isInOpenList = true;
 
-
-    //Inicialize loop
+    //Initialize loop
     ThetaStarNode *min_distance = disc_initial; // s : current node
     bool noSolution = false;
-    long iter= 0;
+    long iter = 0;
 
     if(isOccupied(*disc_initial) || isOccupied(*disc_final))
     {
@@ -498,7 +470,6 @@ int  ThetaStar::computePath(void)
 #ifdef PRINT_EXPLORED_NODES_NUMBER
 		int expanded_nodes_number = 0;
 #endif
-
     ros::Time last_time_ = ros::Time::now();
     while(!noSolution && (*min_distance)!=(*disc_final))
     {
@@ -507,9 +478,7 @@ int  ThetaStar::computePath(void)
         {
             if((ros::Time::now() - last_time_).toSec() > timeout)
             {
-                //esto lo he apañado como false (normalmente se pone a true ) para evitar que para cuando alcanza
-                //los 2000 nodos(no se donde esta este parametro)
-                noSolution= false;
+                noSolution= true;
                 std::cerr << "Theta Star: Timeout. Iteractions:" << iter << std::endl;
             }
         }
@@ -631,11 +600,13 @@ bool ThetaStar::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw)
 	
 	// loop last and next path positions
 	Vector3 last_position = initial_position;
-	Vector3 next_position;
+	Vector3 next_position = last_path[0];
+    Vector3 middle_position, dir;
 	
-	// loop middle trajectory position (needed if next position is so far)
-	Vector3 middle_position;
-	
+    double mod = getHorizontalNorm(last_path[0].x - initial_position.x,last_path[0].y - initial_position.y);
+    dir.x = (last_path[0].x - initial_position.x)/mod;
+    dir.y = (last_path[0].y - initial_position.y)/mod;
+
 	// Flags 
 	bool isFirst = true;		// to set a different velocity from initial position to the first position
 	bool pathPointGot = false;	// to know if a middle point is necessary
@@ -644,50 +615,34 @@ bool ThetaStar::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw)
 	double dt;
 	
 	// entire path loop
-	int i = 0;
-	while(i < n_path)
-	{
-		// get next path position
-		next_position = last_path[i];
-		
-		// trajectory middle waypoints
-		middle_position = last_position;
-
+	for(int i = 1; i <= n_path; i++){
+       
 		// two path points loop	
-		pathPointGot = false;		
-		while(!pathPointGot)
-		{			
-			// Check if it's neccesary a middle wp between last and next wps
-			pathPointGot = checkMiddlePosition(last_position, next_position, middle_position, dxy_tolerance);
+		while(getHorizontalNorm(fabs(last_position.x-next_position.x),fabs(last_position.y-next_position.y)) > dxy_tolerance){			
+            
 			
-			// Set the intermediate position if path point has not been got
-			if(!pathPointGot)
-			{							
-				//.. to the trajectory
-				// calculate neccesary time to get the horizontal and vertical position
-				if(isFirst)
-				{
-					dt = getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) / vm_xy_1;
-					isFirst = false;
-				}
-				else
-				{
-					dt = getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) / vm_xy;
-				}
-				
-				// Set the maximum neccesary elapse time
-				total_time+=dt;
-					
-				// Set path position (last_position is the original last_position or the last middle_position if it exists)				
-				setPositionYawAndTime(trajectory_point, middle_position, fixed_yaw, total_time);
-				trajectory.points.push_back(trajectory_point);
-				
-				//.. to the algorihtm
-				last_position = middle_position;
-			}
-			
+            middle_position.x = last_position.x + dxy_tolerance*dir.x;
+		    middle_position.y = last_position.y + dxy_tolerance*dir.y;
+		    if(isFirst){
+		    	dt = getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) / vm_xy_1;
+		    	isFirst = false;
+		    }else{
+		    	dt = getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) / vm_xy;
+		    }
+            
+		    // Set the maximum neccesary elapse time
+		    total_time+=dt;
+    
+		    // Set path position (last_position is the original last_position or the last middle_position if it exists)				
+		    setPositionYawAndTime(trajectory_point, middle_position, fixed_yaw, total_time);
+		    trajectory.points.push_back(trajectory_point);
+    
+		    //.. to the algorihtm
+		    last_position = middle_position;
 		}
-	
+        if(i==n_path){
+            break;
+        }
 		// Set path position, always as Vm_1 (last_position is the original last_position or the last middle_position if it exists)
 		dt = getHorizontalNorm(next_position.x - last_position.x, next_position.y - last_position.y) / vm_xy_1;
 
@@ -696,11 +651,12 @@ bool ThetaStar::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw)
 		
 		setPositionYawAndTime(trajectory_point, next_position, fixed_yaw, total_time);
 		trajectory.points.push_back(trajectory_point);
-
-		// next path position
-		isFirst = true;
-		last_position = next_position;
-		i++;
+				
+        last_position = next_position;
+        next_position = last_path[i];
+        mod = getHorizontalNorm(fabs(last_position.x - next_position.x),fabs(last_position.y - next_position.y));
+        dir.x = ( next_position.x - last_position.x )/mod;
+        dir.y = ( next_position.y - last_position.y )/mod;
 	}
 	
 	
@@ -803,15 +759,15 @@ bool ThetaStar::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform init
 	double last_yaw = yaw;
 	double dt_y = 0.0;
 	int i = 0;
-	printf("traj_size = %d\n", traj_size);
+	printf(PRINTF_GREEN"\nTrajectory size = %d\n", traj_size);
 	while(getHorizontalNorm(trajectory.points[i].transforms[0].translation.x - initial_position.x, trajectory.points[i].transforms[0].translation.y - initial_position.y) < min_yaw_ahead)
 	{
-		printf("Intial Pos: [%.4f, %.4f], Tajectory Point: [%.4f,%.4f]\n", initial_position.x, initial_position.y, trajectory.points[i].transforms[0].translation.x, trajectory.points[i].transforms[0].translation.y);
+		printf(PRINTF_GREEN"Intial Pos: [%.4f, %.4f], Tajectory Point: [%.4f,%.4f]\n", initial_position.x, initial_position.y, trajectory.points[i].transforms[0].translation.x, trajectory.points[i].transforms[0].translation.y);
 		i++;
 		
 		if( i > traj_size-1 )
 		{
-			printf("break\n");	
+			printf(PRINTF_GREEN"break\n");	
 			i =- 1;
 			break;
 		}
@@ -819,7 +775,7 @@ bool ThetaStar::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform init
 	if( i >= 0 )
 	{
 		yaw = atan2(trajectory.points[i].transforms[0].translation.y - initial_position.y, trajectory.points[i].transforms[0].translation.x - initial_position.x);
-		printf("i = %d, Setting yaw = %.4f from [%.4f, %.4f] to [%.4f, %.4f]\n", i, yaw, initial_position.x, initial_position.y, trajectory.points[i].transforms[0].translation.x, trajectory.points[i].transforms[0].translation.x);
+		printf("i = %d, Setting yaw = %.4f from [%.4f, %.4f] to [%.4f, %.4f]\n", i, yaw, initial_position.x, initial_position.y, trajectory.points[i].transforms[0].translation.x, trajectory.points[i].transforms[0].translation.y);
 		dyaw = getDyaw(yaw, yaw_odom);
 		dt_y = dyaw / w_yaw;
 		last_yaw = yaw;
@@ -833,7 +789,7 @@ bool ThetaStar::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform init
 	}
 	
 	//print actual trajectory vector state
-	//printfTrajectory(trajectory, "Trajectory_state_1");
+	printfTrajectory(trajectory, "Trajectory_state_1");
 	
 	// Transform the previous trajectory setting the Yaw ahead in Advance and the neccesay time increment for get it
 	tf::Quaternion q; 		// yaw as quaternion to the msg
@@ -872,13 +828,13 @@ bool ThetaStar::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform init
 		// check if neccesary yaw turn time is bigger than for the position increment
 		if( time_inc > 0.0 )
 		{
-			//ROS_INFO("[%d] Exist time increment: %f",  k, time_inc);
+			ROS_INFO("[%d] Exist time increment: %f",  k, time_inc);
 			// update time for this waypoint and all next waypoints
 			for( int j = k; j<trajectory.points.size(); j++ )
 			{
 				trajectory.points[j].time_from_start += ros::Duration(time_inc);
 			}
-			//printfTrajectory(trajectory, "Trajectory_state_middle");
+			printfTrajectory(trajectory, "Trajectory_state_middle");
 		}
 	}
 	// last waypoint yaw reference (same that second last, so yaw does not change, so time does not change)
@@ -1012,6 +968,9 @@ float ThetaStar::distanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2)
 
 float ThetaStar::weightedDistanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2)
 {
+    //Añadido un factor multiplicativo  discrete_world[i].cost*
+    int i = getWorldIndex(n2.point.x,n2.point.y);
+
     return sqrt(pow(n1.point.x-n2.point.x,2) +
 				pow(n1.point.y-n2.point.y,2) );
 }
@@ -1025,7 +984,7 @@ float ThetaStar::distanceFromInitialPoint(ThetaStarNode node, ThetaStarNode pare
         if(parent.distanceFromInitialPoint==std::numeric_limits<float>::max())
             res = parent.distanceFromInitialPoint;
         else
-        {
+        {           
             res = parent.distanceFromInitialPoint +  (sqrt(	pow(node.point.x-parent.point.x,2) +
 															pow(node.point.y-parent.point.y,2) ));
         }
@@ -1036,15 +995,16 @@ float ThetaStar::distanceFromInitialPoint(ThetaStarNode node, ThetaStarNode pare
 float ThetaStar::weightedDistanceFromInitialPoint(ThetaStarNode node, ThetaStarNode parent)
 {
     float res;
+    int i = getWorldIndex(node.point.x,node.point.y);
     if(isOccupied(node))
         res =  std::numeric_limits<float>::max();
     else
         if(parent.distanceFromInitialPoint==std::numeric_limits<float>::max())
             res = parent.distanceFromInitialPoint;
         else
-        {
-            res = parent.distanceFromInitialPoint + (sqrt(	pow(node.point.x-parent.point.x,2) +
-															pow(node.point.y-parent.point.y,2) ));
+        {//Añadido el coste del costmap para el termino de distancia entre padre e hijodiscrete_world[i].cost*
+            res = parent.distanceFromInitialPoint + (sqrt(pow(node.point.x-parent.point.x,2) +
+															                     pow(node.point.y-parent.point.y,2) ));
         }
 
     return res;
@@ -1165,47 +1125,6 @@ void ThetaStar::setPositionYawAndTime(TrajectoryPoint &trajectory_point, Vector3
   trajectory_point.accelerations[0].linear.z = 0.0;
   trajectory_point.time_from_start = ros::Duration(T);
 }
-
-bool ThetaStar::checkMiddlePosition(Vector3 last_position, Vector3 next_position, Vector3 &middle_position, float tolerance)
-{
-	// Flag
-	bool pathPointGot = true;	// to know if a middle point is necessary (funtion returned value)
-	//bool Limited_V = false;		// to know if a the next point is limited vertically, to check correctly the horizontal limitation
-	
-	// Position max increments (where descomposes dxy_max)
-	double DXmax, DYmax;
-
-	if(getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) > (dxy_max + dxy_tolerance))
-	{
-		// X and Y to the max (It exists a singularity at DX = 0.0, so if that directly set the known values)
-		if(fabs(middle_position.x - last_position.x) >= 0.001)
-		{
-			DXmax = dxy_max/(sqrt(1.0 + pow(middle_position.y - last_position.y, 2)/pow(middle_position.x - last_position.x, 2)));
-			DYmax = fabs(middle_position.y - last_position.y)/fabs(middle_position.x - last_position.x) * DXmax;
-		}
-		else
-		{
-			DXmax = 0.0;
-			DYmax = dxy_max;
-		}
-		
-		if(next_position.x - last_position.x > 0.0)
-			middle_position.x = last_position.x + DXmax;
-		else
-			middle_position.x = last_position.x - DXmax;
-			
-		if(next_position.y - last_position.y > 0.0)
-			middle_position.y = last_position.y + DYmax;
-		else	
-			middle_position.y = last_position.y - DYmax;
-		
-		// Exist limitation, so the point is not directly reached 
-		pathPointGot = false;
-	}
-					
-	return pathPointGot;	
-}
-
 double ThetaStar::getHorizontalNorm(double x, double y)
 {
 	return sqrtf(x * x + y * y);
@@ -1242,7 +1161,7 @@ void ThetaStar::printfTrajectory(Trajectory trajectory, string trajectory_name)
 	for(unsigned int i=0; i < trajectory.points.size();i++)
 	{
 		double yaw = getYawFromQuat(trajectory.points[i].transforms[0].rotation);
-		printf(PRINTF_BLUE "\t %d: [%f, %f, %f] m\t[%f] rad\t [%f] sec\n", i, trajectory.points[i].transforms[0].translation.x, trajectory.points[i].transforms[0].translation.y, trajectory.points[i].transforms[0].translation.z, yaw , trajectory.points[i].time_from_start.toSec());
+		printf(PRINTF_BLUE "\t %d: [%.3f, %.3f] m\t[%f] deg\t [%.2f] sec\n", i, trajectory.points[i].transforms[0].translation.x, trajectory.points[i].transforms[0].translation.y, yaw/3.141592*180 , trajectory.points[i].time_from_start.toSec());
 	}
 
 	printf(PRINTF_REGULAR);

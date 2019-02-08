@@ -4,11 +4,7 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/usr/include/pcl-1.7",
-                "/opt/ros/kinetic/share/octomap",
-                "/opt/ros/kinetic/include",
-                "/opt/ros/kinetic/include/octomap_msgs",
-                "/usr/include/pcl-1.7/pcl"
+                "/opt/ros/kinetic/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

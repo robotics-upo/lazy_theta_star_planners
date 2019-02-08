@@ -27,10 +27,6 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_datatypes.h>
 
-//Eliminar lo relacionado con PCL porque trabajaremos con occupancygrids
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <pcl_ros/point_cloud.h>
 
 #define PRINTF_REGULAR  "\x1B[0m"
 #define PRINTF_RED  	"\x1B[31m"
@@ -48,7 +44,6 @@ namespace PathPlanners {
 typedef geometry_msgs::Transform 		Transform;
 typedef geometry_msgs::Vector3 			Vector3;
 typedef geometry_msgs::Quaternion 		Quaternion;
-typedef pcl::PointCloud<pcl::PointXYZ> 	PointCloud;
 typedef trajectory_msgs::MultiDOFJointTrajectory 		Trajectory;
 typedef trajectory_msgs::MultiDOFJointTrajectoryPtr 	TrajectoryPtr;
 typedef trajectory_msgs::MultiDOFJointTrajectoryPoint 	TrajectoryPoint;
@@ -79,6 +74,7 @@ class ThetaStartNodeLink
 	   bool isInOpenList;				// algorithm open list flag
 	   bool isInCandidateList;			// algorithm candidate list flag
 	   bool notOccupied;				// occupancy mark
+	   float cost;
 	   // This last Three vars are not used in the ThetaStar Class.
 	   // Are only for future implementations: LocalPlanner derived class
 	   int lastTimeSeen;				// last time this 'node' was really seen (set as occupied) index (0 if it has been just seen)
@@ -101,7 +97,7 @@ class ThetaStarNode
 	   float lineDistanceToFinalPoint;	// algorithm value
 	   float distanceFromInitialPoint;	// algorithm value
 	   float totalDistance;				// algorithm value
-
+	   float cost; 						//Cost from costmap
 	   // Comparator '!=' definition
 	   friend bool operator != (const ThetaStarNode& lhs, const ThetaStarNode& rhs)
 	   {
@@ -130,7 +126,6 @@ struct NodePointerComparator
          res = lhs->point.y - rhs->point.y;
       }
      
-
       if(res==0)
       {
          res = lhs->parentNode->point.x - rhs->parentNode->point.x;
@@ -140,7 +135,6 @@ struct NodePointerComparator
          res = lhs->parentNode->point.y - rhs->parentNode->point.y;
       }
      
-
       return res < 0;
    }
 };
@@ -210,11 +204,6 @@ class ThetaStar
 		   Clear occupancy discrete matrix
 		**/
 		void clearMap();
-
-		/**
-		  Publish via topic the discrete map constructed
-		**/
-		void publishOccupationMarkersMap();
 
 		/**	
 		  Returns map resolution
@@ -432,9 +421,6 @@ class ThetaStar
 
 		//! Aux Function: Tajectory point to fill and send to the trajectory tracker sight ahead -- Yaw is calculated in such a way that cameras always see ahead
 		void setPositionYawAndTime(TrajectoryPoint &trajectory_point, Vector3 position, double _yaw, double T);
-
-		//! Aux Function: check if it's necessary a middle_position (waypoint) between last_position and next_position and get this middle_position 
-		bool checkMiddlePosition(Vector3 last_position, Vector3 next_position, Vector3 &middle_position, float tolerance);
 
 		//! Aux Function: return the horizonatl module of [X,Y]
 		double getHorizontalNorm(double x, double y);
@@ -811,8 +797,6 @@ class ThetaStar
 		ros::NodeHandle *nh; // Pointer to the process NodeHandle to publish topics
 		RVizMarker marker; // Explored nodes by ThetaStar
 		ros::Publisher marker_pub_;
-		PointCloud occupancy_marker; // Occupancy Map as PointCloud markers
-		ros::Publisher occupancy_marker_pub_;
 		RVizMarker marker_no_los; // Explored nodes with no lineOfSight 
 		ros::Publisher no_los_marker_pub_;
 
