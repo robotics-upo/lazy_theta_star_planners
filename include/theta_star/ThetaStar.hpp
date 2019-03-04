@@ -251,7 +251,7 @@ class ThetaStar
 		{
 			if(setInitialPosition(p)){
 				if(!isInitialPositionOccupied()){
-					ROS_INFO("ThetaStar: Initial discrete position [%d, %d] set correctly", p.x,p.y); 
+					//ROS_INFO("ThetaStar: Initial discrete position [%d, %d] set correctly", p.x,p.y); 
 					return true;
 				}
 			}else{
@@ -271,7 +271,7 @@ class ThetaStar
 		{
 			if(setFinalPosition(p)){
 				if(!isFinalPositionOccupied()){
-					ROS_INFO("ThetaStar: Final discrete position [%d, %d] set correctly", p.x,p.y);
+					//ROS_INFO("ThetaStar: Final discrete position [%d, %d] set correctly", p.x,p.y);
 					return true;
 				}
 			}else{
@@ -476,7 +476,7 @@ class ThetaStar
 			//x = ws_x_min_inflated + (index - z_n_segmts*Lx*Ly - y_n_segmts*Lx);
 			//y = ws_y_min_inflated + y_n_segmts;
 			//z = ws_z_min_inflated + z_n_segmts; // quitar?
-			//Provisional para map_server map con tamaño fijo conocido
+			//Provisional para map_server map con tamaï¿½o fijo conocido
 			int y_n_segmts = floor( index  /(Lx-3) );	// Index y segment (0 to Ly)
 			
 			x =  (index -  y_n_segmts*(Lx-3));

@@ -4,39 +4,38 @@
 #include <ctime>
 #include <sys/timeb.h>
 #include <math.h>
-
 #include <ros/ros.h>
-
+#include <fstream>
 #include <theta_star/ThetaStar.hpp>
-
+//#include <PlannersLib/PlannersLib.hpp>
 #include <visualization_msgs/MarkerArray.h>
+
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Transform.h>
 
-#include <nav_msgs/Odometry.h>
-#include <tf/tf.h>
-#include <tf/transform_listener.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
+//#define DEBUG
 
 using namespace std;
 using namespace PathPlanners;
 
-geometry_msgs::PoseStamped msgGoalPoseStamped, goalPoseStamped;
-geometry_msgs::Transform odom_pose;
-geometry_msgs::Vector3 origin, goal, init;
-nav_msgs::OccupancyGrid globalCostMap, localCostMap;
-tf::TransformListener *tf_listener;
+geometry_msgs::PoseStamped goalPoseStamped;
+geometry_msgs::Vector3Stamped goal;
+nav_msgs::OccupancyGrid globalCostMap;
+tf2_ros::Buffer tfBuffer;
 
-bool localCostMapReceived = false;
 bool globalGoalReceived = false;
-bool odomReceived = false;
 bool globalCostMapSentToAlgorithm = false;
 bool globalCostMapReceived = false;
 bool globalGoalSet = false;
-bool amclPoseReceived = false;
+bool initialPoseSet = false;
 bool globalTrajSent = false;
+
 struct timeb startT, finishT;
 
-int traj_array_length;
+int number_of_points;
 
 double map_resolution = 0.0;
 double ws_x_max = 0.0;
@@ -55,13 +54,14 @@ double traj_yaw_tol = 1.0;
 
 void globalCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &fp);
 void rvizGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &goalMsg);
-void odomCallback(const nav_msgs::Odometry::ConstPtr &odomMsg);
 
-//The inputs x_ etc are pixels(more confortable sometimes)
-void setGoal(float x_, float y_, float z_, ThetaStar *th);
-//The inputs x_ etc are pixels(more confortable sometimes)
-void setIni(float x_, float y_, float z_, ThetaStar *th);
+void setGoal(geometry_msgs::Vector3Stamped, ThetaStar *th);
+void setStart(ThetaStar *th);
 
+geometry_msgs::TransformStamped getTransformFromMapToThetaStarFrame();
+geometry_msgs::TransformStamped getTransformFromBaseLinkToMap();
+geometry_msgs::TransformStamped getTransformFromBaseLinkToThetaStarMap();
+float getYawFromQuat(Quaternion quat);
 void getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistraj_pub, ThetaStar *th);
 void showTime(string message, struct timeb st, struct timeb ft);
 void configParams(bool showConfig);
@@ -72,12 +72,12 @@ int main(int argc, char **argv)
 	string node_name = "global_planner_node";
 	ros::init(argc, argv, node_name);
 	ros::NodeHandle n;
-	tf_listener = new tf::TransformListener();
+
+	tf2_ros::TransformListener tfListener(tfBuffer);
 
 	char topicPath[100];
 
 	ros::Subscriber goal_sub = n.subscribe("/move_base_simple/goal", 1000, rvizGoalCallback);
-	ros::Subscriber odom_sub = n.subscribe("/odom", 1000, odomCallback);
 	// Global costmap topic subscriber
 	sprintf(topicPath, "/costmap_2d/costmap/costmap");
 	ros::Subscriber global_sub_map = n.subscribe(topicPath, 0, globalCostMapCallback);
@@ -91,9 +91,7 @@ int main(int argc, char **argv)
 	// Trajectory solution visualization topic
 	ros::Publisher vis_pub_traj = n.advertise<visualization_msgs::MarkerArray>(node_name + "/visualization_marker_trajectory", 10);
 
-	//ros::ServiceServer service = n.advertiseService("getGlobalTrajFlag", getFlagService);
-
-	configParams(false);
+	configParams(true);
 	// Init Theta*
 	ThetaStar theta((char *)node_name.c_str(), (char *)"/world", ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, map_h_inflaction, goal_weight, &n);
 
@@ -105,6 +103,7 @@ int main(int argc, char **argv)
 
 	ROS_INFO("Waiting for new global goal...");
 
+	ros::Rate loop_rate(10);
 	while (ros::ok())
 	{
 		// Waiting for new goal and reading odometry
@@ -117,34 +116,39 @@ int main(int argc, char **argv)
 			globalCostMapSentToAlgorithm = true;
 		}
 
-		if (globalGoalReceived && globalCostMapSentToAlgorithm && odomReceived)
+		if (globalGoalReceived && globalCostMapSentToAlgorithm)
 		{
-			setGoal(goalPoseStamped.pose.position.x, goalPoseStamped.pose.position.y, 0, &theta);
-			setIni(odom_pose.translation.x, odom_pose.translation.y, 0, &theta);
 
-			// Path calculation
-			ROS_INFO("Path calculation...");
+			setGoal(goal, &theta);
+			setStart(&theta);
+			if (globalGoalSet && initialPoseSet)
+			{
+				// Path calculation
+				ROS_INFO("Path calculation...");
 
-			ftime(&startT);
-			int number_of_points = theta.computePath();
-			ftime(&finishT);
+				ftime(&startT);
+				number_of_points = theta.computePath();
+				ftime(&finishT);
 
-			showTime("Time spend in path calculation: ", startT, finishT);
 
-			ROS_INFO("Number of points: %d", number_of_points);
+				showTime("Time spend in path calculation: ", startT, finishT);
+				if(number_of_points >0){
+				ROS_INFO("Number of points: %d", number_of_points);
 
-			getAndPublishTrajMarkArray(&trajectory_pub, &vis_pub_traj, &theta);
-
-			globalGoalReceived = false;
+				getAndPublishTrajMarkArray(&trajectory_pub, &vis_pub_traj, &theta);
+				}
+				globalGoalReceived = false;
+			}else{
+				ROS_ERROR("Global goal or start poitn occupied ");
+			}
 			
-			//ROS_INFO("Waiting for new global goal...");
 		}
-
-		usleep(1e5);
+		loop_rate.sleep();
 	}
 
 	return 0;
 }
+//Since the local costmap y constant over time, it's not neccesary to refresh it every ros::spinOnce
 void globalCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &fp)
 {
 	if (!globalCostMapReceived)
@@ -153,145 +157,182 @@ void globalCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &fp)
 		globalCostMapReceived = true;
 	}
 }
+//TODO: delete robotPoseReceived flag change from this callback
+//Right now is here to refresh the current robot pose every time a goal is received, but this flag has to be changed inside the main loop
 void rvizGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &goalMsg)
 {
 	goalPoseStamped.pose = goalMsg->pose;
+
+	goal.vector.x = goalMsg->pose.position.x;
+	goal.vector.y = goalMsg->pose.position.y;
+	goal.header = goalMsg->header;
+
 	globalGoalReceived = true;
-	odomReceived = false;
 }
-
-void odomCallback(const nav_msgs::Odometry::ConstPtr &odomMsg)
+//This function obtains the transform between map and base_link to send it to the trayectory calculation function from ThetaStar class
+geometry_msgs::TransformStamped getTransformFromBaseLinkToMap()
 {
-	if (!odomReceived)
-	{
-		geometry_msgs::PoseStamped myOdomPoseStamped, myMapPoseStamped;
-		myOdomPoseStamped.header.frame_id = "odom";
-		myOdomPoseStamped.header.stamp = ros::Time(0);
-		myMapPoseStamped.header.frame_id = "map";
-		myMapPoseStamped.header.stamp = ros::Time(0);
-		myOdomPoseStamped.pose = odomMsg->pose.pose;
-		try
-		{
-			tf_listener->transformPose("map", myOdomPoseStamped, myMapPoseStamped);
-			odomReceived = true;
-		}
-		catch (const tf2::LookupException &e)
-		{
-			ROS_INFO("exception in tf listenner");
-			odomReceived = false;
-		}
 
-		odom_pose.translation.x = myMapPoseStamped.pose.position.x;
-		odom_pose.translation.y = myMapPoseStamped.pose.position.y;
-		odom_pose.translation.z = 0;
-		odom_pose.rotation.w = 1;
-		odom_pose.rotation.x = 0;
-		odom_pose.rotation.y = 0;
-		odom_pose.rotation.z = 0;
-		odomReceived = true;
+	geometry_msgs::TransformStamped ret;
+
+	try
+	{
+		ret = tfBuffer.lookupTransform("map", "base_link", ros::Time(0));
 	}
-}
-//The inputs x_ etc are pixels(more confortable sometimes)
-void setGoal(float x_, float y_, float z_, ThetaStar *th)
-{
-	geometry_msgs::Vector3 pos;
-	pos.x = x_ - origin.x;
-	pos.y = y_ - origin.y;
-	pos.z = z_;
-	if (th->setValidFinalPosition(pos))
+	catch (tf2::TransformException &ex)
 	{
-		goal.x = x_ - origin.x;
-		goal.y = y_ - origin.y;
-		goal.z = z_;
+		ROS_WARN("%s", ex.what());
+	}
+
+	return ret;
+}
+geometry_msgs::TransformStamped getTransformFromBaseLinkToThetaStarMap()
+{
+
+	geometry_msgs::TransformStamped ret;
+
+	try
+	{
+		ret = tfBuffer.lookupTransform("global_theta_star_link", "base_link", ros::Time(0));
+	}
+	catch (tf2::TransformException &ex)
+	{
+		ROS_WARN("%s", ex.what());
+	}
+
+	return ret;
+}
+geometry_msgs::TransformStamped getTransformFromMapToThetaStarFrame()
+{
+	geometry_msgs::TransformStamped ret;
+
+	try
+	{
+		ret = tfBuffer.lookupTransform("global_theta_star_link", "map", ros::Time(0));
+	}
+	catch (tf::TransformException &ex)
+	{
+		ROS_WARN("%s", ex.what());
+	}
+
+	return ret;
+}
+void setGoal(geometry_msgs::Vector3Stamped goal, ThetaStar *th)
+{
+
+	goal.vector.x += getTransformFromMapToThetaStarFrame().transform.translation.x;
+	goal.vector.y += getTransformFromMapToThetaStarFrame().transform.translation.y;
+
+	if (th->setValidFinalPosition(goal.vector))
+	{
 		globalGoalSet = true;
 	}
 	else
 	{
-		ROS_WARN("Failed to set final position");
+		ROS_WARN("Failed to set final global position");
 	}
 }
-//The inputs x_ etc are pixels(more confortable sometimes)
-void setIni(float x_, float y_, float z_, ThetaStar *th)
+void setStart(ThetaStar *th)
 {
-	geometry_msgs::Vector3 pos;
-	pos.x = x_ - origin.x;
-	pos.y = y_ - origin.y;
-	pos.z = z_;
-	if (th->setValidInitialPosition(pos))
+
+	geometry_msgs::Vector3Stamped start;
+	start.vector.x = getTransformFromBaseLinkToThetaStarMap().transform.translation.x;
+	start.vector.y = getTransformFromBaseLinkToThetaStarMap().transform.translation.y;
+
+	if (th->setValidInitialPosition(start.vector))
 	{
-		init.x = x_ - origin.x;
-		init.y = y_ - origin.y;
-		init.z = z_;
+		initialPoseSet = true;
 	}
 	else
 	{
-		ROS_WARN("Failed to set initial position");
+		ROS_WARN("Failed to set initial global position");
 	}
+}
+float getYawFromQuat(Quaternion quat)
+{
+    double r, p, y;
+    tf::Quaternion q(quat.x, quat.y, quat.z, quat.w);
+    tf::Matrix3x3 M(q);
+    M.getRPY(r, p, y);
+
+    return y / M_PI * 180;
 }
 void getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistraj_pub, ThetaStar *th)
 {
 
 	Trajectory trajectory;
 	visualization_msgs::MarkerArray traj_marker;
-	trajectory.joint_names.push_back("base_link");
+
+	trajectory.joint_names.push_back("map");
 	trajectory.header.stamp = ros::Time::now();
-	trajectory.header.frame_id = "base_link";
+	trajectory.header.frame_id = "map";
 
 	trajectory.points.clear();
 	trajectory.header.stamp = ros::Time::now();
 	ROS_INFO("Trajectory calculation...");
 
-	th->getTrajectoryYawInAdvance(trajectory, odom_pose);
-
+	//This way we get the rob0000000009ot pose in the ThetaStar map frame( origin(0,0) in the lower left corner)
+	geometry_msgs::TransformStamped transform_robot_pose = getTransformFromBaseLinkToThetaStarMap();
+	if(number_of_points>1){
+    th->getTrajectoryYawInAdvance(trajectory, transform_robot_pose.transform);
+    }else{
+        th->getTrajectoryYawFixed(trajectory,getYawFromQuat(transform_robot_pose.transform.rotation));
+        trajectory_msgs::MultiDOFJointTrajectoryPoint pos;
+        pos.transforms.push_back(transform_robot_pose.transform);   
+        trajectory.points.push_back(pos);
+    }
 	// Send the trajectory
 	// Trajectory solution visualization marker
 
-	for(int i = 0; i < trajectory.points.size(); i++  ){
-		trajectory.points[i].transforms[0].translation.x += origin.x;
-		trajectory.points[i].transforms[0].translation.y += origin.y;
-	}
-	traj_pub->publish(trajectory);
-	traj_array_length = trajectory.points.size() + 1;
-	traj_marker.markers.resize(traj_array_length);
-
-	for (int i = 0; i <= trajectory.points.size(); i++)
+	for (int i = 0; i < trajectory.points.size(); i++)
 	{
-		traj_marker.markers[i].type = visualization_msgs::Marker::ARROW;
+		trajectory.points[i].transforms[0].translation.x -= getTransformFromMapToThetaStarFrame().transform.translation.x;
+		trajectory.points[i].transforms[0].translation.y -= getTransformFromMapToThetaStarFrame().transform.translation.y;
+	}
+	trajectory_msgs::MultiDOFJointTrajectoryPoint goal_multidof;
+	geometry_msgs::Transform transform_goal;
+
+	transform_goal.rotation = goalPoseStamped.pose.orientation;
+	transform_goal.translation.x = goalPoseStamped.pose.position.x;
+	transform_goal.translation.y = goalPoseStamped.pose.position.y;
+
+	goal_multidof.transforms.resize(1, transform_goal);
+
+	trajectory.points.push_back(goal_multidof);
+
+	
+
+	traj_pub->publish(trajectory);
+
+	traj_marker.markers.resize( trajectory.points.size());
+
+	for (int i = 0; i < trajectory.points.size(); i++)
+	{
+		traj_marker.markers[i].type = visualization_msgs::Marker::CUBE;
 		traj_marker.markers[i].points.clear();
 		traj_marker.markers[i].header.frame_id = "map";
 		traj_marker.markers[i].header.stamp = ros::Time();
 		traj_marker.markers[i].ns = "theta_star";
 		traj_marker.markers[i].id = i;
 		traj_marker.markers[i].action = visualization_msgs::Marker::ADD;
-		traj_marker.markers[i].pose.position.z = 0.5;
-		traj_marker.markers[i].scale.x = 1;
+		traj_marker.markers[i].pose.position.z = 0.3;
+		traj_marker.markers[i].scale.x = 0.3;
 		traj_marker.markers[i].scale.y = 0.3;
 		traj_marker.markers[i].scale.z = 0.3;
 		traj_marker.markers[i].color.a = 1.0;
 		traj_marker.markers[i].color.r = 0.0;
 		traj_marker.markers[i].color.g = 1.0;
 		traj_marker.markers[i].color.b = 0.5;
-		if (i != trajectory.points.size())
-		{
-			traj_marker.markers[i].pose.orientation.w = trajectory.points[i].transforms[0].rotation.w;
-			traj_marker.markers[i].pose.orientation.z = trajectory.points[i].transforms[0].rotation.z;
-			traj_marker.markers[i].pose.orientation.x = trajectory.points[i].transforms[0].rotation.x;
-			traj_marker.markers[i].pose.orientation.y = trajectory.points[i].transforms[0].rotation.y;
-			traj_marker.markers[i].pose.position.x = trajectory.points[i].transforms[0].translation.x;
-			traj_marker.markers[i].pose.position.y = trajectory.points[i].transforms[0].translation.y;
-		}
-		else
-		{
-			traj_marker.markers[i].pose.orientation.w = goalPoseStamped.pose.orientation.w;
-			traj_marker.markers[i].pose.orientation.z = goalPoseStamped.pose.orientation.z;
-			traj_marker.markers[i].pose.orientation.x = goalPoseStamped.pose.orientation.x;
-			traj_marker.markers[i].pose.orientation.y = goalPoseStamped.pose.orientation.y;
-			traj_marker.markers[i].pose.position.x = goalPoseStamped.pose.position.x;
-			traj_marker.markers[i].pose.position.y = goalPoseStamped.pose.position.y;
-		}
+		traj_marker.markers[i].lifetime = ros::Duration(60);
+		traj_marker.markers[i].pose.orientation.w = trajectory.points[i].transforms[0].rotation.w;
+		traj_marker.markers[i].pose.orientation.z = trajectory.points[i].transforms[0].rotation.z;
+		traj_marker.markers[i].pose.orientation.x = trajectory.points[i].transforms[0].rotation.x;
+		traj_marker.markers[i].pose.orientation.y = trajectory.points[i].transforms[0].rotation.y;
+		traj_marker.markers[i].pose.position.x = trajectory.points[i].transforms[0].translation.x;
+		traj_marker.markers[i].pose.position.y = trajectory.points[i].transforms[0].translation.y;
 	}
 	vistraj_pub->publish(traj_marker);
-	globalTrajSent = false;
+	globalTrajSent = true;
 }
 void showTime(string message, struct timeb st, struct timeb ft)
 {
@@ -304,8 +345,6 @@ void showTime(string message, struct timeb st, struct timeb ft)
 }
 void configParams(bool showConfig)
 {
-	ros::param::get("/costmap_2d/costmap/origin_x", origin.x);
-	ros::param::get("/costmap_2d/costmap/origin_y", origin.y);
 	ros::param::get("/global_planner/ws_x_max", ws_x_max);
 	ros::param::get("/global_planner/ws_y_max", ws_y_max);
 	ros::param::get("/global_planner/ws_x_min", ws_x_min);

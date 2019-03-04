@@ -452,7 +452,7 @@ int  ThetaStar::computePath(void)
     disc_initial->lineDistanceToFinalPoint = weightedDistanceToGoal(*disc_initial);
     disc_initial->totalDistance = disc_initial->lineDistanceToFinalPoint + 0;
     disc_initial->parentNode = disc_initial;
-    ROS_INFO("Distance to goal: %f", disc_initial->lineDistanceToFinalPoint);
+    //ROS_INFO("Distance to goal: %f", disc_initial->lineDistanceToFinalPoint);
     open.insert(disc_initial);
     disc_initial->nodeInWorld->isInOpenList = true;
 
@@ -461,10 +461,26 @@ int  ThetaStar::computePath(void)
     bool noSolution = false;
     long iter = 0;
 
-    if(isOccupied(*disc_initial) || isOccupied(*disc_final))
+    if( isOccupied(*disc_final))
     {
         noSolution = true;
-        std::cerr << "ThetaStar: Initial or Final point not free." << std::endl;
+        std::cerr << "ThetaStar: Final  point not free." << std::endl;
+        
+    }
+     if(isOccupied(*disc_initial))
+    {
+        noSolution = true;
+        std::cerr << "ThetaStar: Initial point not free." << std::endl;
+        if(searchInitialPositionInXyRing(disc_initial->point.x, disc_initial->point.y,0.2)){
+            noSolution=false;
+            disc_initial->point.x = getInitialPosition().x;
+            disc_initial->point.x = getInitialPosition().y;
+        }
+
+
+        //Fali: Trying to fix the problem of falling inside occupied points
+        return -1;
+        
     }
 
 #ifdef PRINT_EXPLORED_NODES_NUMBER
@@ -759,15 +775,15 @@ bool ThetaStar::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform init
 	double last_yaw = yaw;
 	double dt_y = 0.0;
 	int i = 0;
-	printf(PRINTF_GREEN"\nTrajectory size = %d\n", traj_size);
+	//printf(PRINTF_GREEN"\nTrajectory size = %d\n", traj_size);
 	while(getHorizontalNorm(trajectory.points[i].transforms[0].translation.x - initial_position.x, trajectory.points[i].transforms[0].translation.y - initial_position.y) < min_yaw_ahead)
 	{
-		printf(PRINTF_GREEN"Intial Pos: [%.4f, %.4f], Tajectory Point: [%.4f,%.4f]\n", initial_position.x, initial_position.y, trajectory.points[i].transforms[0].translation.x, trajectory.points[i].transforms[0].translation.y);
+		//printf(PRINTF_GREEN"Intial Pos: [%.4f, %.4f], Tajectory Point: [%.4f,%.4f]\n", initial_position.x, initial_position.y, trajectory.points[i].transforms[0].translation.x, trajectory.points[i].transforms[0].translation.y);
 		i++;
 		
 		if( i > traj_size-1 )
 		{
-			printf(PRINTF_GREEN"break\n");	
+			//printf(PRINTF_GREEN"break\n");	
 			i =- 1;
 			break;
 		}
@@ -775,7 +791,7 @@ bool ThetaStar::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform init
 	if( i >= 0 )
 	{
 		yaw = atan2(trajectory.points[i].transforms[0].translation.y - initial_position.y, trajectory.points[i].transforms[0].translation.x - initial_position.x);
-		printf("i = %d, Setting yaw = %.4f from [%.4f, %.4f] to [%.4f, %.4f]\n", i, yaw, initial_position.x, initial_position.y, trajectory.points[i].transforms[0].translation.x, trajectory.points[i].transforms[0].translation.y);
+		//printf("i = %d, Setting yaw = %.4f from [%.4f, %.4f] to [%.4f, %.4f]\n", i, yaw, initial_position.x, initial_position.y, trajectory.points[i].transforms[0].translation.x, trajectory.points[i].transforms[0].translation.y);
 		dyaw = getDyaw(yaw, yaw_odom);
 		dt_y = dyaw / w_yaw;
 		last_yaw = yaw;
@@ -789,7 +805,7 @@ bool ThetaStar::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform init
 	}
 	
 	//print actual trajectory vector state
-	printfTrajectory(trajectory, "Trajectory_state_1");
+	//printfTrajectory(trajectory, "Trajectory_state_1");
 	
 	// Transform the previous trajectory setting the Yaw ahead in Advance and the neccesay time increment for get it
 	tf::Quaternion q; 		// yaw as quaternion to the msg
@@ -826,7 +842,8 @@ bool ThetaStar::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform init
 		// calculate time increment
 		time_inc = dt_y - ( trajectory.points[k].time_from_start.toSec() - trajectory.points[k-1].time_from_start.toSec() );
 		// check if neccesary yaw turn time is bigger than for the position increment
-		if( time_inc > 0.0 )
+		//Este trozo me estaba dando problemas, vamos a omitirlo de momento porque el time increment 
+        /*if( time_inc > 0.0 )
 		{
 			ROS_INFO("[%d] Exist time increment: %f",  k, time_inc);
 			// update time for this waypoint and all next waypoints
@@ -835,7 +852,7 @@ bool ThetaStar::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform init
 				trajectory.points[j].time_from_start += ros::Duration(time_inc);
 			}
 			printfTrajectory(trajectory, "Trajectory_state_middle");
-		}
+		}*/
 	}
 	// last waypoint yaw reference (same that second last, so yaw does not change, so time does not change)
 	q.setRPY(0.0,0.0,yaw); // Note: If it's only one wp the 'for' statement does not execute nothing, so its neccesary this line
@@ -968,10 +985,10 @@ float ThetaStar::distanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2)
 
 float ThetaStar::weightedDistanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2)
 {
-    //Añadido un factor multiplicativo  discrete_world[i].cost*
+    //Aï¿½adido un factor multiplicativo  discrete_world[i].cost*
     int i = getWorldIndex(n2.point.x,n2.point.y);
 
-    return sqrt(pow(n1.point.x-n2.point.x,2) +
+    return discrete_world[i].cost*0.05 + sqrt(pow(n1.point.x-n2.point.x,2) +
 				pow(n1.point.y-n2.point.y,2) );
 }
 
@@ -1002,8 +1019,8 @@ float ThetaStar::weightedDistanceFromInitialPoint(ThetaStarNode node, ThetaStarN
         if(parent.distanceFromInitialPoint==std::numeric_limits<float>::max())
             res = parent.distanceFromInitialPoint;
         else
-        {//Añadido el coste del costmap para el termino de distancia entre padre e hijodiscrete_world[i].cost*
-            res = parent.distanceFromInitialPoint + (sqrt(pow(node.point.x-parent.point.x,2) +
+        {//Aï¿½adido el coste del costmap para el termino de distancia entre padre e hijodiscrete_world[i].cost*
+            res = parent.distanceFromInitialPoint + discrete_world[i].cost*0.05 + (sqrt(pow(node.point.x-parent.point.x,2) +
 															                     pow(node.point.y-parent.point.y,2) ));
         }
 
