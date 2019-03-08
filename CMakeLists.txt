@@ -5,7 +5,7 @@ project(theta_star)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  moveit_msgs
+
   std_srvs
   roscpp
   tf

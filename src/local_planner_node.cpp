@@ -6,11 +6,19 @@
 #include <ctime>
 #include <sys/timeb.h>
 #include <fstream>
+<<<<<<< HEAD
 
 #include <tf2_ros/transform_listener.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include <std_msgs/Int32.h>
+=======
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
+//#include <PlannersLib/PlannersLib.hpp>
+
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
 
 #include <geometry_msgs/PoseStamped.h>
 
@@ -28,6 +36,7 @@ using namespace std;
 using namespace PathPlanners;
 
 geometry_msgs::Vector3 local_costmap_center, localGoal;
+<<<<<<< HEAD
 
 nav_msgs::OccupancyGrid localCostMap, localCostMapInflated;
 
@@ -35,13 +44,22 @@ tf2_ros::Buffer tfBuffer;
 
 trajectory_msgs::MultiDOFJointTrajectory globalTrajectory, localTrajectory;
 trajectory_msgs::MultiDOFJointTrajectoryPoint globalGoal;
+=======
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
 
+nav_msgs::OccupancyGrid localCostMap, localCostMapInflated;
+tf2_ros::Buffer tfBuffer;
+trajectory_msgs::MultiDOFJointTrajectory globalTrajectory, localTrajectory;
+trajectory_msgs::MultiDOFJointTrajectoryPoint globalGoal;
 //Flags for flow control
 bool localCostMapReceived = false;
 bool globalTrajReceived = false;
 bool localGoalReached = true;
 bool globalGoalReached = false;
+<<<<<<< HEAD
 
+=======
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
 struct timeb startT, finishT;
 
 unsigned int startIter = 0;
@@ -62,22 +80,36 @@ double localCostMapInflation = 1.0;
 
 //Functions declarations
 geometry_msgs::Vector3 calculateLocalGoal();
+<<<<<<< HEAD
+=======
+geometry_msgs::Pose transformPose(geometry_msgs::Pose originalPose, std::string originalTF, std::string nextTF);
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
 geometry_msgs::TransformStamped getTransformFromMapToBaseLink();
 
 void publishTrajMarker(ros::Publisher *traj_marker_pub);
 void buildAndPubTrayectory(ThetaStar *theta, ros::Publisher *traj_publisher);
+<<<<<<< HEAD
 
+=======
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
 //True if you want to see the params used in the terminal
 void configParams(bool showConfig);
-
 //Auxiliar functions
 void showTime(string message, struct timeb st, struct timeb ft);
+<<<<<<< HEAD
 void inflateCostMap();
 
+=======
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
 //Calbacks and publication functions
 void localCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &lcp);
 void globalTrajCallback(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr &traj);
 void localGoalReachedCallback(const std_msgs::Bool &data);
+<<<<<<< HEAD
+=======
+
+void inflateCostMap();
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
 
 int main(int argc, char **argv)
 {
@@ -117,10 +149,20 @@ int main(int argc, char **argv)
     std_msgs::Bool is_running;
     is_running.data = true;
     ros::Publisher local_run_pub = n.advertise<std_msgs::Bool>("/local_planner_node/running", 10);
+<<<<<<< HEAD
     ros::Publisher plan_time = n.advertise<std_msgs::Int32>("/local_planning_time", 1000);
     
     configParams(false);
     ThetaStar theta((char *)node_name.c_str(), (char *)"/world", ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, &n);
+=======
+
+    //Load params from parameter server, true if you want to visualize the loaded parameters
+    configParams(true);
+    // Init Theta*
+    ThetaStar theta((char *)node_name.c_str(), (char *)"/world", ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, map_h_inflaction, goal_weight, &n);
+
+    // Set timeout
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
     theta.setTimeOut(20);
     theta.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
 
@@ -129,6 +171,7 @@ int main(int argc, char **argv)
     ros::Rate loop_rate(20);
     int number_of_points = 0;
     bool startOk = false;
+<<<<<<< HEAD
     float seconds, milliseconds;
     std_msgs::Int32 msg;
 
@@ -140,6 +183,16 @@ int main(int argc, char **argv)
         inf_costmap.publish(localCostMapInflated);
         local_run_pub.publish(is_running);
 
+=======
+    while (ros::ok())
+    {
+
+        ros::spinOnce();
+        inflateCostMap();
+        inf_costmap.publish(localCostMapInflated);
+        local_run_pub.publish(is_running);
+        
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
         if (globalTrajReceived && localCostMapReceived)
         {
 
@@ -165,16 +218,24 @@ int main(int argc, char **argv)
                 localGoal = calculateLocalGoal();
                 if (!theta.setValidFinalPosition(localGoal))
                 {
+<<<<<<< HEAD
 
+=======
+                   
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
                     if (theta.searchFinalPosition2d(0.3))
                     {
                         ftime(&startT);
                         number_of_points = theta.computePath();
                         ftime(&finishT);
+<<<<<<< HEAD
                         seconds = finishT.time - startT.time - 1;
                         milliseconds = (1000 - startT.millitm) + finishT.millitm;
                         msg.data = (milliseconds + seconds * 1000);
                         plan_time.publish(msg);
+=======
+                        showTime("Local planner time spent:", startT, finishT);
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
                     }
                     else
                     {
@@ -187,10 +248,14 @@ int main(int argc, char **argv)
                     ftime(&startT);
                     number_of_points = theta.computePath();
                     ftime(&finishT);
+<<<<<<< HEAD
                     seconds = finishT.time - startT.time - 1;
                     milliseconds = (1000 - startT.millitm) + finishT.millitm;
                     msg.data = (milliseconds + seconds * 1000);
                     plan_time.publish(msg);
+=======
+                    //showTime("Local planner time spent:", startT, finishT);
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
                 }
                 if (number_of_points > 0)
                 {
@@ -229,20 +294,35 @@ void buildAndPubTrayectory(ThetaStar *theta, ros::Publisher *traj_publisher)
     temp1.rotation.w = 1;
 
     goal_temp.transforms.resize(1, temp1);
+<<<<<<< HEAD
 
     localTrajectory.points.push_back(goal_temp);
     localTrajArrLen = localTrajectory.points.size();
   
+=======
+
+    localTrajectory.points.push_back(goal_temp);
+    localTrajArrLen = localTrajectory.points.size();
+    //printfTrajectory(localTrajectory);
+
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
     traj_publisher->publish(localTrajectory);
 }
 geometry_msgs::Vector3 calculateLocalGoal()
 {
 
     geometry_msgs::Vector3Stamped C;
+<<<<<<< HEAD
 
     //First we transform the trajectory published by global planner to base_link frame
     geometry_msgs::TransformStamped tr = getTransformFromMapToBaseLink();
 
+=======
+
+    //First we transform the trajectory published by global planner to base_link frame
+    geometry_msgs::TransformStamped tr = getTransformFromMapToBaseLink();
+
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
     trajectory_msgs::MultiDOFJointTrajectory globalTrajBLFrame = globalTrajectory;
     globalTrajBLFrame.header.frame_id = "base_link";
     for (int i = 0; i < globalTrajArrLen; i++)
@@ -250,7 +330,13 @@ geometry_msgs::Vector3 calculateLocalGoal()
         globalTrajBLFrame.points[i].transforms[0].translation.x -= tr.transform.translation.x;
         globalTrajBLFrame.points[i].transforms[0].translation.y -= tr.transform.translation.y;
     }
+<<<<<<< HEAD
   
+=======
+    //printfTrajectory(globalTrajBLFrame);
+    //printfTrajectory(globalTrajectory);
+
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
     //Ya esta referida al base_link. Ahora la recorro desde i=1(porque i=0 es siempre la pos del base_link que alpasarla al sistema base_link sera (0,0))
     for (int i = startIter; i < globalTrajArrLen; i++)
     {
@@ -258,13 +344,68 @@ geometry_msgs::Vector3 calculateLocalGoal()
         C.vector.y = globalTrajBLFrame.points[i].transforms[0].translation.y + (ws_y_max) / 2;
 
         if (fabs(globalTrajBLFrame.points[i].transforms[0].translation.x) > (ws_x_max / 2 - localCostMapInflation) ||
+<<<<<<< HEAD
             fabs(globalTrajBLFrame.points[i].transforms[0].translation.y) > (ws_y_max / 2 - localCostMapInflation) || i == globalTrajArrLen - 1)
+=======
+            fabs(globalTrajBLFrame.points[i].transforms[0].translation.y) > (ws_y_max / 2 - localCostMapInflation) || i == globalTrajArrLen-1)
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
         {
             startIter = i;
             break;
         }
+        
     }
+<<<<<<< HEAD
     return C.vector;
+}
+geometry_msgs::TransformStamped getTransformFromMapToBaseLink()
+=======
+    //ROS_INFO("C: [%.2f, %.2f]",C.vector.x,C.vector.y);
+
+    return C.vector;
+}
+geometry_msgs::Pose transformPose(geometry_msgs::Pose originalPose, std::string originalTF, std::string nextTF)
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
+{
+    geometry_msgs::TransformStamped transformStamped;
+
+<<<<<<< HEAD
+    geometry_msgs::TransformStamped ret;
+
+    try
+    {
+        ret = tfBuffer.lookupTransform("map", "base_link", ros::Time(0));
+    }
+    catch (tf2::TransformException &ex)
+    {
+        ROS_WARN("%s", ex.what());
+    }
+
+    return ret;
+}
+
+=======
+    try
+    {
+        transformStamped = tfBuffer.lookupTransform(nextTF, originalTF, ros::Time(0));
+    }
+    catch (tf2::TransformException &ex)
+    {
+        ROS_WARN("No transform %s", ex.what());
+    }
+
+    geometry_msgs::PoseStamped originalPoseStamped;
+    geometry_msgs::PoseStamped nextPoseStamped;
+
+    originalPoseStamped.pose = originalPose;
+    originalPoseStamped.header.frame_id = originalTF;
+    originalPoseStamped.header.stamp = ros::Time(0);
+
+    nextPoseStamped.header.frame_id = nextTF;
+    nextPoseStamped.header.stamp = ros::Time(0);
+
+    tf2::doTransform(originalPoseStamped, nextPoseStamped, transformStamped);
+    return nextPoseStamped.pose;
 }
 geometry_msgs::TransformStamped getTransformFromMapToBaseLink()
 {
@@ -283,6 +424,7 @@ geometry_msgs::TransformStamped getTransformFromMapToBaseLink()
     return ret;
 }
 
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
 void publishTrajMarker(ros::Publisher *traj_marker_pub)
 {
 
@@ -368,6 +510,12 @@ void configParams(bool showConfig)
     ws_x_max += 2 * localCostMapInflation;
     ws_y_max += 2 * localCostMapInflation;
 
+<<<<<<< HEAD
+=======
+    ws_x_min = 0;
+    ws_y_min = 0;
+
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
     local_costmap_center.x = ws_x_max / 2;
     local_costmap_center.y = ws_x_max / 2;
 
@@ -376,12 +524,42 @@ void configParams(bool showConfig)
         printf("Local Planner Node Configuration:\n");
         printf("\t WorkSpace: X:[%.2f, %.2f], Y:[%.2f, %.2f] \n", ws_x_min, ws_x_max, ws_y_min, ws_y_max);
         printf("\t Local Costmap Origin: [%.2f, %.2f] \n", local_costmap_center.x, local_costmap_center.y);
+<<<<<<< HEAD
         printf("\t Map: resol.= [%.2f]\n", map_resolution);
         printf("\t Lazy Theta* with optim.: goal_weight = [%.2f]\n", goal_weight);
         printf("\t Trajectory Position Increments = [%.2f], Tolerance: [%.2f]\n", traj_dxy_max, traj_pos_tol);
         printf("\t Local costmap inflation %.2f\n", localCostMapInflation);
     }
 }
+=======
+        printf("\t Map: resol.= [%.2f], inflac.= [%.2f]\n", map_resolution, map_h_inflaction);
+        printf("\t Lazy Theta* with optim.: goal_weight = [%.2f]\n", goal_weight);
+        printf("\t Trajectory Position Increments = [%.2f], Tolerance: [%.2f]\n", traj_dxy_max, traj_pos_tol);
+        printf("\t Trajectory Cruising Speed = [%.2f] (%.2f)\n", traj_vxy_m, traj_vxy_m_1);
+        printf("\t Trajectory Angular vel: [%.2f], Minimum Dpos: [%.2f]\n", traj_wyaw_m, traj_yaw_tol);
+        printf("\t Local costmap inflation %.2f\n", localCostMapInflation);
+    }
+}
+float getYawFromQuat(Quaternion quat)
+{
+    double r, p, y;
+    tf::Quaternion q(quat.x, quat.y, quat.z, quat.w);
+    tf::Matrix3x3 M(q);
+    M.getRPY(r, p, y);
+
+    return y / M_PI * 180;
+}
+void printfTrajectory(trajectory_msgs::MultiDOFJointTrajectory traj)
+{
+    printf(PRINTF_YELLOW "Trajectory points: %d\n", (int)traj.points.size());
+    for (unsigned int i = 0; i < traj.points.size(); i++)
+    {
+        double yaw = getYawFromQuat(traj.points[i].transforms[0].rotation);
+        printf(PRINTF_BLUE "\t %d: [%.3f, %.3f] m,  [%.2f] grados \n", i, traj.points[i].transforms[0].translation.x, traj.points[i].transforms[0].translation.y, yaw);
+    }
+    printf(PRINTF_REGULAR);
+}
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
 void showTime(string message, struct timeb st, struct timeb ft)
 {
     float seconds, milliseconds;
@@ -393,13 +571,21 @@ void showTime(string message, struct timeb st, struct timeb ft)
 }
 void globalTrajCallback(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr &traj)
 {
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
     globalTrajectory = *traj;
     globalTrajArrLen = globalTrajectory.points.size();
     startIter = 1;
     globalTrajectory.header.frame_id = "map";
     globalTrajReceived = true;
     globalGoalReached = false;
+<<<<<<< HEAD
+=======
+    
+>>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
 }
 void localGoalReachedCallback(const std_msgs::Bool &data)
 {
