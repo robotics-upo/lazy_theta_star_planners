@@ -6,9 +6,8 @@
 #include <math.h>
 #include <ros/ros.h>
 #include <fstream>
-
 #include <theta_star/ThetaStar.hpp>
-
+//#include <PlannersLib/PlannersLib.hpp>
 #include <visualization_msgs/MarkerArray.h>
 
 #include <geometry_msgs/PoseStamped.h>
@@ -41,6 +40,7 @@ int number_of_points;
 double map_resolution = 0.0;
 double ws_x_max = 0.0;
 double ws_y_max = 0.0;
+double ws_z_max = 0.0;
 double ws_x_min = 0.0;
 double ws_y_min = 0.0;
 
@@ -55,8 +55,10 @@ void rvizGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &goalMsg);
 void setGoal(geometry_msgs::Vector3Stamped, ThetaStar *th);
 void setStart(ThetaStar *th);
 
+geometry_msgs::TransformStamped getTransformFromMapToThetaStarFrame();
 geometry_msgs::TransformStamped getTransformFromBaseLinkToMap();
-
+geometry_msgs::TransformStamped getTransformFromBaseLinkToThetaStarMap();
+float getYawFromQuat(Quaternion quat);
 void getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistraj_pub, ThetaStar *th);
 void showTime(string message, struct timeb st, struct timeb ft);
 void configParams(bool showConfig);
@@ -87,8 +89,13 @@ int main(int argc, char **argv)
 	ros::Publisher vis_pub_traj = n.advertise<visualization_msgs::MarkerArray>(node_name + "/visualization_marker_trajectory", 10);
 
 	configParams(true);
+	// Init Theta*
 	ThetaStar theta((char *)node_name.c_str(), (char *)"/world", ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, &n);
+
+	// Set timeout
 	theta.setTimeOut(20);
+
+	// Set resulting trajectroy parameters
 	theta.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
 
 	ROS_INFO("Waiting for new global goal...");
@@ -101,13 +108,14 @@ int main(int argc, char **argv)
 
 		if (globalCostMapReceived && !globalCostMapSentToAlgorithm)
 		{
-			ROS_INFO("Global Planner: Glboal map received");
+			ROS_INFO("Map received");
 			theta.getMap(globalCostMap);
 			globalCostMapSentToAlgorithm = true;
 		}
 
 		if (globalGoalReceived && globalCostMapSentToAlgorithm)
 		{
+
 			setGoal(goal, &theta);
 			setStart(&theta);
 			if (globalGoalSet && initialPoseSet)
@@ -115,19 +123,22 @@ int main(int argc, char **argv)
 				// Path calculation
 				ROS_INFO("Path calculation...");
 
+				ftime(&startT);
 				number_of_points = theta.computePath();
+				ftime(&finishT);
 
-				if (number_of_points > 0)
-				{
-					ROS_INFO("Number of points: %d", number_of_points);
-					getAndPublishTrajMarkArray(&trajectory_pub, &vis_pub_traj, &theta);
+
+				showTime("Time spend in path calculation: ", startT, finishT);
+				if(number_of_points >0){
+				ROS_INFO("Number of points: %d", number_of_points);
+
+				getAndPublishTrajMarkArray(&trajectory_pub, &vis_pub_traj, &theta);
 				}
 				globalGoalReceived = false;
-			}
-			else
-			{
+			}else{
 				ROS_ERROR("Global goal or start poitn occupied ");
 			}
+			
 		}
 		loop_rate.sleep();
 	}
@@ -148,14 +159,17 @@ void globalCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &fp)
 void rvizGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &goalMsg)
 {
 	goalPoseStamped.pose = goalMsg->pose;
+
 	goal.vector.x = goalMsg->pose.position.x;
 	goal.vector.y = goalMsg->pose.position.y;
 	goal.header = goalMsg->header;
+
 	globalGoalReceived = true;
 }
 //This function obtains the transform between map and base_link to send it to the trayectory calculation function from ThetaStar class
 geometry_msgs::TransformStamped getTransformFromBaseLinkToMap()
 {
+
 	geometry_msgs::TransformStamped ret;
 
 	try
@@ -169,8 +183,43 @@ geometry_msgs::TransformStamped getTransformFromBaseLinkToMap()
 
 	return ret;
 }
+geometry_msgs::TransformStamped getTransformFromBaseLinkToThetaStarMap()
+{
+
+	geometry_msgs::TransformStamped ret;
+
+	try
+	{
+		ret = tfBuffer.lookupTransform("global_theta_star_link", "base_link", ros::Time(0));
+	}
+	catch (tf2::TransformException &ex)
+	{
+		ROS_WARN("%s", ex.what());
+	}
+
+	return ret;
+}
+geometry_msgs::TransformStamped getTransformFromMapToThetaStarFrame()
+{
+	geometry_msgs::TransformStamped ret;
+
+	try
+	{
+		ret = tfBuffer.lookupTransform("global_theta_star_link", "map", ros::Time(0));
+	}
+	catch (tf::TransformException &ex)
+	{
+		ROS_WARN("%s", ex.what());
+	}
+
+	return ret;
+}
 void setGoal(geometry_msgs::Vector3Stamped goal, ThetaStar *th)
 {
+
+	goal.vector.x += getTransformFromMapToThetaStarFrame().transform.translation.x;
+	goal.vector.y += getTransformFromMapToThetaStarFrame().transform.translation.y;
+
 	if (th->setValidFinalPosition(goal.vector))
 	{
 		globalGoalSet = true;
@@ -184,8 +233,8 @@ void setStart(ThetaStar *th)
 {
 
 	geometry_msgs::Vector3Stamped start;
-	start.vector.x = getTransformFromBaseLinkToMap().transform.translation.x;
-	start.vector.y = getTransformFromBaseLinkToMap().transform.translation.y;
+	start.vector.x = getTransformFromBaseLinkToThetaStarMap().transform.translation.x;
+	start.vector.y = getTransformFromBaseLinkToThetaStarMap().transform.translation.y;
 
 	if (th->setValidInitialPosition(start.vector))
 	{
@@ -196,7 +245,15 @@ void setStart(ThetaStar *th)
 		ROS_WARN("Failed to set initial global position");
 	}
 }
+float getYawFromQuat(Quaternion quat)
+{
+    double r, p, y;
+    tf::Quaternion q(quat.x, quat.y, quat.z, quat.w);
+    tf::Matrix3x3 M(q);
+    M.getRPY(r, p, y);
 
+    return y / M_PI * 180;
+}
 void getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistraj_pub, ThetaStar *th)
 {
 
@@ -211,22 +268,24 @@ void getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistra
 	trajectory.header.stamp = ros::Time::now();
 	ROS_INFO("Trajectory calculation...");
 
-	geometry_msgs::TransformStamped transform_robot_pose = getTransformFromBaseLinkToMap();
-
-	if (number_of_points > 1)
-	{
-		th->getTrajectoryYawInAdvance(trajectory, transform_robot_pose.transform);
-	}
-	else
-	{
-		th->getTrajectoryYawFixed(trajectory, th->getYawFromQuat(transform_robot_pose.transform.rotation));
-		trajectory_msgs::MultiDOFJointTrajectoryPoint pos;
-		pos.transforms.push_back(transform_robot_pose.transform);
-		trajectory.points.push_back(pos);
-	}
+	//This way we get the rob0000000009ot pose in the ThetaStar map frame( origin(0,0) in the lower left corner)
+	geometry_msgs::TransformStamped transform_robot_pose = getTransformFromBaseLinkToThetaStarMap();
+	if(number_of_points>1){
+    th->getTrajectoryYawInAdvance(trajectory, transform_robot_pose.transform);
+    }else{
+        th->getTrajectoryYawFixed(trajectory,getYawFromQuat(transform_robot_pose.transform.rotation));
+        trajectory_msgs::MultiDOFJointTrajectoryPoint pos;
+        pos.transforms.push_back(transform_robot_pose.transform);   
+        trajectory.points.push_back(pos);
+    }
 	// Send the trajectory
 	// Trajectory solution visualization marker
 
+	for (int i = 0; i < trajectory.points.size(); i++)
+	{
+		trajectory.points[i].transforms[0].translation.x -= getTransformFromMapToThetaStarFrame().transform.translation.x;
+		trajectory.points[i].transforms[0].translation.y -= getTransformFromMapToThetaStarFrame().transform.translation.y;
+	}
 	trajectory_msgs::MultiDOFJointTrajectoryPoint goal_multidof;
 	geometry_msgs::Transform transform_goal;
 
@@ -238,9 +297,11 @@ void getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistra
 
 	trajectory.points.push_back(goal_multidof);
 
+	
+
 	traj_pub->publish(trajectory);
 
-	traj_marker.markers.resize(trajectory.points.size());
+	traj_marker.markers.resize( trajectory.points.size());
 
 	for (int i = 0; i < trajectory.points.size(); i++)
 	{
@@ -298,5 +359,6 @@ void configParams(bool showConfig)
 		printf("\t Map: resol.= [%.2f]\n", map_resolution);
 		printf("\t Lazy Theta* with optim.: goal_weight = [%.2f]\n", goal_weight);
 		printf("\t Trajectory Position Increments = [%.2f], Tolerance: [%.2f]\n", traj_dxy_max, traj_pos_tol);
+		
 	}
 }

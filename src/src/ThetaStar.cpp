@@ -64,7 +64,8 @@ void ThetaStar::init(char* plannerName, char* frame_id,
     step_inv = 1.0/step_;
 	
 	matrix_size = (abs(ws_x_max) - ws_x_min)*(abs(ws_y_max) - ws_y_min);
-	printf("ws_x_max=%f ws_y_max=%f, ws_x_max_=%f, ws_y_max_=%f",ws_x_max,ws_y_max,ws_x_max_,ws_y_max_);
+	printf("ws_x_max=%f ws_y_max=%f, ws_x_max_=%d, ws_y_max_=%d",ws_x_max,ws_y_max,ws_x_max_,ws_y_max_);
+
     printf("ThetaStar (%s): Occupancy Matrix has %d nodes [%d MB]\n", plannerName, matrix_size, (int)(matrix_size * sizeof(ThetaStarNode))/(1024*1024));
     discrete_world.resize(matrix_size);
 	Lx = ws_x_max - ws_x_min;
@@ -911,7 +912,7 @@ float ThetaStar::distanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2)
 
 float ThetaStar::weightedDistanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2)
 {
-    //Aï¿½adido un factor multiplicativo  discrete_world[i].cost*
+    //AÃ¯Â¿Â½adido un factor multiplicativo  discrete_world[i].cost*
     int i = getWorldIndex(n2.point.x,n2.point.y);
 
     return discrete_world[i].cost*0.05 + sqrt(pow(n1.point.x-n2.point.x,2) +
@@ -945,7 +946,7 @@ float ThetaStar::weightedDistanceFromInitialPoint(ThetaStarNode node, ThetaStarN
         if(parent.distanceFromInitialPoint==std::numeric_limits<float>::max())
             res = parent.distanceFromInitialPoint;
         else
-        {//Aï¿½adido el coste del costmap para el termino de distancia entre padre e hijodiscrete_world[i].cost*
+        {//AÃ¯Â¿Â½adido el coste del costmap para el termino de distancia entre padre e hijodiscrete_world[i].cost*
             res = parent.distanceFromInitialPoint + discrete_world[i].cost*0.05 + (sqrt(pow(node.point.x-parent.point.x,2) +
 															                     pow(node.point.y-parent.point.y,2) ));
         }

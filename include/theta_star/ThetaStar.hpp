@@ -163,7 +163,7 @@ class ThetaStar
 		**/
 		ThetaStar(char* plannerName, char* frame_id, 
 		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
-		float step_, float h_inflation_, float goal_weight_, ros::NodeHandle *n);
+		float step_, float goal_weight_, ros::NodeHandle *n);
 
 		/**
 		  Initialization
@@ -177,7 +177,7 @@ class ThetaStar
 		**/ 
 		void init(char* plannerName, char* frame_id, 
 		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
-		float step_, float h_inflation_, float goal_weight_, ros::NodeHandle *n);
+		float step_, float goal_weight_, ros::NodeHandle *n);
 
 		/**
 		  Default destructor
@@ -193,7 +193,7 @@ class ThetaStar
 			@param w_yaw:			Mean angular velocity at yaw [rad/s]
 			@param min_yaw_ahead:	Minimum position increment to set yaw ahead [meters]
 		**/
-		void setTrajectoryParams(float dxy_max_, float dxy_tolerance_, float vm_xy_, float vm_xy_1_, float w_yaw_, float min_yaw_ahead_);
+		void setTrajectoryParams(float dxy_max_, float dxy_tolerance_, float min_yaw_ahead_);
 		/**
 		 Read map and set up discrete world with occupancy matrix from map_server
 		 	@param message:			Occupancy grid message from map_server
@@ -251,7 +251,7 @@ class ThetaStar
 		{
 			if(setInitialPosition(p)){
 				if(!isInitialPositionOccupied()){
-					ROS_INFO("ThetaStar: Initial discrete position [%d, %d] set correctly", p.x,p.y); 
+					//ROS_INFO("ThetaStar: Initial discrete position [%d, %d] set correctly", p.x,p.y); 
 					return true;
 				}
 			}else{
@@ -271,7 +271,7 @@ class ThetaStar
 		{
 			if(setFinalPosition(p)){
 				if(!isFinalPositionOccupied()){
-					ROS_INFO("ThetaStar: Final discrete position [%d, %d] set correctly", p.x,p.y);
+					//ROS_INFO("ThetaStar: Final discrete position [%d, %d] set correctly", p.x,p.y);
 					return true;
 				}
 			}else{
@@ -339,7 +339,8 @@ class ThetaStar
 		 Configure if printf ROS_WARN() or not 
 		**/
 		void confPrintRosWarn(bool print);
-
+		//! Aux Function: Get yaw in radians from a quaternion
+		float getYawFromQuat(Quaternion quat);
   protected:
 
 		/**	
@@ -420,7 +421,7 @@ class ThetaStar
 		bool isFinalPositionOccupied();
 
 		//! Aux Function: Tajectory point to fill and send to the trajectory tracker sight ahead -- Yaw is calculated in such a way that cameras always see ahead
-		void setPositionYawAndTime(TrajectoryPoint &trajectory_point, Vector3 position, double _yaw, double T);
+		void setPositionYawAndTime(TrajectoryPoint &trajectory_point, Vector3 position, double _yaw);
 
 		//! Aux Function: return the horizonatl module of [X,Y]
 		double getHorizontalNorm(double x, double y);
@@ -428,8 +429,7 @@ class ThetaStar
 		//! Aux Function: return the horizontal distance from Point1 to Point2
 		double getHorizontalDistance(TrajectoryPoint P1, TrajectoryPoint P2);
 
-		//! Aux Function: Get yaw in radians from a quaternion
-		float getYawFromQuat(Quaternion quat);
+		
 
 		//! Aux Function: Get differential from last_yaw to next_yaw in [-PI, PI], but in absolute value --> [0, PI] 
 		double getDyaw(double next_yaw, double last_yaw);
@@ -455,7 +455,7 @@ class ThetaStar
 		inline unsigned int getWorldIndex(int &x, int &y) //ELiminar la z
 		{
 			//return (unsigned int)((x - ws_x_min_inflated) + (Lx)*((y - ws_y_min_inflated))); 
-			return (unsigned int)((Lx-3)*y +x );
+			return (unsigned int)(Lx*y +x );
 		}
 
 		/**
@@ -476,10 +476,10 @@ class ThetaStar
 			//x = ws_x_min_inflated + (index - z_n_segmts*Lx*Ly - y_n_segmts*Lx);
 			//y = ws_y_min_inflated + y_n_segmts;
 			//z = ws_z_min_inflated + z_n_segmts; // quitar?
-			//Provisional para map_server map con tamaño fijo conocido
-			int y_n_segmts = floor( index  /(Lx-3) );	// Index y segment (0 to Ly)
+			//Provisional para map_server map con tamaï¿½o fijo conocido
+			int y_n_segmts = floor( index/Lx-3 );	// Index y segment (0 to Ly)
 			
-			x =  (index -  y_n_segmts*(Lx-3));
+			x =  (index -  y_n_segmts*Lx);
 			y =  y_n_segmts;
 		}
 
@@ -504,58 +504,6 @@ class ThetaStar
 			return  (x < (ws_x_max-1) && x > (ws_x_min+1)) &&
 					(y < (ws_y_max-1) && y > (ws_y_min+1)); 
 		}
-		
-		/**
-		  Inflate a occupied cells filling all cells inside the around cylinder in 
-		  the occupancy matrix. 
-			@param discrete position of the cell to inflate
-		**/
-		inline void inflateNodeAsCircle(int &x_, int &y_)
-		{
-			// Get discretized radius of the inflation cylinder
-			int R = h_inflation;
-			
-			// Inflation limits around the node
-			int x_inflated_max = (x_ + h_inflation) + 1;
-			int x_inflated_min = (x_ - h_inflation) - 1;
-			int y_inflated_max = (y_ + h_inflation) + 1;
-			int y_inflated_min = (y_ - h_inflation) - 1;
-	
-			
-			// Loop throug inflation limits checking if it is inside the cylinder	
-			// Due to the inflated occupancy matrix size increment, the inside checking is not neccesary
-			for(int i = x_inflated_min; i <= x_inflated_max; i++)
-				for(int j = y_inflated_min; j <= y_inflated_max; j++){
-						if(isInsideTheCircle(i,j, x_,y_, R))
-						{
-							unsigned int world_index_ = getWorldIndex(i, j);
-							discrete_world[world_index_].notOccupied = false;
-							discrete_world[world_index_].lastTimeSeen = 0;
-						}
-					}
-		}
-
-		/**
-		  Inflate a occupied cells filling all cells around in the occupancy matrix ONLY HORIZONTALLY
-			@param discrete position of the cell to inflate
-		**/
-		inline void inflateNodeAsXyRectangle(int &x_, int &y_)
-		{
-			// Inflation limits
-			int x_inflated_max = (x_ + h_inflation) + 1;
-			int x_inflated_min = (x_ - h_inflation) - 1;
-			int y_inflated_max = (y_ + h_inflation) + 1;
-			int y_inflated_min = (y_ - h_inflation) - 1;
-
-			// Due to the inflated occupancy matrix size increment, the inside checking is not neccesary
-			for(int i = x_inflated_min; i <= x_inflated_max; i++)
-				for(int j = y_inflated_min; j <= y_inflated_max; j++)
-				{
-					unsigned int world_index_ = getWorldIndex(i, j);
-					discrete_world[world_index_].notOccupied = false;
-				}
-		}
-
 		/**
 		  Check if the [x,y] position is inside the circle [xo,yo,R] 
 			@return true if it is inside
@@ -569,7 +517,6 @@ class ThetaStar
 			else
 				return false;
 		}
-
 		/**
 		 Set and search a valid discrete initial/final position in a horizontal ring 
 		 centered in '(xs,ys)' and radius 'd'
@@ -768,10 +715,7 @@ class ThetaStar
 		int matrix_size;
 		int ws_x_max, ws_y_max; // WorkSpace lenghts from origin (0,0,0)
 		int ws_x_min, ws_y_min;
-		int h_inflation; // Inflation (Real and Safe distances from the MAV CoG)
 		
-		int ws_x_max_inflated, ws_y_max_inflated; // Inflated WorkSpace, the real size of the Occupancy Matrix
-		int ws_x_min_inflated, ws_y_min_inflated; // ... less isInside() checking
 		int Lx, Ly;	// Inflated WorkSpace lenghts and theirs pre-computed inverses
 		float Lx_inv, Ly_inv;
 		float step;	// Resolution of the Matrix and its inverse
@@ -804,11 +748,7 @@ class ThetaStar
 		float dxy_max; // Maximum increment between wps [meters]
 		float dz_max;
 		float dxy_tolerance; // Position tolerance for the path to trajectory segmentation [meters]
-		float vm_xy; // Mean linear velocities [m/s]
-		
-		float vm_xy_1; // Mean linear velocities for initial and final displacement [m/s]
-
-		float w_yaw; // Mean angular velocity at yaw [rad/s]
+	
 		float min_yaw_ahead; // Minimum position increment to set yaw ahead [meters]
 		float path_length;
 		bool trajectoryParamsConfigured; // Flag to enable the Trajectory Computation
