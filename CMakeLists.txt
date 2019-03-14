@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(theta_star)
+project(theta_star_2d)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -26,13 +26,13 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/include
 )
 
-add_library(theta_star src/ThetaStar.cpp)
+add_library(theta_star_2d src/ThetaStar.cpp)
 
 add_executable(global_planner_node src/global_planner_node.cpp)
-target_link_libraries(global_planner_node ${catkin_LIBRARIES} theta_star)
+target_link_libraries(global_planner_node ${catkin_LIBRARIES} theta_star_2d)
 add_dependencies(global_planner_node ${catkin_EXPORTED_TARGETS})
 
 add_executable(local_planner_node src/local_planner_node.cpp)
-target_link_libraries(local_planner_node ${catkin_LIBRARIES} theta_star)
+target_link_libraries(local_planner_node ${catkin_LIBRARIES} theta_star_2d)
 add_dependencies(local_planner_node ${catkin_EXPORTED_TARGETS})
 

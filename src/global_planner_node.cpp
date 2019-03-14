@@ -9,7 +9,7 @@
 
 #include <theta_star/ThetaStar.hpp>
 
-#include <visualization_msgs/MarkerArray.h>
+#include <visualization_msgs/Marker.h>
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Transform.h>
@@ -22,6 +22,7 @@
 using namespace std;
 using namespace PathPlanners;
 
+visualization_msgs::Marker markerTraj;
 geometry_msgs::PoseStamped goalPoseStamped;
 geometry_msgs::Vector3Stamped goal;
 nav_msgs::OccupancyGrid globalCostMap;
@@ -84,7 +85,7 @@ int main(int argc, char **argv)
 	ROS_INFO("Theta Star: trajectory output topic: %s", topicPath);
 
 	// Trajectory solution visualization topic
-	ros::Publisher vis_pub_traj = n.advertise<visualization_msgs::MarkerArray>(node_name + "/visualization_marker_trajectory", 10);
+    ros::Publisher vis_pub_traj = n.advertise<visualization_msgs::Marker>(node_name + "/visualization_marker_trajectory", 10);
 
 	configParams(true);
 	ThetaStar theta((char *)node_name.c_str(), (char *)"/world", ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, &n);
@@ -201,7 +202,6 @@ void getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistra
 {
 
 	Trajectory trajectory;
-	visualization_msgs::MarkerArray traj_marker;
 
 	trajectory.joint_names.push_back("map");
 	trajectory.header.stamp = ros::Time::now();
@@ -239,35 +239,16 @@ void getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistra
 	trajectory.points.push_back(goal_multidof);
 
 	traj_pub->publish(trajectory);
-
-	traj_marker.markers.resize(trajectory.points.size());
-
-	for (int i = 0; i < trajectory.points.size(); i++)
-	{
-		traj_marker.markers[i].type = visualization_msgs::Marker::CUBE;
-		traj_marker.markers[i].points.clear();
-		traj_marker.markers[i].header.frame_id = "map";
-		traj_marker.markers[i].header.stamp = ros::Time();
-		traj_marker.markers[i].ns = "theta_star";
-		traj_marker.markers[i].id = i;
-		traj_marker.markers[i].action = visualization_msgs::Marker::ADD;
-		traj_marker.markers[i].pose.position.z = 0.3;
-		traj_marker.markers[i].scale.x = 0.3;
-		traj_marker.markers[i].scale.y = 0.3;
-		traj_marker.markers[i].scale.z = 0.3;
-		traj_marker.markers[i].color.a = 1.0;
-		traj_marker.markers[i].color.r = 0.0;
-		traj_marker.markers[i].color.g = 1.0;
-		traj_marker.markers[i].color.b = 0.5;
-		traj_marker.markers[i].lifetime = ros::Duration(60);
-		traj_marker.markers[i].pose.orientation.w = trajectory.points[i].transforms[0].rotation.w;
-		traj_marker.markers[i].pose.orientation.z = trajectory.points[i].transforms[0].rotation.z;
-		traj_marker.markers[i].pose.orientation.x = trajectory.points[i].transforms[0].rotation.x;
-		traj_marker.markers[i].pose.orientation.y = trajectory.points[i].transforms[0].rotation.y;
-		traj_marker.markers[i].pose.position.x = trajectory.points[i].transforms[0].translation.x;
-		traj_marker.markers[i].pose.position.y = trajectory.points[i].transforms[0].translation.y;
-	}
-	vistraj_pub->publish(traj_marker);
+	
+	markerTraj.points.clear();
+    geometry_msgs::Point p;
+    for (int i = 0; i < trajectory.points.size(); i++)
+    {
+        p.x = trajectory.points[i].transforms[0].translation.x;
+        p.y = trajectory.points[i].transforms[0].translation.y;
+        markerTraj.points.push_back(p);
+    }
+	vistraj_pub->publish(markerTraj);
 	globalTrajSent = true;
 }
 void showTime(string message, struct timeb st, struct timeb ft)
@@ -299,4 +280,19 @@ void configParams(bool showConfig)
 		printf("\t Lazy Theta* with optim.: goal_weight = [%.2f]\n", goal_weight);
 		printf("\t Trajectory Position Increments = [%.2f], Tolerance: [%.2f]\n", traj_dxy_max, traj_pos_tol);
 	}
+	markerTraj.header.frame_id = "map";
+    markerTraj.header.stamp = ros::Time();
+    markerTraj.ns = "global_path";
+    markerTraj.id = 12221;
+    markerTraj.type = RVizMarker::CUBE_LIST;
+    markerTraj.action = RVizMarker::ADD;
+    markerTraj.pose.orientation.w = 1.0;
+    markerTraj.lifetime = ros::Duration(100);
+    markerTraj.scale.x = 0.1;
+    markerTraj.scale.y = 0.1;
+    markerTraj.pose.position.z = 0.2;
+    markerTraj.color.a = 1.0;
+    markerTraj.color.r = 0.0;
+    markerTraj.color.g = 1.0;
+    markerTraj.color.b = 0.0;
 }

@@ -36,6 +36,7 @@ tf2_ros::Buffer tfBuffer;
 trajectory_msgs::MultiDOFJointTrajectory globalTrajectory, localTrajectory;
 trajectory_msgs::MultiDOFJointTrajectoryPoint globalGoal;
 
+visualization_msgs::Marker markerTraj;
 //Flags for flow control
 bool localCostMapReceived = false;
 bool globalTrajReceived = false;
@@ -48,7 +49,7 @@ unsigned int startIter = 0;
 int globalTrajArrLen;
 int localTrajArrLen;
 
-//Theta star algorithm parameters 
+//Theta star algorithm parameters
 double map_resolution = 0.0;
 double ws_x_max = 0.0;
 double ws_y_max = 0.0;
@@ -112,13 +113,13 @@ int main(int argc, char **argv)
     ros::Publisher trajectory_pub = n.advertise<trajectory_msgs::MultiDOFJointTrajectory>(topicPath, 10);
     ROS_INFO("local planner local trajectory output topic: %s", topicPath);
     // Trajectory solution visualization topic
-    ros::Publisher vis_pub_traj = n.advertise<visualization_msgs::MarkerArray>(node_name + "/visualization_marker_trajectory", 10);
+    ros::Publisher vis_pub_traj = n.advertise<visualization_msgs::Marker>(node_name + "/visualization_marker_trajectory", 10);
 
     std_msgs::Bool is_running;
     is_running.data = true;
     ros::Publisher local_run_pub = n.advertise<std_msgs::Bool>("/local_planner_node/running", 10);
     ros::Publisher plan_time = n.advertise<std_msgs::Int32>("/local_planning_time", 1000);
-    
+
     configParams(false);
     ThetaStar theta((char *)node_name.c_str(), (char *)"/world", ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, &n);
     theta.setTimeOut(20);
@@ -126,7 +127,7 @@ int main(int argc, char **argv)
 
     ROS_INFO("Waiting for new local goal...");
 
-    ros::Rate loop_rate(20);
+    ros::Rate loop_rate(30);
     int number_of_points = 0;
     bool startOk = false;
     float seconds, milliseconds;
@@ -232,7 +233,7 @@ void buildAndPubTrayectory(ThetaStar *theta, ros::Publisher *traj_publisher)
 
     localTrajectory.points.push_back(goal_temp);
     localTrajArrLen = localTrajectory.points.size();
-  
+
     traj_publisher->publish(localTrajectory);
 }
 geometry_msgs::Vector3 calculateLocalGoal()
@@ -250,7 +251,7 @@ geometry_msgs::Vector3 calculateLocalGoal()
         globalTrajBLFrame.points[i].transforms[0].translation.x -= tr.transform.translation.x;
         globalTrajBLFrame.points[i].transforms[0].translation.y -= tr.transform.translation.y;
     }
-  
+
     //Ya esta referida al base_link. Ahora la recorro desde i=1(porque i=0 es siempre la pos del base_link que alpasarla al sistema base_link sera (0,0))
     for (int i = startIter; i < globalTrajArrLen; i++)
     {
@@ -285,36 +286,15 @@ geometry_msgs::TransformStamped getTransformFromMapToBaseLink()
 
 void publishTrajMarker(ros::Publisher *traj_marker_pub)
 {
-
-    visualization_msgs::MarkerArray traj_marker;
-    traj_marker.markers.resize(localTrajArrLen);
-
+    markerTraj.points.clear();
+    geometry_msgs::Point p;
     for (int i = 0; i < localTrajArrLen; i++)
     {
-        traj_marker.markers[i].type = visualization_msgs::Marker::CUBE;
-        traj_marker.markers[i].points.clear();
-        traj_marker.markers[i].header.frame_id = "map";
-        traj_marker.markers[i].header.stamp = ros::Time();
-        traj_marker.markers[i].ns = "local_traj";
-        traj_marker.markers[i].id = i;
-        traj_marker.markers[i].action = visualization_msgs::Marker::ADD;
-        traj_marker.markers[i].pose.position.z = 0.5;
-        traj_marker.markers[i].scale.x = 0.3;
-        traj_marker.markers[i].scale.y = 0.3;
-        traj_marker.markers[i].scale.z = 0.3;
-        traj_marker.markers[i].color.a = 1.0;
-        traj_marker.markers[i].color.r = 1.0;
-        traj_marker.markers[i].color.g = 0.0;
-        traj_marker.markers[i].color.b = 0.5;
-        traj_marker.markers[i].lifetime = ros::Duration(1);
-        traj_marker.markers[i].pose.orientation.w = localTrajectory.points[i].transforms[0].rotation.w;
-        traj_marker.markers[i].pose.orientation.z = localTrajectory.points[i].transforms[0].rotation.z;
-        traj_marker.markers[i].pose.orientation.x = localTrajectory.points[i].transforms[0].rotation.x;
-        traj_marker.markers[i].pose.orientation.y = localTrajectory.points[i].transforms[0].rotation.y;
-        traj_marker.markers[i].pose.position.x = localTrajectory.points[i].transforms[0].translation.x;
-        traj_marker.markers[i].pose.position.y = localTrajectory.points[i].transforms[0].translation.y;
+        p.x = localTrajectory.points[i].transforms[0].translation.x;
+        p.y = localTrajectory.points[i].transforms[0].translation.y;
+        markerTraj.points.push_back(p);
     }
-    traj_marker_pub->publish(traj_marker);
+    traj_marker_pub->publish(markerTraj);
 }
 
 void inflateCostMap()
@@ -381,6 +361,21 @@ void configParams(bool showConfig)
         printf("\t Trajectory Position Increments = [%.2f], Tolerance: [%.2f]\n", traj_dxy_max, traj_pos_tol);
         printf("\t Local costmap inflation %.2f\n", localCostMapInflation);
     }
+    markerTraj.header.frame_id = "map";
+    markerTraj.header.stamp = ros::Time();
+    markerTraj.ns = "local_path";
+    markerTraj.id = 12;
+    markerTraj.type = RVizMarker::SPHERE_LIST;
+    markerTraj.action = RVizMarker::ADD;
+    markerTraj.pose.orientation.w = 1.0;
+    markerTraj.lifetime = ros::Duration(0.5);
+    markerTraj.scale.x = 0.2;
+    markerTraj.scale.y = 0.2;
+    markerTraj.pose.position.z = 1.0;
+    markerTraj.color.a = 1.0;
+    markerTraj.color.r = 1.0;
+    markerTraj.color.g = 0.0;
+    markerTraj.color.b = 0.0;
 }
 void showTime(string message, struct timeb st, struct timeb ft)
 {

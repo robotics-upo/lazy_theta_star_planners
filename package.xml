@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package>
-  <name>theta_star</name>
+  <name>theta_star_2d</name>
   <version>1.0.1</version>
   <description>Two-dimensional Lazy Theta Star with Optimization implementation</description>
 
