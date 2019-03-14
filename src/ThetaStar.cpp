@@ -60,17 +60,19 @@ void ThetaStar::init(char* plannerName, char* frame_id,
     ws_y_max = ws_y_max_/step_;
     ws_x_min = ws_x_min_/step_;
     ws_y_min = ws_y_min_/step_;
+
     step = step_;
     step_inv = 1.0/step_;
-	
-	matrix_size = (abs(ws_x_max) - ws_x_min)*(abs(ws_y_max) - ws_y_min);
-	printf("ws_x_max=%f ws_y_max=%f, ws_x_max_=%f, ws_y_max_=%f",ws_x_max,ws_y_max,ws_x_max_,ws_y_max_);
-    printf("ThetaStar (%s): Occupancy Matrix has %d nodes [%d MB]\n", plannerName, matrix_size, (int)(matrix_size * sizeof(ThetaStarNode))/(1024*1024));
-    discrete_world.resize(matrix_size);
+
 	Lx = ws_x_max - ws_x_min;
     Ly = ws_y_max - ws_y_min; 
     Lx_inv = 1.0/Lx;
     Ly_inv = 1.0/Ly;
+	matrix_size = Lx*Ly;
+
+    printf("ThetaStar (%s): Occupancy Matrix has %d nodes [%d MB]\n", plannerName, matrix_size, (int)(matrix_size * sizeof(ThetaStarNode))/(1024*1024));
+    discrete_world.resize(matrix_size);
+	
  
     // Optimization
     goal_weight = goal_weight_;

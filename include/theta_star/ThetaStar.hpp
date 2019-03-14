@@ -341,6 +341,7 @@ class ThetaStar
 		void confPrintRosWarn(bool print);
 		//! Aux Function: Get yaw in radians from a quaternion
 		float getYawFromQuat(Quaternion quat);
+
   protected:
 
 		/**	
@@ -430,7 +431,6 @@ class ThetaStar
 		double getHorizontalDistance(TrajectoryPoint P1, TrajectoryPoint P2);
 
 		
-
 		//! Aux Function: Get differential from last_yaw to next_yaw in [-PI, PI], but in absolute value --> [0, PI] 
 		double getDyaw(double next_yaw, double last_yaw);
 
@@ -477,11 +477,7 @@ class ThetaStar
 			//y = ws_y_min_inflated + y_n_segmts;
 			//z = ws_z_min_inflated + z_n_segmts; // quitar?
 			//Provisional para map_server map con tamaï¿½o fijo conocido
-<<<<<<< HEAD
-			int y_n_segmts = floor( index/Lx-3 );	// Index y segment (0 to Ly)
-=======
-			int y_n_segmts = floor( index  /(Lx-3) );	// Index y segment (0 to Ly)
->>>>>>> fc18f9421c42ae8d5daab0253c4a1fab3f63ce97
+			int y_n_segmts = floor( index/Lx );	// Index y segment (0 to Ly)
 			
 			x =  (index -  y_n_segmts*Lx);
 			y =  y_n_segmts;
