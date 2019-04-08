@@ -1,0 +1,21 @@
+costmap:
+   global_frame: map
+   robot_base_frame: base_link
+   global_pose: base_link
+   map_topic: map
+   subscribe_to_updates: false
+   update_frequency: 0.1
+   publish_frequency: 0.1
+   transform_tolerance: 500
+   static_map: true
+   rolling_window: false
+   inflation_radius: 2
+   cost_scaling_factor: 1.2
+
+plugins:
+   - {name: static_map, type: "costmap_2d::StaticLayer"}
+  
+static_map:
+   unknown_cost_value: -1
+   lethal_cost_threshold: 100
+

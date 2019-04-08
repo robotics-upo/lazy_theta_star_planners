@@ -1,0 +1,48 @@
+<launch>
+
+   
+    <!-- map publish node -->
+    <!--<node pkg= "map_server" type="map_server" name="map_server" args="$(find arco_launchers)/resources/GlobalAndLocal/big_lab_map_edited.yaml" output="screen"/> -->
+    <node pkg= "map_server" type="map_server" name="map_server" args="$(find theta_star_2d)/resource/tintas.yaml" output="screen"/> 
+
+      <!-- Theta* Params-->
+    <arg name="ws_x_max"         default="45.5"/>#45.5 tintas #43.5 big_lab
+    <arg name="ws_y_max"         default="57.8"/> #57.8 tintas #42.45 big lab
+    <arg name="ws_x_min"         default="0"/>
+    <arg name="ws_y_min"         default="0"/>
+    <arg name="map_resolution"   default="0.05"/>
+    <arg name="goal_weight"      default="1.1"/>
+    <arg name="cost_weight"      default="0.0"/>
+    <arg name="lof_distance"      default="2"/>
+    <!-- Result trajectory parameters-->
+    <arg name="traj_dxy_max" default="1"/>
+    <arg name="traj_pos_tol" default="1"/>
+    <arg name="traj_yaw_tol" default="0.2"/>
+    <arg name="traj_sent"    default="0.0"/>
+    <arg name="occ_threshold"   default="80"/>
+    
+    <!-- Convert args to params-->
+    <param name="/sim_planner/ws_x_max"         value="$(arg ws_x_max)"/>
+    <param name="/sim_planner/ws_y_max"         value="$(arg ws_y_max)"/>
+    <param name="/sim_planner/ws_x_min"         value="$(arg ws_x_min)"/>
+    <param name="/sim_planner/ws_y_min"         value="$(arg ws_y_min)"/>
+    <param name="/sim_planner/map_resolution"   value="$(arg map_resolution)"/>
+    <param name="/sim_planner/goal_weight"      value="$(arg goal_weight)"/>
+    <param name="/sim_planner/cost_weight"      value="$(arg cost_weight)"/>
+    <param name="/sim_planner/traj_dxy_max"     value="$(arg traj_dxy_max)"/>
+    <param name="/sim_planner/traj_pos_tol"     value="$(arg traj_pos_tol)"/>
+    <param name="/sim_planner/traj_yaw_tol"     value="$(arg traj_yaw_tol)"/>
+    <param name="/sim_planner/traj_sent"        value="$(arg traj_sent)"/>
+    <param name="/sim_planner/lof_distance"     value="$(arg lof_distance)"/>
+    <param name="/sim_planner/occ_threshold"    value="$(arg occ_threshold)"/>
+
+     <!-- Theta* server-->
+    <node pkg="theta_star_2d" type="sim_planner_node" name="sim_planner" output="screen" respawn="true"/>
+
+      <!-- Global costmap node-->
+    <node pkg="costmap_2d" type="costmap_2d_node" name="costmap_2d">
+        <rosparam command="load" file="$(find theta_star_2d)/resource/costmap_params.yaml" />
+    </node>
+    <node pkg="rviz" type="rviz" name="rviz" />
+    <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure"/>
+</launch>

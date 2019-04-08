@@ -163,7 +163,12 @@ class ThetaStar
 		**/
 		ThetaStar(char* plannerName, char* frame_id, 
 		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
-		float step_, float goal_weight_, ros::NodeHandle *n);
+		float step_, float goal_weight_,float cost_weight_,float lof_distance_, int occ_threshold_, ros::NodeHandle *n);
+
+		/**
+		 * Function used to reparse dynamic parameters from the node
+		**/
+		void setDynParams(float goal_weight, float cost_weight, float lof_distance, int occ_threshold_);
 
 		/**
 		  Initialization
@@ -177,7 +182,7 @@ class ThetaStar
 		**/ 
 		void init(char* plannerName, char* frame_id, 
 		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
-		float step_, float goal_weight_, ros::NodeHandle *n);
+		float step_, float goal_weight_,float cost_weight_,float lof_distance_,int occ_threshold_,ros::NodeHandle *n);
 
 		/**
 		  Default destructor
@@ -198,7 +203,7 @@ class ThetaStar
 		 Read map and set up discrete world with occupancy matrix from map_server
 		 	@param message:			Occupancy grid message from map_server
 		 **/
-		void getMap(nav_msgs::OccupancyGrid message);
+		void getMap(nav_msgs::OccupancyGrid *message);
 
 		/** 
 		   Clear occupancy discrete matrix
@@ -721,8 +726,7 @@ class ThetaStar
 		float step;	// Resolution of the Matrix and its inverse
 		float step_inv;
 
-		// Input octomap octree used to create the Occupancy Matrix
-		
+		float trf_x,trf_y;
 		// Origin and target position.
 		Vector3 initial_position, final_position;	// Continuous
 		ThetaStarNode *disc_initial, *disc_final;	// Discretes
@@ -733,10 +737,12 @@ class ThetaStar
 		// Result path
 		vector<Vector3> last_path;
 
+
 		// Lazy Theta* with Optimization:  
 		float goal_weight; // Reduction of the initial position distance weight C(s) = factor * g(s) + h(s) 
-		
-
+		float cost_weight;
+		float lof_distance;
+		int occ_threshold;
 		// Debug Visualization markers and theirs topics
 		ros::NodeHandle *nh; // Pointer to the process NodeHandle to publish topics
 		RVizMarker marker; // Explored nodes by ThetaStar
