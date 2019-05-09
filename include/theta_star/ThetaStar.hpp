@@ -330,7 +330,8 @@ class ThetaStar
 		  Get the current Path as vector [Xi Yi Zi]   
 		**/
 		vector<Vector3> getCurrentPath();//Cambiar los elementos del contenedor por los correspondientes
-	
+
+		void publishLastPathMarkers(void);
 		/**
 		  Get the current Trajectory from the thetaStar current path solution as 
 		  trajectory_msgs::MultiDOFJointTrajectory [Xi, Yi, Zi, Yawi, ti]. 
@@ -747,9 +748,9 @@ class ThetaStar
 		ros::NodeHandle *nh; // Pointer to the process NodeHandle to publish topics
 		RVizMarker marker; // Explored nodes by ThetaStar
 		ros::Publisher marker_pub_;
-		RVizMarker marker_no_los; // Explored nodes with no lineOfSight 
+		RVizMarker marker_no_los,last_path_mark; // Explored nodes with no lineOfSight 
 		ros::Publisher no_los_marker_pub_;
-
+		ros::Publisher last_path_pub_;
 		// Trajectory parameters
 		float dxy_max; // Maximum increment between wps [meters]
 		float dz_max;

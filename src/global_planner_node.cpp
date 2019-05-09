@@ -112,10 +112,10 @@ int main(int argc, char **argv)
 	{
 		// Waiting for new goal and reading odometry
 		ros::spinOnce();
-
-		if (globalCostMapReceived && !globalCostMapSentToAlgorithm)
+		configParams(false);	
+		theta.setDynParams(goal_weight,cost_weight,lof_distance, occ_threshold);
+		if (globalCostMapReceived)
 		{
-			ROS_INFO("Global Planner: Global map received");
 			theta.getMap(&globalCostMap);
 			globalCostMapSentToAlgorithm = true;
 		}
@@ -124,8 +124,8 @@ int main(int argc, char **argv)
 		{
 			setGoal(goal, &theta);
 			setStart(&theta);
-			configParams(false);
-			theta.setDynParams(goal_weight,cost_weight,lof_distance, occ_threshold);
+			
+			
 			if (globalGoalSet && initialPoseSet)
 			{
 				// Path calculation
@@ -144,6 +144,7 @@ int main(int argc, char **argv)
 			{
 				ROS_ERROR("Global goal or start poitn occupied ");
 			}
+			globalCostMapReceived = true;
 			globalCostMapSentToAlgorithm = false;	
 		}
 		loop_rate.sleep();
@@ -159,11 +160,8 @@ void callback(theta_star_2d::globalConfig &config, uint32_t level) {
 //Since the local costmap y constant over time, it's not neccesary to refresh it every ros::spinOnce
 void globalCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &fp)
 {
-	if (!globalCostMapReceived)
-	{
-		globalCostMap = *fp;
-		globalCostMapReceived = true;
-	}
+	globalCostMap = *fp;
+	globalCostMapReceived = true;
 }
 //TODO: delete robotPoseReceived flag change from this callback
 //Right now is here to refresh the current robot pose every time a goal is received, but this flag has to be changed inside the main loop
@@ -283,18 +281,19 @@ void showTime(string message, struct timeb st, struct timeb ft)
 }
 void configParams(bool showConfig)
 {
-	ros::param::get("/global_planner/ws_x_max", ws_x_max);
-	ros::param::get("/global_planner/ws_y_max", ws_y_max);
-	ros::param::get("/global_planner/ws_x_min", ws_x_min);
-	ros::param::get("/global_planner/ws_y_min", ws_y_min);
-	ros::param::get("/global_planner/map_resolution", map_resolution);
-	ros::param::get("/global_planner/goal_weight", goal_weight);
-	ros::param::get("/global_planner/cost_weight", cost_weight);
-	ros::param::get("/global_planner/lof_distance", lof_distance);
-	ros::param::get("/global_planner/occ_threshold", occ_threshold);
-	ros::param::get("/global_planner/traj_dxy_max", traj_dxy_max);
-	ros::param::get("/global_planner/traj_pos_tol", traj_pos_tol);
-	ros::param::get("/global_planner/traj_yaw_tol", traj_yaw_tol);
+	ros::param::get("/global_planner_node/ws_x_max", ws_x_max);
+	ros::param::get("/global_planner_node/ws_y_max", ws_y_max);
+	ros::param::get("/global_planner_node/ws_x_min", ws_x_min);
+	ros::param::get("/global_planner_node/ws_y_min", ws_y_min);
+	ros::param::get("/global_planner_node/map_resolution", map_resolution);
+	ros::param::get("/global_planner_node/goal_weight", goal_weight);
+	ros::param::get("/global_planner_node/cost_weight", cost_weight);
+	ros::param::get("/global_planner_node/lof_distance", lof_distance);
+	ros::param::get("/global_planner_node/occ_threshold", occ_threshold);
+	ros::param::get("/global_planner_node/traj_dxy_max", traj_dxy_max);
+	ros::param::get("/global_planner_node/traj_pos_tol", traj_pos_tol);
+	ros::param::get("/global_planner_node/traj_yaw_tol", traj_yaw_tol);
+	ros::param::get("/global_planner_node/occ_threshold", occ_threshold);
 
 	if (showConfig)
 	{

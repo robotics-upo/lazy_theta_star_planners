@@ -22,7 +22,7 @@ namespace PathPlanners
 #define SEND_NO_LOFS_NODES_MARKERS
 // Uncomment to printf if setVertex() fails at no-LofS
 #define PRINT_SETVERTEX_FAILS
-//#define TESTING_FUNCT
+#define TESTING_FUNCT
 //*****************************************************************
 // 				ThetaStar Algorithm Class Definitions
 //*****************************************************************
@@ -144,15 +144,13 @@ void ThetaStar::getMap(nav_msgs::OccupancyGrid *message)
     int x, y;
     trf_x = message->info.origin.position.x;
     trf_y = message->info.origin.position.y;
+    
     for (unsigned int i = 0; i < size; i++)
     {
-
         getDiscreteWorldPositionFromIndex(x, y, i);
 
         if (isInside(x, y) && message->data[i] >= occ_threshold)
-        {
             discrete_world[i].notOccupied = false;
-        }
 
         discrete_world[i].cost = message->data[i];
     }
@@ -270,7 +268,7 @@ bool ThetaStar::lineofsight(ThetaStarNode &p1, ThetaStarNode &p2)
     int y1 = min(max(p1.point.y, p2.point.y) + extra_cells, ws_y_max);
 
 #ifdef TESTING_FUNCT
-    if (distanceBetween2nodes(p1, p2) > lof_distance)
+    if (distanceBetween2nodes(p1, p2) > lof_distance/step)
         return false;
 #endif
 

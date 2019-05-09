@@ -112,6 +112,8 @@ int main(int argc, char **argv)
     ros::Subscriber local_goal_reached = n.subscribe(topicPath, 1, localGoalReachedCallback);
     ROS_INFO("Trajectory tracker local goal reached flag topic: %s", topicPath);
 
+
+
     //Global trajectory subscriber
     sprintf(topicPath, "/trajectory_tracker/input_trajectory");
     ros::Subscriber global_traj = n.subscribe(topicPath, 10, globalTrajCallback);
@@ -123,6 +125,7 @@ int main(int argc, char **argv)
     // Trajectory solution visualization topic
     ros::Publisher vis_pub_traj = n.advertise<visualization_msgs::Marker>(node_name + "/visualization_marker_trajectory", 10);
 
+    ros::Publisher impossible = n.advertise<std_msgs::Bool>("/trajectory_tracker/impossible_to_find",1);
     std_msgs::Bool is_running;
     is_running.data = true;
     ros::Publisher local_run_pub = n.advertise<std_msgs::Bool>("/local_planner_node/running", 10);
@@ -147,6 +150,7 @@ int main(int argc, char **argv)
     bool startOk = false;
     float seconds, milliseconds;
     std_msgs::Int32 msg;
+    int impossibles = 0;
 
     while (ros::ok())
     {
@@ -157,19 +161,20 @@ int main(int argc, char **argv)
         local_run_pub.publish(is_running);
         configParams(false);
 		theta.setDynParams(goal_weight,cost_weight,lof_distance, occ_threshold);
+
         if (globalTrajReceived && localCostMapReceived)
         {
 
             localCostMapReceived = false;
             if (!theta.setValidInitialPosition(local_costmap_center))
             {
-                if (theta.searchInitialPosition2d(0.3))
+                if (theta.searchInitialPosition2d(0.5))
                 {
                     startOk = true;
                 }
                 else
                 {
-                    ROS_INFO("Couldn't find a free point near start point");
+                    ROS_INFO("Local:Couldn't find a free point near start point");
                 }
             }
             else
@@ -183,39 +188,41 @@ int main(int argc, char **argv)
                 if (!theta.setValidFinalPosition(localGoal))
                 {
 
-                    if (theta.searchFinalPosition2d(0.3))
+                    if (theta.searchFinalPosition2d(0.4))
                     {
-                        //ftime(&startT);
                         number_of_points = theta.computePath();
-                        /*ftime(&finishT);
-                        seconds = finishT.time - startT.time - 1;
-                        milliseconds = (1000 - startT.millitm) + finishT.millitm;
-                        msg.data = (milliseconds + seconds * 1000);
-                        plan_time.publish(msg); */
                     }
                     else
                     {
-                        ROS_INFO("Couldn't find a free point near local goal ");
+                        ROS_INFO("Local: Couldn't find a free point near local goal ");
                         globalTrajReceived = false;
                     }
                 }
                 else
-                {
-                    //ftime(&startT);
+                {   
                     number_of_points = theta.computePath();
-
-                    /*
-                    ftime(&finishT);
-                    seconds = finishT.time - startT.time - 1;
-                    milliseconds = (1000 - startT.millitm) + finishT.millitm;
-                    msg.data = (milliseconds + seconds * 1000);
-                    plan_time.publish(msg);*/
                 }
                 if (number_of_points > 0)
                 {
                     buildAndPubTrayectory(&theta, &trajectory_pub);
                     publishTrajMarker(&vis_pub_traj);
                     startOk = false;
+                    
+                    if(impossible > 0){
+                        std_msgs::Bool msg;
+                        msg.data  =true;
+                        impossible.publish(msg);
+                        impossibles = 0;
+                    }
+                   
+
+                }else{
+                    impossibles++;
+                    if(impossibles == 3){
+                        std_msgs::Bool msg;
+                        msg.data  =true;
+                        impossible.publish(msg);
+                    }
                 }
             }
         }
@@ -263,6 +270,8 @@ void buildAndPubTrayectory(ThetaStar *theta, ros::Publisher *traj_publisher)
     localTrajectory.points.push_back(goal_temp);
     localTrajArrLen = localTrajectory.points.size();
 
+    localTrajectory.header.stamp = ros::Time::now();
+    
     traj_publisher->publish(localTrajectory);
 }
 geometry_msgs::Vector3 calculateLocalGoal()
@@ -294,18 +303,6 @@ geometry_msgs::Vector3 calculateLocalGoal()
             startIter = i;
             break;
         }
-        /*Under building
-        * if we arrive to a situation in which all the trajectory points fall inside the local map
-        * the local goal will be the last point in the trajectory messages, i.e. the global goal
-        *  but we prefer the robot to follow the original trajectory, so in this situation we give 
-        *  the robot the 
-        *
-        if (i == globalTrajArrLen -1)
-        { // && globalTrajArrLen > 2){//At the end we have a two point trajectory, the robot position and the goal position
-            C.vector.x = globalTrajBLFrame.points[1].transforms[0].translation.x + (ws_x_max) / 2;
-            C.vector.y = globalTrajBLFrame.points[1].transforms[0].translation.y + (ws_y_max) / 2;
-        }
-        */
     }
 
     return C.vector;
@@ -356,18 +353,16 @@ void inflateCostMap()
     localCostMapInflated.info.origin.position.x = localCostMap.info.origin.position.x - localCostMapInflationX;
     localCostMapInflated.info.origin.position.y = localCostMap.info.origin.position.y - localCostMapInflationY;
 
-    float h = (2 * localCostMapInflationX) / map_resolution + localCostMap.info.width;
-    float l = h * localCostMapInflationY / map_resolution;
+    float l = localCostMapInflated.info.width * localCostMapInflationY / map_resolution;
 
     int iter = 0;
-
-    for (int i = 0; i < l; i++)
-        localCostMapInflated.data.push_back(0);
-
+    for (int i = 0; i < l; i++){
+        localCostMapInflated.data.push_back(0);   
+    }
     for (int i = 0; i < localCostMap.info.height; i++)
     {
         for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
-            localCostMapInflated.data.push_back(0);
+            localCostMapInflated.data.push_back(i==0 || i== localCostMap.info.height-1 ?100:0);
 
         for (int k = 0; k < localCostMap.info.width; k++)
         {
@@ -375,7 +370,7 @@ void inflateCostMap()
             iter++;
         }
         for (int l = 0; l < localCostMapInflationX / map_resolution; l++)
-            localCostMapInflated.data.push_back(0);
+            localCostMapInflated.data.push_back(i==0 || i== localCostMap.info.height-1 ?100:0);
     }
     for (int i = 0; i < l; i++)
         localCostMapInflated.data.push_back(0);
@@ -385,16 +380,15 @@ void configParams(bool showConfig)
     ros::param::get("/costmap_2d_local/costmap/width", ws_x_max);
     ros::param::get("/costmap_2d_local/costmap/height", ws_y_max);
     ros::param::get("/costmap_2d_local/costmap/resolution", map_resolution);
-	ros::param::get("/local_planner/goal_weight", goal_weight);
-	ros::param::get("/local_planner/cost_weight", cost_weight);
-	ros::param::get("/local_planner/lof_distance", lof_distance);
-	ros::param::get("/local_planner/occ_threshold", occ_threshold);
-    ros::param::get("/local_planner/traj_dxy_max", traj_dxy_max);
-    ros::param::get("/local_planner/traj_pos_tol", traj_pos_tol);
-    ros::param::get("/local_planner/traj_yaw_tol", traj_yaw_tol);
-    ros::param::get("/local_planner/local_costmap_infl_x", localCostMapInflationX);
-
-    ros::param::get("/local_planner/local_costmap_infl_y", localCostMapInflationY);
+	ros::param::get("/local_planner_node/goal_weight", goal_weight);
+	ros::param::get("/local_planner_node/cost_weight", cost_weight);
+	ros::param::get("/local_planner_node/lof_distance", lof_distance);
+	ros::param::get("/local_planner_node/occ_threshold", occ_threshold);
+    ros::param::get("/local_planner_node/traj_dxy_max", traj_dxy_max);
+    ros::param::get("/local_planner_node/traj_pos_tol", traj_pos_tol);
+    ros::param::get("/local_planner_node/traj_yaw_tol", traj_yaw_tol);
+    ros::param::get("/local_planner_node/local_costmap_infl_x", localCostMapInflationX);
+    ros::param::get("/local_planner_node/local_costmap_infl_y", localCostMapInflationY);
     ws_x_max += 2 * localCostMapInflationX;
     ws_y_max += 2 * localCostMapInflationY;
 
@@ -438,7 +432,6 @@ void showTime(string message, struct timeb st, struct timeb ft)
 }
 void globalTrajCallback(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr &traj)
 {
-
     globalTrajectory = *traj;
     globalTrajArrLen = globalTrajectory.points.size();
     startIter = 1;
