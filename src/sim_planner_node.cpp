@@ -113,6 +113,8 @@ int main(int argc, char **argv)
 	theta.confPrintRosWarn(true);
 	theta.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
 
+
+	//ros::Subscriber map_server_data = n.subscribe("/map_metadata",1,&ThetaStar::mapMdCb, &theta);
 	float seconds, milliseconds;
 
 	ROS_INFO("Waiting for new global goal...");
@@ -168,12 +170,12 @@ int main(int argc, char **argv)
 				ROS_INFO("Path calculation...");
 
 				
-				//int steps = 100;
+				int steps = 50;
 				//cost_weight = 0;
 				//lof_distance = 0.1;
 				float length = 0;
-				//for (int i = 0; i < steps; i++)
-				//{
+				for (int i = 0; i < steps; i++)
+				{
 					t_time = 0;
 					theta.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
 					for (int i = 0; i < it; i++)
@@ -196,8 +198,8 @@ int main(int argc, char **argv)
 					//cost_weight+=0.01;
 					file<<lof_distance<<"\t"<<t_time / it<<"\t"<<length<<"\n";
 					ROS_INFO("Tiempo promedio: %.4f", t_time / it);
-					//lof_distance+=0.1;
-				//}
+					lof_distance+=0.1;
+				}
 
 				
 				
@@ -267,20 +269,26 @@ float getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistr
 	//ROS_INFO("Trajectory calculation...");
 
 	geometry_msgs::TransformStamped transform_robot_pose;
+
 	transform_robot_pose.transform.translation.x = start.x;
 	transform_robot_pose.transform.translation.y = start.y;
-
+	transform_robot_pose.transform.rotation.z = 0;
+	transform_robot_pose.transform.rotation.w = 1;
 	th->getTrajectoryYawFixed(trajectory, 0);
 
-	trajectory_msgs::MultiDOFJointTrajectoryPoint goal_multidof;
+	trajectory_msgs::MultiDOFJointTrajectoryPoint goal_multidof,start_tp;
 	geometry_msgs::Transform transform_goal;
 
+	
 	transform_goal.rotation.w = 1;
 	transform_goal.rotation.z = 1;
 	transform_goal.translation.x = goal.x;
 	transform_goal.translation.y = goal.y;
 	goal_multidof.transforms.resize(1, transform_goal);
+	start_tp.transforms.resize(1,transform_robot_pose.transform);
+	
 	trajectory.points.push_back(goal_multidof);
+	trajectory.points.insert(trajectory.points.begin(),start_tp);
 
 	traj_pub->publish(trajectory);
 
@@ -292,19 +300,15 @@ float getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistr
 	prev.y = 0;
 	for (int i = 0; i < trajectory.points.size(); i++)
 	{
-		/*if (i != 0)
-		{
-			prev.x = trajectory.points[i - 1].transforms[0].translation.x;
-			prev.y = trajectory.points[i - 1].transforms[0].translation.y;
-		}*/
+		
 		p.x = trajectory.points[i].transforms[0].translation.x;
 		p.y = trajectory.points[i].transforms[0].translation.y;
 		markerTraj.points.push_back(p);
 
-		//path_length += sqrt(pow(prev.x - p.x, 2) + pow(prev.y - p.y, 2));
 	}
 	//Calculo de longitud total
-	for(int i = 1; i < trajectory.points.size(); i++ ){
+	int t_s = trajectory.points.size();
+	for(int i = 1; i < t_s; i++ ){
 		prev.x = trajectory.points[i - 1].transforms[0].translation.x;
 		prev.y = trajectory.points[i - 1].transforms[0].translation.y;
 		
@@ -313,7 +317,22 @@ float getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistr
 		
 		path_length += sqrtf(pow(prev.x - p.x, 2) + pow(prev.y - p.y, 2));
 	}
-	ROS_INFO(PRINTF_YELLOW "Path Length: %.2f", path_length);
+	ROS_INFO(PRINTF_YELLOW "Path Length: %.2f, Ave dist2obs: %.2f", path_length, th->getAvDist2Obs());
+	
+	markerTraj.type = RVizMarker::CUBE_LIST;
+	markerTraj.id = 12221;
+	markerTraj.color.r = 1.0;
+	markerTraj.color.g = 0.0;
+	markerTraj.color.b = 0.0;
+	markerTraj.scale.x = 3.0*map_resolution;
+	vistraj_pub->publish(markerTraj);
+
+	markerTraj.type = RVizMarker::LINE_STRIP;
+	markerTraj.scale.x = 1.0*map_resolution;
+	markerTraj.id = 12222;
+	markerTraj.color.r = 0.0;
+	markerTraj.color.g = 0.0;
+	markerTraj.color.b = 1.0;
 	
 	vistraj_pub->publish(markerTraj);
 
@@ -363,11 +382,11 @@ void configParams(bool showConfig)
 	markerTraj.action = RVizMarker::ADD;
 	markerTraj.pose.orientation.w = 1.0;
 	markerTraj.lifetime = ros::Duration(1000);
-	markerTraj.scale.x = 0.2;
-	markerTraj.scale.y = 0.2;
-	markerTraj.pose.position.z = 0.2;
+	markerTraj.scale.x = 3.0*map_resolution;
+	markerTraj.scale.y = 3.0*map_resolution;
+	markerTraj.pose.position.z = 0;
 	markerTraj.color.a = 1.0;
 	markerTraj.color.r = 1.0;
-	markerTraj.color.g = 1.0;
+	markerTraj.color.g = 0.0;
 	markerTraj.color.b = 0.0;
 }

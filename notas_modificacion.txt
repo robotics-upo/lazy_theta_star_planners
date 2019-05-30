@@ -1,0 +1,3 @@
+Al modificar el valor-h de la heuristica, esta se vuelve no-consistente. Esto hace que no sea determinista al 100%
+devolviendo caminos ligeramente diferentes en cada iteracion
+    ->Posible causa: Se crean multiples soluciones optimas al modificar la heuristica

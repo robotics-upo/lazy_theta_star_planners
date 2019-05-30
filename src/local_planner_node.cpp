@@ -52,6 +52,8 @@ unsigned int startIter = 0;
 int globalTrajArrLen;
 int localTrajArrLen;
 
+string robot_base_frame, world_frame;
+
 //Theta star algorithm parameters
 double map_resolution = 0.0;
 double ws_x_max = 0.0;
@@ -126,11 +128,12 @@ int main(int argc, char **argv)
     ros::Publisher vis_pub_traj = n.advertise<visualization_msgs::Marker>(node_name + "/visualization_marker_trajectory", 10);
 
     ros::Publisher impossible = n.advertise<std_msgs::Bool>("/trajectory_tracker/impossible_to_find",1);
-    std_msgs::Bool is_running;
+    std_msgs::Bool is_running, occ;
+    occ.data = false;
     is_running.data = true;
     ros::Publisher local_run_pub = n.advertise<std_msgs::Bool>("/local_planner_node/running", 10);
     ros::Publisher plan_time = n.advertise<std_msgs::Int32>("/local_planning_time", 1000);
-
+    ros::Publisher occ_goal_pub = n.advertise<std_msgs::Bool>("/trajectory_tracker/local_goal_occupied",1);
     //Dynamic reconfigure
 	dynamic_reconfigure::Server<theta_star_2d::localConfig> server;
   	dynamic_reconfigure::Server<theta_star_2d::localConfig>::CallbackType f;
@@ -139,7 +142,7 @@ int main(int argc, char **argv)
   	server.setCallback(f);
 
     configParams(false);
-    ThetaStar theta((char *)node_name.c_str(), (char *)"/map", ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight,cost_weight,lof_distance,occ_threshold, &n);
+    ThetaStar theta((char *)node_name.c_str(), (char *)world_frame.c_str(), ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight,cost_weight,lof_distance,occ_threshold, &n);
     theta.setTimeOut(20);
     theta.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
 
@@ -162,9 +165,9 @@ int main(int argc, char **argv)
         configParams(false);
 		theta.setDynParams(goal_weight,cost_weight,lof_distance, occ_threshold);
 
+        number_of_points = 0; //Reset variable
         if (globalTrajReceived && localCostMapReceived)
         {
-
             localCostMapReceived = false;
             if (!theta.setValidInitialPosition(local_costmap_center))
             {
@@ -188,7 +191,7 @@ int main(int argc, char **argv)
                 if (!theta.setValidFinalPosition(localGoal))
                 {
 
-                    if (theta.searchFinalPosition2d(0.4))
+                    if (theta.searchFinalPosition2d(0.2))//Estaba a 0.4 antes(en la demo de portugal)
                     {
                         number_of_points = theta.computePath();
                     }
@@ -196,13 +199,18 @@ int main(int argc, char **argv)
                     {
                         ROS_INFO("Local: Couldn't find a free point near local goal ");
                         globalTrajReceived = false;
+                        occ.data = true;
+                        occ_goal_pub.publish(occ);
                     }
                 }
                 else
-                {   
+                {   if(occ.data){
+                        occ.data=false;
+                        occ_goal_pub.publish(occ);
+                    }
                     number_of_points = theta.computePath();
                 }
-                if (number_of_points > 0)
+                if (number_of_points > 0 && !occ.data)
                 {
                     buildAndPubTrayectory(&theta, &trajectory_pub);
                     publishTrajMarker(&vis_pub_traj);
@@ -273,6 +281,8 @@ void buildAndPubTrayectory(ThetaStar *theta, ros::Publisher *traj_publisher)
     localTrajectory.header.stamp = ros::Time::now();
     
     traj_publisher->publish(localTrajectory);
+    ROS_WARN_THROTTLE(1,"Average dist 2 obstacles: %.2f",theta->getAvDist2Obs());
+
 }
 geometry_msgs::Vector3 calculateLocalGoal()
 {
@@ -283,7 +293,7 @@ geometry_msgs::Vector3 calculateLocalGoal()
     //First we transform the trajectory published by global planner to base_link frame
     geometry_msgs::TransformStamped tr = getTransformFromMapToBaseLink();
 
-    globalTrajBLFrame.header.frame_id = "base_link";
+    globalTrajBLFrame.header.frame_id = robot_base_frame;
 
     for (int i = 0; i < globalTrajArrLen; i++)
     {
@@ -304,7 +314,15 @@ geometry_msgs::Vector3 calculateLocalGoal()
             break;
         }
     }
-
+    ROS_INFO_THROTTLE(1,PRINTF_BLUE"[%.2f, %.2f]", C.vector.x,C.vector.y);
+    C.vector.x = floor(C.vector.x*10 + 0.5) / 10;
+    C.vector.y = floor(C.vector.y*10 + 0.5) / 10;
+    if(C.vector.x == 0)
+        C.vector.x+=0.05;
+    if(C.vector.y == 0)
+        C.vector.y+=0.05;
+        
+    ROS_INFO_THROTTLE(1,PRINTF_BLUE"[%.2f, %.2f]", C.vector.x,C.vector.y);
     return C.vector;
 }
 geometry_msgs::TransformStamped getTransformFromMapToBaseLink()
@@ -314,7 +332,7 @@ geometry_msgs::TransformStamped getTransformFromMapToBaseLink()
 
     try
     {
-        ret = tfBuffer.lookupTransform("map", "base_link", ros::Time(0));
+        ret = tfBuffer.lookupTransform(world_frame, robot_base_frame, ros::Time(0));
     }
     catch (tf2::TransformException &ex)
     {
@@ -357,12 +375,12 @@ void inflateCostMap()
 
     int iter = 0;
     for (int i = 0; i < l; i++){
-        localCostMapInflated.data.push_back(0);   
+        localCostMapInflated.data.push_back(100);   
     }
     for (int i = 0; i < localCostMap.info.height; i++)
     {
         for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
-            localCostMapInflated.data.push_back(i==0 || i== localCostMap.info.height-1 ?100:0);
+            localCostMapInflated.data.push_back(i==100 || i== localCostMap.info.height-1 ?100:100);
 
         for (int k = 0; k < localCostMap.info.width; k++)
         {
@@ -370,10 +388,10 @@ void inflateCostMap()
             iter++;
         }
         for (int l = 0; l < localCostMapInflationX / map_resolution; l++)
-            localCostMapInflated.data.push_back(i==0 || i== localCostMap.info.height-1 ?100:0);
+            localCostMapInflated.data.push_back(i==0 || i== localCostMap.info.height-1 ?100:100);
     }
     for (int i = 0; i < l; i++)
-        localCostMapInflated.data.push_back(0);
+        localCostMapInflated.data.push_back(100);
 }
 void configParams(bool showConfig)
 {
@@ -387,6 +405,8 @@ void configParams(bool showConfig)
     ros::param::get("/local_planner_node/traj_dxy_max", traj_dxy_max);
     ros::param::get("/local_planner_node/traj_pos_tol", traj_pos_tol);
     ros::param::get("/local_planner_node/traj_yaw_tol", traj_yaw_tol);
+    ros::param::get("/local_planner_node/world_frame", world_frame);
+	ros::param::get("/local_planner_node/robot_base_frame", robot_base_frame);
     ros::param::get("/local_planner_node/local_costmap_infl_x", localCostMapInflationX);
     ros::param::get("/local_planner_node/local_costmap_infl_y", localCostMapInflationY);
     ws_x_max += 2 * localCostMapInflationX;
@@ -405,7 +425,7 @@ void configParams(bool showConfig)
         printf("\t Trajectory Position Increments = [%.2f], Tolerance: [%.2f]\n", traj_dxy_max, traj_pos_tol);
         printf("\t Local costmap inflation [%.2f, %.2f]\n", localCostMapInflationX,localCostMapInflationY);
     }
-    markerTraj.header.frame_id = "map";
+    markerTraj.header.frame_id = world_frame;
     markerTraj.header.stamp = ros::Time();
     markerTraj.ns = "local_path";
     markerTraj.id = 12;
@@ -435,7 +455,7 @@ void globalTrajCallback(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr
     globalTrajectory = *traj;
     globalTrajArrLen = globalTrajectory.points.size();
     startIter = 1;
-    globalTrajectory.header.frame_id = "map";
+    globalTrajectory.header.frame_id = world_frame;
     globalTrajReceived = true;
     globalGoalReached = false;
 }

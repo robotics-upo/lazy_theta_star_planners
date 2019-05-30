@@ -42,6 +42,8 @@ struct timeb startT, finishT;
 
 int number_of_points;
 
+string robot_base_frame, world_frame;
+
 double map_resolution = 0.0;
 double ws_x_max = 0.0;
 double ws_y_max = 0.0;
@@ -82,7 +84,7 @@ int main(int argc, char **argv)
 	ros::Subscriber goal_sub = n.subscribe("/move_base_simple/goal", 1000, rvizGoalCallback);
 	// Global costmap topic subscriber
 	sprintf(topicPath, "/costmap_2d/costmap/costmap");
-	ros::Subscriber global_sub_map = n.subscribe(topicPath, 0, globalCostMapCallback);
+	ros::Subscriber global_sub_map = n.subscribe(topicPath, 10, globalCostMapCallback);
 	ROS_INFO("Theta Star: Global costmap input topic: %s", topicPath);
 
 	// Trajectory list topic publisher to trajectory_tracker_node
@@ -101,7 +103,7 @@ int main(int argc, char **argv)
   	server.setCallback(f);
 
 	configParams(false);
-	ThetaStar theta((char *)node_name.c_str(), (char *)"/map", ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, cost_weight,lof_distance,occ_threshold, &n);
+	ThetaStar theta((char *)node_name.c_str(), (char *)world_frame.c_str(), ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, cost_weight,lof_distance,occ_threshold, &n);
 	theta.setTimeOut(20);
 	theta.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
 
@@ -114,10 +116,11 @@ int main(int argc, char **argv)
 		ros::spinOnce();
 		configParams(false);	
 		theta.setDynParams(goal_weight,cost_weight,lof_distance, occ_threshold);
-		if (globalCostMapReceived)
+		if (globalCostMapReceived && !globalCostMapSentToAlgorithm)
 		{
 			theta.getMap(&globalCostMap);
 			globalCostMapSentToAlgorithm = true;
+			ROS_WARN("Global costmap passed to algorithm");
 		}
 
 		if (globalGoalReceived && globalCostMapSentToAlgorithm)
@@ -162,6 +165,7 @@ void globalCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &fp)
 {
 	globalCostMap = *fp;
 	globalCostMapReceived = true;
+	ROS_WARN("Global costmap received");
 }
 //TODO: delete robotPoseReceived flag change from this callback
 //Right now is here to refresh the current robot pose every time a goal is received, but this flag has to be changed inside the main loop
@@ -180,7 +184,7 @@ geometry_msgs::TransformStamped getTransformFromBaseLinkToMap()
 
 	try
 	{
-		ret = tfBuffer.lookupTransform("map", "base_link", ros::Time(0));
+		ret = tfBuffer.lookupTransform(world_frame, robot_base_frame, ros::Time(0));
 	}
 	catch (tf2::TransformException &ex)
 	{
@@ -222,9 +226,9 @@ void getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistra
 
 	Trajectory trajectory;
 
-	trajectory.joint_names.push_back("map");
+	trajectory.joint_names.push_back(world_frame);
 	trajectory.header.stamp = ros::Time::now();
-	trajectory.header.frame_id = "map";
+	trajectory.header.frame_id = world_frame;
 
 	trajectory.points.clear();
 	trajectory.header.stamp = ros::Time::now();
@@ -294,6 +298,8 @@ void configParams(bool showConfig)
 	ros::param::get("/global_planner_node/traj_pos_tol", traj_pos_tol);
 	ros::param::get("/global_planner_node/traj_yaw_tol", traj_yaw_tol);
 	ros::param::get("/global_planner_node/occ_threshold", occ_threshold);
+	ros::param::get("/global_planner_node/world_frame", world_frame);
+	ros::param::get("/global_planner_node/robot_base_frame", robot_base_frame);
 
 	if (showConfig)
 	{
@@ -303,14 +309,14 @@ void configParams(bool showConfig)
 		printf("\t Lazy Theta* with optim.: goal_weight = [%.2f]\n", goal_weight);
 		printf("\t Trajectory Position Increments = [%.2f], Tolerance: [%.2f]\n", traj_dxy_max, traj_pos_tol);
 	}
-	markerTraj.header.frame_id = "map";
+	markerTraj.header.frame_id = world_frame;
     markerTraj.header.stamp = ros::Time();
     markerTraj.ns = "global_path";
     markerTraj.id = 12221;
     markerTraj.type = RVizMarker::CUBE_LIST;
     markerTraj.action = RVizMarker::ADD;
     markerTraj.pose.orientation.w = 1.0;
-    markerTraj.lifetime = ros::Duration(100);
+    markerTraj.lifetime = ros::Duration(200);
     markerTraj.scale.x = 0.1;
     markerTraj.scale.y = 0.1;
     markerTraj.pose.position.z = 0.2;

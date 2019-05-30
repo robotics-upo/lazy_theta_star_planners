@@ -3,5 +3,10 @@
         "/home/arco/catkin_ws/devel/lib/python2.7/dist-packages",
         "/home/arco/idmind/catkin_arco/devel/lib/python2.7/dist-packages",
         "/opt/ros/kinetic/lib/python2.7/dist-packages"
-    ]
+    ],
+    "C_Cpp.intelliSenseEngineFallback": "Disabled",
+    "files.associations": {
+        "deque": "cpp",
+        "vector": "cpp"
+    }
 }

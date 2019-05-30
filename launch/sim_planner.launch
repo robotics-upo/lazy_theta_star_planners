@@ -3,26 +3,26 @@
    
     <!-- map publish node -->
     <!--<node pkg= "map_server" type="map_server" name="map_server" args="$(find arco_launchers)/resources/GlobalAndLocal/big_lab_map_edited.yaml" output="screen"/> -->
-    <node pkg= "map_server" type="map_server" name="map_server" args="$(find theta_star_2d)/resource/tintas.yaml" output="screen"/> 
-
+    <node pkg= "map_server" type="map_server" name="map_server" args="$(find theta_star_2d)/resource/tfg_mazes/maze.yaml" output="screen"/> 
+    <arg name="map_topic"   default="/map"/>
 
     <arg name="it"        default="3"/>
       <!-- Theta* Params-->
-    <arg name="ws_x_max"         default="45.5"/>#45.5 tintas #43.5 big_lab # 32.2 for maze 2
-    <arg name="ws_y_max"         default="57.8"/> #57.8 tintas #42.45 big lab, #32.2 for maze 2
+    <arg name="ws_x_max"         default="16.1"/>#45.5 tintas #43.5 big_lab # 32.2 for maze 2
+    <arg name="ws_y_max"         default="16.1"/> #57.8 tintas #42.45 big lab, #32.2 for maze 2
     <arg name="ws_x_min"         default="0"/>
     <arg name="ws_y_min"         default="0"/>
     <arg name="map_resolution"   default="0.05"/>
+
     <arg name="goal_weight"      default="1.5"/>
-    
-    <arg name="cost_weight"      default="0"/>
-    <arg name="lof_distance"      default="1.5"/>
+    <arg name="cost_weight"      default="0.2"/>
+    <arg name="lof_distance"      default="0.5"/>
     <arg name="occ_threshold"   default="99"/>
     
     
     <!-- Result trajectory parameters-->
-    <arg name="traj_dxy_max" default="1"/>
-    <arg name="traj_pos_tol" default="1"/>
+    <arg name="traj_dxy_max" default="10"/>
+    <arg name="traj_pos_tol" default="10"/>
     <arg name="traj_yaw_tol" default="0.2"/>
     <arg name="traj_sent"    default="0.0"/>
     
@@ -41,7 +41,7 @@
     <param name="/sim_planner_node/lof_distance"     value="$(arg lof_distance)"/>
     <param name="/sim_planner_node/occ_threshold"    value="$(arg occ_threshold)"/>
     <param name="/sim_planner_node/it"               value="$(arg it)"/>
-
+    <param name="/sim_planner_node/map_topic"        value="$(arg map_topic)"/>
      <!-- Theta* server-->
     <node pkg="theta_star_2d" type="sim_planner_node" name="sim_planner_node" output="screen" />
 
