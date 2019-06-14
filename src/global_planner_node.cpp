@@ -44,11 +44,11 @@ int number_of_points;
 
 string robot_base_frame, world_frame;
 
-double map_resolution = 0.0;
-double ws_x_max = 0.0;
-double ws_y_max = 0.0;
-double ws_x_min = 0.0;
-double ws_y_min = 0.0;
+float map_resolution = 0.0;
+float ws_x_max = 0.0;
+float ws_y_max = 0.0;
+float ws_x_min = 0.0;
+float ws_y_min = 0.0;
 double cost_weight = 0.0;
 double goal_weight = 1.5;
 double occ_threshold = 80.0;
@@ -68,7 +68,7 @@ geometry_msgs::TransformStamped getTransformFromBaseLinkToMap();
 
 void getAndPublishTrajMarkArray(ros::Publisher *traj_pub, ros::Publisher *vistraj_pub, ThetaStar *th);
 void showTime(string message, struct timeb st, struct timeb ft);
-void configParams(bool showConfig);
+void configParams(bool showConfig, ros::NodeHandle *n);
 
 int main(int argc, char **argv)
 {
@@ -84,7 +84,7 @@ int main(int argc, char **argv)
 	ros::Subscriber goal_sub = n.subscribe("/move_base_simple/goal", 1000, rvizGoalCallback);
 	// Global costmap topic subscriber
 	sprintf(topicPath, "/costmap_2d/costmap/costmap");
-	ros::Subscriber global_sub_map = n.subscribe(topicPath, 10, globalCostMapCallback);
+	ros::Subscriber global_sub_map = n.subscribe(topicPath, 1, globalCostMapCallback);
 	ROS_INFO("Theta Star: Global costmap input topic: %s", topicPath);
 
 	// Trajectory list topic publisher to trajectory_tracker_node
@@ -95,35 +95,43 @@ int main(int argc, char **argv)
 	// Trajectory solution visualization topic
     ros::Publisher vis_pub_traj = n.advertise<visualization_msgs::Marker>(node_name + "/visualization_marker_trajectory", 10);
 
+	//ROS_ERROR("1");
 	//Dynamic reconfigure
 	dynamic_reconfigure::Server<theta_star_2d::globalConfig> server;
   	dynamic_reconfigure::Server<theta_star_2d::globalConfig>::CallbackType f;
-
+	//ROS_ERROR("2");
   	f = boost::bind(&callback, _1, _2);
   	server.setCallback(f);
+	//ROS_ERROR("3");
+	configParams(true, &n);
 
-	configParams(false);
+	ROS_WARN("ws_x_max: %f  ws_y_max: %f step %f", ws_x_max, ws_y_max,map_resolution);
 	ThetaStar theta((char *)node_name.c_str(), (char *)world_frame.c_str(), ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, cost_weight,lof_distance,occ_threshold, &n);
+	
+	
 	theta.setTimeOut(20);
 	theta.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
-
+	//ROS_ERROR("4");
 	ROS_INFO("Waiting for new global goal...");
 
-	ros::Rate loop_rate(10);
+	ros::Rate loop_rate(5);
+	
 	while (ros::ok())
 	{
+		//ROS_ERROR("Cycling");
 		// Waiting for new goal and reading odometry
 		ros::spinOnce();
-		configParams(false);	
+		configParams(false,&n);	
 		theta.setDynParams(goal_weight,cost_weight,lof_distance, occ_threshold);
 		if (globalCostMapReceived && !globalCostMapSentToAlgorithm)
 		{
+			//ROS_INFO("Sending");
 			theta.getMap(&globalCostMap);
 			globalCostMapSentToAlgorithm = true;
-			ROS_WARN("Global costmap passed to algorithm");
+			//ROS_WARN("Global costmap passed to algorithm");
 		}
 
-		if (globalGoalReceived && globalCostMapSentToAlgorithm)
+		if (globalGoalReceived)// && globalCostMapSentToAlgorithm)
 		{
 			setGoal(goal, &theta);
 			setStart(&theta);
@@ -145,10 +153,8 @@ int main(int argc, char **argv)
 			}
 			else
 			{
-				ROS_ERROR("Global goal or start poitn occupied ");
+				ROS_ERROR("Global goal or start point occupied ");
 			}
-			globalCostMapReceived = true;
-			globalCostMapSentToAlgorithm = false;	
 		}
 		loop_rate.sleep();
 	}
@@ -165,7 +171,7 @@ void globalCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &fp)
 {
 	globalCostMap = *fp;
 	globalCostMapReceived = true;
-	ROS_WARN("Global costmap received");
+	//ROS_WARN("Global costmap received");
 }
 //TODO: delete robotPoseReceived flag change from this callback
 //Right now is here to refresh the current robot pose every time a goal is received, but this flag has to be changed inside the main loop
@@ -176,6 +182,7 @@ void rvizGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &goalMsg)
 	goal.vector.y = goalMsg->pose.position.y;
 	goal.header = goalMsg->header;
 	globalGoalReceived = true;
+	globalCostMapSentToAlgorithm = false;
 }
 //This function obtains the transform between map and base_link to send it to the trayectory calculation function from ThetaStar class
 geometry_msgs::TransformStamped getTransformFromBaseLinkToMap()
@@ -283,13 +290,16 @@ void showTime(string message, struct timeb st, struct timeb ft)
 	milliseconds = (1000 - st.millitm) + ft.millitm;
 	cout << message << (milliseconds + seconds * 1000) << " ms" << endl;
 }
-void configParams(bool showConfig)
+void configParams(bool showConfig, ros::NodeHandle *n)
 {
+		
 	ros::param::get("/global_planner_node/ws_x_max", ws_x_max);
 	ros::param::get("/global_planner_node/ws_y_max", ws_y_max);
 	ros::param::get("/global_planner_node/ws_x_min", ws_x_min);
 	ros::param::get("/global_planner_node/ws_y_min", ws_y_min);
+	
 	ros::param::get("/global_planner_node/map_resolution", map_resolution);
+	
 	ros::param::get("/global_planner_node/goal_weight", goal_weight);
 	ros::param::get("/global_planner_node/cost_weight", cost_weight);
 	ros::param::get("/global_planner_node/lof_distance", lof_distance);
@@ -300,6 +310,16 @@ void configParams(bool showConfig)
 	ros::param::get("/global_planner_node/occ_threshold", occ_threshold);
 	ros::param::get("/global_planner_node/world_frame", world_frame);
 	ros::param::get("/global_planner_node/robot_base_frame", robot_base_frame);
+	//while(!globalCostMapReceived){
+	//	usleep(1e6);	
+	//}
+	//
+	//map_resolution = floor(100*globalCostMap.info.resolution)/100;
+	//ws_x_max = globalCostMap.info.width * map_resolution;
+	//ws_y_max = globalCostMap.info.height * map_resolution;
+	ws_x_min = 0;
+	ws_y_min = 0;
+	
 
 	if (showConfig)
 	{

@@ -5,8 +5,8 @@ costmap:
   global_pose: base_link
   always_send_full_costmap: true
   height: 10
-  inflation_layer: {cost_scaling_factor: 3, enabled: true, inflate_unknown: false,
-    inflation_radius: 2.0}
+  inflation_layer: {cost_scaling_factor: 0.5, enabled: true, inflate_unknown: false,
+    inflation_radius: 3.0}
   obstacle_layer: {combination_method: 1, enabled: true, footprint_clearing_enabled: true,
     max_obstacle_height: 2.0}
   origin_x: 0.0
@@ -18,7 +18,7 @@ costmap:
   publish_frequency: 10.0
   resolution: 0.05
   robot_base_frame: base_link
-  robot_radius: 0.1
+  robot_radius: 0.5
   rolling_window: false
   static_layer: {enabled: true, map_topic: map}
   static_map: true

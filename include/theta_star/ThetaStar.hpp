@@ -170,18 +170,7 @@ class ThetaStar
 		 * Function used to reparse dynamic parameters from the node
 		**/
 		void setDynParams(float goal_weight, float cost_weight, float lof_distance, int occ_threshold_);
-		/**
-		 * 
-		 * 
-		 * 
-		**/
-		void configParams();
-		/**
-		 * 
-		 * 
-		 * 
-		**/
-		void mapServerCallback(const nav_msgs::OccupancyGrid::ConstPtr &map);
+
 		/**
 		  Initialization
 		   @param planner name for topic names 
@@ -227,12 +216,6 @@ class ThetaStar
 		 * 
 		**/
 		float getAvDist2Obs();
-		/**
-		 * 
-		 * 
-		**/
-		
-		float getPathLength();
 		/**	
 		  Returns map resolution
 			@return map resolution
@@ -275,11 +258,6 @@ class ThetaStar
 		   @param [x,y,z] discrete or continuous position
 		   @return true if is a valid initial/final position and has been set correctly
 		**/
-		
-  		inline float euclideanDistance(float x0, float y0, float x , float y)
-  		{
-  		  return sqrt(pow(x - x0, 2) + pow(y - y0, 2));
-  		}
 		inline bool setValidInitialPosition(DiscretePosition p)
 		{
 			if(setInitialPosition(p)){
@@ -289,7 +267,7 @@ class ThetaStar
 				}
 			}else{
 				if(PRINT_WARNINGS)
-					ROS_WARN("ThetaStar: Initial position outside the workspace attempt!!");
+					ROS_WARN_THROTTLE(1,"ThetaStar: Initial position outside the workspace attempt!!");
 			}
 			
 			return false;
@@ -309,7 +287,7 @@ class ThetaStar
 				}
 			}else{
 				if(PRINT_WARNINGS){
-					ROS_WARN("ThetaStar: Final position outside the workspace attempt!! [%.2f,%.2f]", p.x*step,p.y*step);
+					ROS_WARN_THROTTLE(1,"ThetaStar: Final position outside the workspace attempt!! [%.2f,%.2f]", p.x*step,p.y*step);
 					}
 			}
 			
@@ -769,7 +747,6 @@ class ThetaStar
 		float Lx_inv, Ly_inv;
 		float step;	// Resolution of the Matrix and its inverse
 		float step_inv;
-		float pathL;
 
 		float trf_x,trf_y;
 		// Origin and target position.
@@ -781,7 +758,7 @@ class ThetaStar
 
 		// Result path
 		vector<Vector3> last_path;
-		char *plannername;
+
 
 		// Lazy Theta* with Optimization:  
 		float goal_weight; // Reduction of the initial position distance weight C(s) = factor * g(s) + h(s) 

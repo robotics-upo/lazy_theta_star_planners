@@ -34,12 +34,13 @@ ThetaStar::ThetaStar()
 // Constructor with arguments
 ThetaStar::ThetaStar(char *plannerName, char *frame_id,
                      float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_,
-                     float step_, float goal_weight_, float cost_weight_, float lof_distance_, int occ_threshold_, ros::NodeHandle *n)
+                     float step_, float goal_weight_, float cost_weight_, float lof_distance_,int occ_threshold_, ros::NodeHandle *n)
 {
     // Call to initialization
-    init(plannerName, frame_id, ws_x_max_, ws_y_max_, ws_x_min_, ws_y_min_, step_, goal_weight_, cost_weight_, lof_distance_, occ_threshold_, n);
+     ROS_WARN("Constr: ws_x_max: %f , ws_y_max: %f, step: %f", ws_x_max_, ws_y_max_, step_);
+    init(plannerName, frame_id, ws_x_max_, ws_y_max_, ws_x_min_, ws_y_min_, step_, goal_weight_, cost_weight_, lof_distance_,occ_threshold_, n);
 }
-void ThetaStar::setDynParams(float goal_weight_, float cost_weight_, float lof_distance_, int occ_threshold_)
+void ThetaStar::setDynParams(float goal_weight_, float cost_weight_, float lof_distance_,int occ_threshold_)
 {
     goal_weight = goal_weight_;
     cost_weight = cost_weight_;
@@ -53,19 +54,19 @@ void ThetaStar::init(char *plannerName, char *frame_id,
 {
     // Pointer to the nodeHandler
     nh = n;
-
+    ROS_WARN("Init: ws_x_max: %f , ws_y_max: %f, step: %f", ws_x_max_, ws_y_max_, step_);
     // Not target initially
     disc_initial = NULL;
     disc_final = NULL;
-    plannername = plannerName;
+
     // by default ~not timeout ESTO LO HE TOCADO PERO NO HIZO EFECTO, PORQUE?
     //timeout = std::numeric_limits<int>::max();
 
     // Init asymetric and inflated occupancy matrix
-    ws_x_max = ws_x_max_ / step_;
-    ws_y_max = ws_y_max_ / step_;
-    ws_x_min = 0;
-    ws_y_min = 0;
+    ws_x_max = round(ws_x_max_ / step_);
+    ws_y_max = round(ws_y_max_ / step_);
+    ws_x_min = round(ws_x_min_ / step_);
+    ws_y_min = round(ws_y_min_ / step_);
 
     step = step_;
     step_inv = 1.0 / step_;
@@ -78,13 +79,11 @@ void ThetaStar::init(char *plannerName, char *frame_id,
 
     printf("ThetaStar (%s): Occupancy Matrix has %d nodes [%d MB]\n", plannerName, matrix_size, (int)(matrix_size * sizeof(ThetaStarNode)) / (1024 * 1024));
     discrete_world.resize(matrix_size);
-    if (boost::algorithm::contains("local", plannerName))
-    {
+    ROS_WARN("ws_x_max: %d ws_y_max: %d", ws_x_max, ws_y_max);
+    if(boost::algorithm::contains("local", plannerName)){
         nh->param("/costmap_2d_local/costmap/inflation_layer/cost_scaling_factor", csf, (float)1);
         nh->param("/costmap_2d_local/costmap/robot_radius", rob_rad, (float)0.4);
-    }
-    else
-    {
+    }else{
         nh->param("/costmap_2d/costmap/inflation_layer/cost_scaling_factor", csf, (float)1);
         nh->param("/costmap_2d/costmap/robot_radius", rob_rad, (float)0.4);
     }
@@ -135,42 +134,7 @@ void ThetaStar::init(char *plannerName, char *frame_id,
 ThetaStar::~ThetaStar()
 {
 }
-/*void ThetaStar::configParams(){
-    
-    //step = step_;
-    //step_inv = 1.0 / step_;
 
-    Lx = ws_x_max - ws_x_min;
-    Ly = ws_y_max - ws_y_min;
-
-    Lx_inv = 1.0 / Lx;
-    Ly_inv = 1.0 / Ly;
-    
-    matrix_size = Lx * Ly;
-
-    printf("ThetaStar (%s): Occupancy Matrix has %d nodes [%d MB]\n", plannername, matrix_size, (int)(matrix_size * sizeof(ThetaStarNode)) / (1024 * 1024));
-    discrete_world.resize(matrix_size);
-    
-    if (boost::algorithm::contains("local", plannername))
-    {
-        nh->param("/costmap_2d_local/costmap/inflation_layer/cost_scaling_factor", csf, (float)1);
-        nh->param("/costmap_2d_local/costmap/robot_radius", rob_rad, (float)0.4);
-    }
-    else
-    {
-        nh->param("/costmap_2d/costmap/inflation_layer/cost_scaling_factor", csf, (float)1);
-        nh->param("/costmap_2d/costmap/robot_radius", rob_rad, (float)0.4);
-    }
-}
-
-void ThetaStar::mapServerCallback(const nav_msgs::OccupancyGrid::ConstPtr &map){
-    step = map->info.resolution;
-    step_inv = 1/step;
-    ws_x_max = round(map->info.width*step);
-    ws_y_max = round(map->info.height*step);
-    configParams();
-}
-*/
 void ThetaStar::setTrajectoryParams(float dxy_max_, float dxy_tolerance_, float min_yaw_ahead_)
 {
     // Parse params
@@ -189,7 +153,7 @@ void ThetaStar::getMap(nav_msgs::OccupancyGrid *message)
     int x, y;
     trf_x = message->info.origin.position.x;
     trf_y = message->info.origin.position.y;
-
+    
     for (unsigned int i = 0; i < size; i++)
     {
         getDiscreteWorldPositionFromIndex(x, y, i);
@@ -274,7 +238,7 @@ bool ThetaStar::setFinalPosition(DiscretePosition p_)
     }
     else
     {
-        ROS_WARN("is not Inside!");
+        ROS_WARN_THROTTLE(1,"is not Inside!");
         //~ std::cerr << "ThetaStar: Final point ["<< p.x << ";"<< p.y <<";"<< p.z <<"] not valid." << std::endl;
         disc_final = NULL;
         return false;
@@ -313,7 +277,7 @@ bool ThetaStar::lineofsight(ThetaStarNode &p1, ThetaStarNode &p2)
     int y1 = min(max(p1.point.y, p2.point.y) + extra_cells, ws_y_max);
 
 #ifdef TESTING_FUNCT
-    if (distanceBetween2nodes(p1, p2) > lof_distance / step)
+    if (distanceBetween2nodes(p1, p2) > lof_distance/step)
         return false;
 #endif
 
@@ -623,7 +587,7 @@ int ThetaStar::computePath(void)
         point.y = path_point->point.y * step;
 
         last_path.insert(last_path.begin(), point);
-
+        
         cost_path += path_point->nodeInWorld->cost;
 
         path_point = path_point->parentNode;
@@ -633,7 +597,7 @@ int ThetaStar::computePath(void)
             break;
         }
     }
-    cost_path /= last_path.size();
+    cost_path/=last_path.size();
     computeAverageDist2Obs();
     //ROS_WARN("Expanded Nodes: %d",expanded_nodes_number);
     return last_path.size();
@@ -643,26 +607,14 @@ vector<Vector3> ThetaStar::getCurrentPath()
 {
     return last_path;
 }
-int ThetaStar::getCurrentPathNPoints()
-{
+int ThetaStar::getCurrentPathNPoints(){
     return last_path.size();
 }
-void ThetaStar::computeAverageDist2Obs()
-{
-    average_dist_to_obst = 1 / csf * log(occ_threshold / cost_path) + rob_rad;
+void ThetaStar::computeAverageDist2Obs(){
+    average_dist_to_obst = 1/csf*log(occ_threshold/cost_path) + rob_rad;
 }
-float ThetaStar::getAvDist2Obs()
-{
+float ThetaStar::getAvDist2Obs(){
     return average_dist_to_obst;
-}
-float ThetaStar::getPathLength()
-{
-    pathL = 0;
-    
-    for (int i = 0; i < last_path.size() - 1 ; i++)
-        pathL+=euclideanDistance(last_path[i].x, last_path[i].y,last_path[i+1].x, last_path[i+1].y);
-    
-    return pathL;
 }
 bool ThetaStar::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw)
 {

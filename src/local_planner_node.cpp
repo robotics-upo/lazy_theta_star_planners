@@ -40,6 +40,7 @@ trajectory_msgs::MultiDOFJointTrajectory globalTrajectory, localTrajectory;
 trajectory_msgs::MultiDOFJointTrajectoryPoint globalGoal;
 
 visualization_msgs::Marker markerTraj;
+geometry_msgs::PoseStamped globalGoalStamped;
 //Flags for flow control
 bool localCostMapReceived = false;
 bool globalTrajReceived = false;
@@ -70,6 +71,7 @@ double traj_pos_tol = 1.0;
 double traj_yaw_tol = 1.0;
 double localCostMapInflationX = 1.0;
 double localCostMapInflationY = 1.0;
+float border_space = 1.0;
 //Functions declarations
 geometry_msgs::Vector3 calculateLocalGoal();
 geometry_msgs::TransformStamped getTransformFromMapToBaseLink();
@@ -89,9 +91,13 @@ void inflateCostMap();
 //Calbacks and publication functions
 void localCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &lcp);
 void globalTrajCallback(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr &traj);
+
+void globalGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &goal);
+
 void localGoalReachedCallback(const std_msgs::Bool &data);
 
 void freeLocalGoal();
+void callForGlobalRePlan();
 
 int main(int argc, char **argv)
 {
@@ -114,8 +120,12 @@ int main(int argc, char **argv)
     //Trajectory tracker local goal reached flag
     sprintf(topicPath, "/trajectory_tracker/local_goal_reached");
     ros::Subscriber local_goal_reached = n.subscribe(topicPath, 1, localGoalReachedCallback);
+
+    
     ROS_INFO("Trajectory tracker local goal reached flag topic: %s", topicPath);
 
+
+    ros::Subscriber global_goal_sub = n.subscribe("/move_base_simple/goal", 1, globalGoalCallback);
     //Global trajectory subscriber
     sprintf(topicPath, "/trajectory_tracker/input_trajectory");
     ros::Subscriber global_traj = n.subscribe(topicPath, 10, globalTrajCallback);
@@ -134,6 +144,9 @@ int main(int argc, char **argv)
     ros::Publisher local_run_pub = n.advertise<std_msgs::Bool>("/local_planner_node/running", 10);
     ros::Publisher plan_time = n.advertise<std_msgs::Int32>("/local_planning_time", 1000);
     ros::Publisher occ_goal_pub = n.advertise<std_msgs::Bool>("/trajectory_tracker/local_goal_occupied", 1);
+
+    ros::Publisher global_goal_pub = n.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10);
+
     //Dynamic reconfigure
     dynamic_reconfigure::Server<theta_star_2d::localConfig> server;
     dynamic_reconfigure::Server<theta_star_2d::localConfig>::CallbackType f;
@@ -159,8 +172,7 @@ int main(int argc, char **argv)
     {
         ftime(&startT);
         ros::spinOnce();
-        inflateCostMap();
-        inf_costmap.publish(localCostMapInflated);
+        
         local_run_pub.publish(is_running);
         configParams(false);
         theta.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
@@ -168,6 +180,7 @@ int main(int argc, char **argv)
         number_of_points = 0; //Reset variable
         if (globalTrajReceived && localCostMapReceived)
         {
+            //ROS_INFO("Local: Global Traj Received");
             localCostMapReceived = false;
             if (!theta.setValidInitialPosition(local_costmap_center))
             {
@@ -186,15 +199,23 @@ int main(int argc, char **argv)
             } //To get sure the next time it calculate a path it has refreshed the local costmap
             if (startOk)
             {
+                //ROS_INFO("Local:Start point ok");
                 localGoal = calculateLocalGoal();
+                
+                inflateCostMap();
+                
                 freeLocalGoal();
+                
+                inf_costmap.publish(localCostMapInflated);
+
                 theta.getMap(&localCostMapInflated);
 
                 if (!theta.setValidFinalPosition(localGoal))
                 {
 
-                    if (theta.searchFinalPosition2d(0.2)) //Estaba a 0.4 antes(en la demo de portugal)
+                    if (theta.searchFinalPosition2d(0.2)) //Estaba a 0.2 antes(en la demo de portugal)
                     {
+                        //ROS_INFO("Local:Computing path");
                         number_of_points = theta.computePath();
                     }
                     else
@@ -209,21 +230,25 @@ int main(int argc, char **argv)
                 {
                     if (occ.data)
                     {
+                        //ROS_INFO("Local: Local goal desocuupied");
                         occ.data = false;
                         occ_goal_pub.publish(occ);
                     }
                     number_of_points = theta.computePath();
                 }
+
                 if (number_of_points > 0 && !occ.data)
                 {
+                    //ROS_INFO("Local: Publishing trajectory");
                     buildAndPubTrayectory(&theta, &trajectory_pub);
                     publishTrajMarker(&vis_pub_traj);
                     startOk = false;
 
-                    if (impossible > 0)
+                    if (impossibles > 0)
                     {
+                        //ROS_INFO("Local: Impossible reseted");
                         std_msgs::Bool msg;
-                        msg.data = true;
+                        msg.data = false;
                         impossible.publish(msg);
                         impossibles = 0;
                     }
@@ -231,11 +256,18 @@ int main(int argc, char **argv)
                 else
                 {
                     impossibles++;
+                    //ROS_INFO("Local: +1 impossible");
                     if (impossibles == 3)
                     {
                         std_msgs::Bool msg;
                         msg.data = true;
                         impossible.publish(msg);
+                        global_goal_pub.publish(globalGoalStamped);
+                        globalTrajReceived = false;
+                        //startOk = false;
+                        ROS_WARN("Requesting new global path to same global goal");
+                        //Tambien publicar
+                        //impossibles=0;
                     }
                 }
             }
@@ -252,12 +284,6 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void callback(theta_star_2d::localConfig &config, uint32_t level)
-{
-    /*ROS_INFO("Reconfigure Request: %d %f %s %s %d", 
-            config.double_param, 
-            config.size);*/
-}
 void buildAndPubTrayectory(ThetaStar *theta, ros::Publisher *traj_publisher)
 {
     trajectory_msgs::MultiDOFJointTrajectoryPoint goal_temp;
@@ -298,6 +324,7 @@ geometry_msgs::Vector3 calculateLocalGoal()
 
     trajectory_msgs::MultiDOFJointTrajectory globalTrajBLFrame = globalTrajectory;
     //First we transform the trajectory published by global planner to base_link frame
+
     geometry_msgs::TransformStamped tr = getTransformFromMapToBaseLink();
 
     globalTrajBLFrame.header.frame_id = robot_base_frame;
@@ -307,21 +334,25 @@ geometry_msgs::Vector3 calculateLocalGoal()
         globalTrajBLFrame.points[i].transforms[0].translation.x -= tr.transform.translation.x;
         globalTrajBLFrame.points[i].transforms[0].translation.y -= tr.transform.translation.y;
     }
-
-    //Ya esta referida al base_link. Ahora la recorro desde i=1(porque i=0 es siempre la pos del base_link que alpasarla al sistema base_link sera (0,0))
+   
+    //Ya esta referida al base_link. Ahora la recorro desde i=1(porque i=0 es siempre la pos del base_link que al pasarla al sistema base_link sera (0,0))
     for (int i = startIter; i < globalTrajArrLen; i++)
     {
         C.vector.x = globalTrajBLFrame.points[i].transforms[0].translation.x + (ws_x_max) / 2;
         C.vector.y = globalTrajBLFrame.points[i].transforms[0].translation.y + (ws_y_max) / 2;
-
+        
+        //if( i > startIter+5 )
+        //    break;
+        
         if (fabs(globalTrajBLFrame.points[i].transforms[0].translation.x) > (ws_x_max / 2 - localCostMapInflationX) ||
             fabs(globalTrajBLFrame.points[i].transforms[0].translation.y) > (ws_y_max / 2 - localCostMapInflationY) || i == globalTrajArrLen - 1)
         {
             startIter = i;
             break;
         }
+
     }
-    ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
+    //ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
     C.vector.x = floor(C.vector.x * 10 + 0.5) / 10;
     C.vector.y = floor(C.vector.y * 10 + 0.5) / 10;
     if (C.vector.x == 0)
@@ -334,7 +365,6 @@ geometry_msgs::Vector3 calculateLocalGoal()
 }
 geometry_msgs::TransformStamped getTransformFromMapToBaseLink()
 {
-
     geometry_msgs::TransformStamped ret;
 
     try
@@ -348,7 +378,6 @@ geometry_msgs::TransformStamped getTransformFromMapToBaseLink()
 
     return ret;
 }
-
 void publishTrajMarker(ros::Publisher *traj_marker_pub)
 {
     markerTraj.points.clear();
@@ -388,6 +417,7 @@ void freeLocalGoal()
      * ?2,4,6 y 8: Bordes laterales: En estos casos liberamos la franja vertical/horizontal correspondiente segun sean los casos 8,4 o 2,6
      * 
     **/
+
     //First we do is to detect in which case we are
     //Primero: Esquinas: modulo de las componentes x e y mayor que el w y h
     //Luego si no es una esquina
@@ -396,82 +426,102 @@ void freeLocalGoal()
     //Para todos los bucles siempre es igual
     // ! i: Numero de fila
     // ! j: columna
-    if (fabs(localGoal.x) > localCostMap.info.width && fabs(localGoal.y) > localCostMap.info.height)
-    { //Ya sabemos que es una esquina, ahora a ver cual
-        if (localGoal.x > ws_x_max / 2)
-        { //Puede ser la 3 o la 5
-            if (localGoal.y > ws_y_max)
-            { //Esquina 3
-                for (int i = 0; i < localCostMapInflationY / map_resolution; i++)
-                    for (int j = localCostMapInflated.info.width - 2*localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
-                        localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-                for (int i = localCostMapInflationY / map_resolution; i < 2 * localCostMapInflationY / map_resolution; i++)
-                    for(int j = localCostMapInflated.info.width - localCostMapInflationX/map_resolution; j<localCostMapInflated.info.width; j++)
-                        localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            }
-            else
-            { //Esquina 5
-                for(int i = localCostMapInflated.info.height-2*localCostMapInflationY/map_resolution; i < localCostMapInflated.info.height-localCostMapInflationY/map_resolution; i++ )
-                    for(int j = localCostMapInflated.info.width-localCostMapInflationX/map_resolution; j <localCostMapInflated.info.width; j++ )
-                        localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-                for(int i = localCostMapInflated.info.height-localCostMapInflationY/map_resolution; i < localCostMapInflated.info.height; i++)
-                    for(int j = localCostMapInflated.info.width-2*localCostMapInflationX/map_resolution; j < localCostMapInflated.info.width; j++)
-                        localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-                 
-                
-            }
-        }
-        else if (localGoal.y > ws_y_max / 2)
-        { //Aqui ya sabemos que es la esquina 1 o 7. Si entra en este else if es la esquina 1
-
-            for (int i = 0; i < localCostMapInflationY / map_resolution; i++) //Filas
-                for (int j = 0; j < 2 * localCostMapInflationX / map_resolution; j++)
-                    localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-
-            for (int i = localCostMapInflationY / map_resolution; i < 2 * localCostMapInflationY / map_resolution; i++)
+    if (localGoal.y > localCostMapInflated.info.height * map_resolution - localCostMapInflationY)
+    {
+        //Esquina 1 o 3 o borde 2
+        if (localGoal.x < localCostMapInflationX) //1
+        {
+            ROS_WARN_THROTTLE(1,"Esquina 7");
+            for (int i = localCostMapInflated.info.height - 2 * localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i++)
                 for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-        }
-        else
-        { //Esquina 7
-            for (int i = localCostMapInflated.info.height-2*localCostMapInflationY/map_resolution; i < localCostMapInflated.info.height - localCostMapInflationY/map_resolution; i++)
-                for(int j = 0; j < localCostMapInflationX/map_resolution; j++)
+                    
+            for (int i = localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height; i++)
+                for (int j = 0; j < 2 * localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            for(int i = localCostMapInflated.info.height-localCostMapInflationY/map_resolution; i < localCostMapInflated.info.height; i++)
-                for(int j = 0; j < 2*localCostMapInflationX/map_resolution; j++)
+        }
+        else if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX) //5
+        {
+            ROS_WARN_THROTTLE(1,"Esquina 5");
+            for (int i = localCostMapInflated.info.height - 2 * localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i++)
+                for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
+                    localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
+
+            for (int i = localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height; i++)
+                for (int j = localCostMapInflated.info.width - 2 * localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
+                    localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
+        }
+        else //Borde 2
+        {
+            
+            for (int i = localCostMapInflated.info.height-localCostMapInflationY/map_resolution; i <  localCostMapInflated.info.height; i++){
+                    for(int j = (localGoal.x - border_space)/map_resolution ; j < (localGoal.x + border_space)/map_resolution; j++){
+                        localCostMapInflated.data[i*localCostMapInflated.info.width + j] = 0;
+                        ROS_WARN_THROTTLE(1,"Borde 2:Limpiando");
+                    }
+            }
+        }
+    }
+    else if (localGoal.y < localCostMapInflationY)
+    {                                                                                                //Esquina 3 o 1 o borde 6
+        if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX) //3
+        {
+            ROS_WARN_THROTTLE(1,"Esquina 3");
+            for (int i = 0; i < localCostMapInflationY / map_resolution; i++)
+                for (int j = localCostMapInflated.info.width - 2 * localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
+                    localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
+            for (int i = localCostMapInflationY / map_resolution; i < 2 * localCostMapInflationY / map_resolution; i++)
+                for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
             
         }
-    }
-    else if (localGoal.y > localCostMap.info.height + localCostMapInflationY && localGoal.x < localCostMap.info.width + localCostMapInflationX)
-    { //Sino pues sera uno  de los cuatro bordes
-        //Borde 2
-        //Se recorren las filas desde la 0 hasta la ultima previa al costmap real y se ponen a 0
-        //Longitud de una fila: localCostMapInflated.info.width
-        //Numero de filas: localCostmapInflationY/resolution
-
-        for (unsigned int i = 0; i < localCostMapInflated.info.width * localCostMapInflationY / map_resolution; i++)
-            localCostMapInflated.data[i] = 0;
-    }
-    else if (localGoal.y < localCostMapInflationY && localGoal.x < localCostMap.info.width + localCostMapInflationX)
-    { //Borde 6
-        //Se recorren todas las filas desde la primera despues del costmap real hasta la ultima y se ponen a cero
-        for (int i = localCostMapInflated.info.width * (localCostMapInflated.info.height - localCostMapInflationY / map_resolution); i < localCostMapInflated.data.size(); i++)
-            localCostMapInflated.data[i] = 0;
-    }
-    else if (localGoal.y < localCostMap.info.height + localCostMapInflationY && localGoal.x < localCostMapInflationX)
+        else if (localGoal.x < localCostMapInflationX) //1
+        {
+             ROS_WARN_THROTTLE(1,"Esquina 1");
+            for (int i = 0; i < localCostMapInflationY / map_resolution; i++) //Filas
+                for (int j = 0; j < 2 * localCostMapInflationX / map_resolution; j++)
+                    localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
+            for (int i = localCostMapInflationY / map_resolution; i < 2 * localCostMapInflationY / map_resolution; i++)
+                for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
+                    localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
+           
+        }
+        else//Borde 6
+        {
+             ROS_WARN_THROTTLE(1,"Borde 6");
+            for (int i = 0; i < localCostMapInflationY / map_resolution; i++){
+                    for(int j = (localGoal.x - border_space)/map_resolution ; j < (localGoal.x + border_space)/map_resolution; j++){
+                        localCostMapInflated.data[i*localCostMapInflated.info.width + j] = 0;
+                        ROS_WARN_THROTTLE(1,"Borde 6:Limpiando");
+                    }
+            }
+        }
+    }//Si hemos llegado hasta aqui sabemos que la y esta dentro del costmap original
+    else if (localGoal.x < localCostMapInflationX)
     { //Borde 8
+        ROS_WARN_THROTTLE(1,"Borde 8");
         //Se recorren las filas desde la primera hasta la ultima y se ponen a 0 los N primeros valores de cada fila(numero de columnas infladas)
-        for (int i = 0; i < localCostMapInflated.info.height; i++)
+       for(int i = (localGoal.y - border_space)/map_resolution ; i < (localGoal.y + border_space) /map_resolution; i++){
             for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                 localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
     }
-    else
-    {   //Borde 4
+
+
+    }else if (localGoal.x > localCostMap.info.width * map_resolution + localCostMapInflationX)
+    { //Borde 4
+        ROS_WARN_THROTTLE(1,"Borde 4");
         //Se recorren las filas desde la primera hasta la ultima y se ponen a 0 los N ultimos valores de cada fila (numero de columnas infladas)
-        for (int i = 0; i < localCostMapInflated.info.height; i++)
-            for (int j = localCostMap.info.width - localCostMapInflationX / map_resolution; j < localCostMap.info.width; j++)
+        for(int i = (localGoal.y - border_space)/map_resolution ; i < (localGoal.y + border_space)/map_resolution; i++){
+            for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++){
+                ROS_INFO("denro de borde 4");
                 localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
+        }
+        }
+        
+    }
+    else
+    {
+        ROS_WARN_THROTTLE(1, "No he entrado en ninguna zona");
     }
 }
 void inflateCostMap()
@@ -500,7 +550,7 @@ void inflateCostMap()
     for (int i = 0; i < localCostMap.info.height; i++)
     {
         for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
-            localCostMapInflated.data.push_back(i == 100 || i == localCostMap.info.height - 1 ? 100 : 100);
+            localCostMapInflated.data.push_back(100);
 
         for (int k = 0; k < localCostMap.info.width; k++)
         {
@@ -508,7 +558,7 @@ void inflateCostMap()
             iter++;
         }
         for (int l = 0; l < localCostMapInflationX / map_resolution; l++)
-            localCostMapInflated.data.push_back(i == 0 || i == localCostMap.info.height - 1 ? 100 : 100);
+            localCostMapInflated.data.push_back(100);
     }
     for (int i = 0; i < l; i++)
         localCostMapInflated.data.push_back(100);
@@ -529,6 +579,7 @@ void configParams(bool showConfig)
     ros::param::get("/local_planner_node/robot_base_frame", robot_base_frame);
     ros::param::get("/local_planner_node/local_costmap_infl_x", localCostMapInflationX);
     ros::param::get("/local_planner_node/local_costmap_infl_y", localCostMapInflationY);
+    ros::param::get("/local_planner_node/border_space", border_space);
     ws_x_max += 2 * localCostMapInflationX;
     ws_y_max += 2 * localCostMapInflationY;
 
@@ -588,4 +639,17 @@ void localCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
 {
     localCostMap = *lcp;
     localCostMapReceived = true;
+}
+void callback(theta_star_2d::localConfig &config, uint32_t level)
+{
+    /*ROS_INFO("Reconfigure Request: %d %f %s %s %d", 
+            config.double_param, 
+            config.size);*/
+    ros::param::get("/local_planner_node/border_space", border_space);
+}
+
+void globalGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &goal)
+{
+    globalGoalStamped = *goal;
+    //ROS_INFO("local Planner: Global Goal got [%.2f, %.2f]", globalGoalStamped.pose.position.x, globalGoalStamped.pose.position.y);
 }
