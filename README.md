@@ -41,5 +41,5 @@ If you find some parameter that will be usefull to add as reconfigurable paramet
 
 ## Todo list
 
-- [] Integrate the geometry params in the algorithm to get them directly from the topic
-- [] Configure topics as params
+- [ ] Integrate the geometry params in the algorithm to get them directly from the topic
+- [ ] Configure topics as params
