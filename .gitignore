@@ -3,3 +3,4 @@
 *.json
 ./.vscode
 ws.code-workspace
+./resource

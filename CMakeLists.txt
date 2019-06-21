@@ -17,7 +17,6 @@ generate_dynamic_reconfigure_options(
   cfg/sim.cfg
   cfg/local.cfg
   cfg/global.cfg
-  cfg/sim_auto.cfg
 )
 catkin_package(
   INCLUDE_DIRS include
