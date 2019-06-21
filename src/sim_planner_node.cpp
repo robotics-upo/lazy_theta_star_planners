@@ -29,6 +29,9 @@ using namespace PathPlanners;
 visualization_msgs::Marker markerTraj;
 geometry_msgs::Vector3 start, goal;
 nav_msgs::OccupancyGrid globalCostMap, mp;
+
+nav_msgs::OccupancyGrid::ConstPtr gCmPtr;
+
 tf2_ros::Buffer tfBuffer;
 
 bool globalGoalReceived = false;
@@ -146,7 +149,7 @@ int main(int argc, char **argv)
 		if (globalCostMapReceived && !globalCostMapSentToAlgorithm)
 		{
 			ftime(&startT);
-			theta.getMap(&globalCostMap);
+			theta.getMap(gCmPtr);
 			ftime(&finishT);
 			seconds = finishT.time - startT.time - 1;
 			milliseconds = (1000 - startT.millitm) + finishT.millitm;
@@ -221,11 +224,12 @@ int main(int argc, char **argv)
 }
 void callback(theta_star_2d::simConfig &config, uint32_t level)
 {
-	ROS_INFO("Reconfiguring");
+	ROS_INFO("Dynamic Reconfigure Params Received");
 }
 //Since the local costmap y constant over time, it's not neccesary to refresh it every ros::spinOnce
 void globalCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &fp)
 {
+	gCmPtr = fp;
 	globalCostMap = *fp;
 	globalCostMapReceived = true;
 }

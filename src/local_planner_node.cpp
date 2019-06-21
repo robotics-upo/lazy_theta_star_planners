@@ -56,48 +56,45 @@ int localTrajArrLen;
 string robot_base_frame, world_frame;
 
 //Theta star algorithm parameters
-double map_resolution = 0.0;
-double ws_x_max = 0.0;
-double ws_y_max = 0.0;
-double ws_x_min = 0.0;
-double ws_y_min = 0.0;
-double goal_weight = 1.5;
-double cost_weight = 0.0;
-double lof_distance = 0.0;
+float map_resolution;
+float ws_x_max;
+float ws_y_max;
+float ws_x_min;
+float ws_y_min;
+float goal_weight;
+float cost_weight;
+float lof_distance;
 
-double occ_threshold = 80.0;
-double traj_dxy_max = 0.5;
-double traj_pos_tol = 1.0;
-double traj_yaw_tol = 1.0;
-double localCostMapInflationX = 1.0;
-double localCostMapInflationY = 1.0;
-float border_space = 1.0;
+float occ_threshold;
+float traj_dxy_max;
+float traj_pos_tol;
+float traj_yaw_tol;
+float localCostMapInflationX;
+float localCostMapInflationY;
+float border_space;
 //Functions declarations
 geometry_msgs::Vector3 calculateLocalGoal();
 geometry_msgs::TransformStamped getTransformFromMapToBaseLink();
-
-void callback(theta_star_2d::localConfig &config, uint32_t level);
 
 void publishTrajMarker(ros::Publisher *traj_marker_pub);
 void buildAndPubTrayectory(ThetaStar *theta, ros::Publisher *traj_publisher);
 
 //True if you want to see the params used in the terminal
-void configParams(bool showConfig);
+void configParams(bool showConfig,ros::NodeHandle *nh);
 
 //Auxiliar functions
 void showTime(string message, struct timeb st, struct timeb ft);
+
+
+void freeLocalGoal();
 void inflateCostMap();
 
 //Calbacks and publication functions
 void localCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &lcp);
 void globalTrajCallback(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr &traj);
-
 void globalGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &goal);
-
 void localGoalReachedCallback(const std_msgs::Bool &data);
-
-void freeLocalGoal();
-void callForGlobalRePlan();
+void callback(theta_star_2d::localConfig &config, uint32_t level);
 
 int main(int argc, char **argv)
 {
@@ -154,7 +151,7 @@ int main(int argc, char **argv)
     f = boost::bind(&callback, _1, _2);
     server.setCallback(f);
 
-    configParams(false);
+    configParams(false, &n);
     ThetaStar theta((char *)node_name.c_str(), (char *)world_frame.c_str(), ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, cost_weight, lof_distance, occ_threshold, &n);
     theta.setTimeOut(20);
     theta.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
@@ -174,7 +171,7 @@ int main(int argc, char **argv)
         ros::spinOnce();
         
         local_run_pub.publish(is_running);
-        configParams(false);
+        configParams(false, &n);
         theta.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
 
         number_of_points = 0; //Reset variable
@@ -341,8 +338,6 @@ geometry_msgs::Vector3 calculateLocalGoal()
         C.vector.x = globalTrajBLFrame.points[i].transforms[0].translation.x + (ws_x_max) / 2;
         C.vector.y = globalTrajBLFrame.points[i].transforms[0].translation.y + (ws_y_max) / 2;
         
-        //if( i > startIter+5 )
-        //    break;
         
         if (fabs(globalTrajBLFrame.points[i].transforms[0].translation.x) > (ws_x_max / 2 - localCostMapInflationX) ||
             fabs(globalTrajBLFrame.points[i].transforms[0].translation.y) > (ws_y_max / 2 - localCostMapInflationY) || i == globalTrajArrLen - 1)
@@ -353,14 +348,13 @@ geometry_msgs::Vector3 calculateLocalGoal()
 
     }
     //ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
-    C.vector.x = floor(C.vector.x * 10 + 0.5) / 10;
-    C.vector.y = floor(C.vector.y * 10 + 0.5) / 10;
+    C.vector.x = floor(C.vector.x * 10 + 10*map_resolution) / 10;
+    C.vector.y = floor(C.vector.y * 10 + 10*map_resolution) / 10;
     if (C.vector.x == 0)
         C.vector.x += 0.05;
     if (C.vector.y == 0)
         C.vector.y += 0.05;
 
-    ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
     return C.vector;
 }
 geometry_msgs::TransformStamped getTransformFromMapToBaseLink()
@@ -431,7 +425,6 @@ void freeLocalGoal()
         //Esquina 1 o 3 o borde 2
         if (localGoal.x < localCostMapInflationX) //1
         {
-            ROS_WARN_THROTTLE(1,"Esquina 7");
             for (int i = localCostMapInflated.info.height - 2 * localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i++)
                 for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
@@ -442,7 +435,6 @@ void freeLocalGoal()
         }
         else if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX) //5
         {
-            ROS_WARN_THROTTLE(1,"Esquina 5");
             for (int i = localCostMapInflated.info.height - 2 * localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i++)
                 for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
@@ -457,7 +449,6 @@ void freeLocalGoal()
             for (int i = localCostMapInflated.info.height-localCostMapInflationY/map_resolution; i <  localCostMapInflated.info.height; i++){
                     for(int j = (localGoal.x - border_space)/map_resolution ; j < (localGoal.x + border_space)/map_resolution; j++){
                         localCostMapInflated.data[i*localCostMapInflated.info.width + j] = 0;
-                        ROS_WARN_THROTTLE(1,"Borde 2:Limpiando");
                     }
             }
         }
@@ -466,7 +457,6 @@ void freeLocalGoal()
     {                                                                                                //Esquina 3 o 1 o borde 6
         if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX) //3
         {
-            ROS_WARN_THROTTLE(1,"Esquina 3");
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++)
                 for (int j = localCostMapInflated.info.width - 2 * localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
@@ -477,7 +467,6 @@ void freeLocalGoal()
         }
         else if (localGoal.x < localCostMapInflationX) //1
         {
-             ROS_WARN_THROTTLE(1,"Esquina 1");
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++) //Filas
                 for (int j = 0; j < 2 * localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
@@ -488,18 +477,15 @@ void freeLocalGoal()
         }
         else//Borde 6
         {
-             ROS_WARN_THROTTLE(1,"Borde 6");
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++){
                     for(int j = (localGoal.x - border_space)/map_resolution ; j < (localGoal.x + border_space)/map_resolution; j++){
                         localCostMapInflated.data[i*localCostMapInflated.info.width + j] = 0;
-                        ROS_WARN_THROTTLE(1,"Borde 6:Limpiando");
                     }
             }
         }
     }//Si hemos llegado hasta aqui sabemos que la y esta dentro del costmap original
     else if (localGoal.x < localCostMapInflationX)
     { //Borde 8
-        ROS_WARN_THROTTLE(1,"Borde 8");
         //Se recorren las filas desde la primera hasta la ultima y se ponen a 0 los N primeros valores de cada fila(numero de columnas infladas)
        for(int i = (localGoal.y - border_space)/map_resolution ; i < (localGoal.y + border_space) /map_resolution; i++){
             for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
@@ -509,11 +495,9 @@ void freeLocalGoal()
 
     }else if (localGoal.x > localCostMap.info.width * map_resolution + localCostMapInflationX)
     { //Borde 4
-        ROS_WARN_THROTTLE(1,"Borde 4");
         //Se recorren las filas desde la primera hasta la ultima y se ponen a 0 los N ultimos valores de cada fila (numero de columnas infladas)
         for(int i = (localGoal.y - border_space)/map_resolution ; i < (localGoal.y + border_space)/map_resolution; i++){
             for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++){
-                ROS_INFO("denro de borde 4");
                 localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
         }
         }
@@ -563,23 +547,24 @@ void inflateCostMap()
     for (int i = 0; i < l; i++)
         localCostMapInflated.data.push_back(100);
 }
-void configParams(bool showConfig)
+void configParams(bool showConfig, ros::NodeHandle *nh)
 {
-    ros::param::get("/costmap_2d_local/costmap/width", ws_x_max);
-    ros::param::get("/costmap_2d_local/costmap/height", ws_y_max);
-    ros::param::get("/costmap_2d_local/costmap/resolution", map_resolution);
-    ros::param::get("/local_planner_node/goal_weight", goal_weight);
-    ros::param::get("/local_planner_node/cost_weight", cost_weight);
-    ros::param::get("/local_planner_node/lof_distance", lof_distance);
-    ros::param::get("/local_planner_node/occ_threshold", occ_threshold);
-    ros::param::get("/local_planner_node/traj_dxy_max", traj_dxy_max);
-    ros::param::get("/local_planner_node/traj_pos_tol", traj_pos_tol);
-    ros::param::get("/local_planner_node/traj_yaw_tol", traj_yaw_tol);
-    ros::param::get("/local_planner_node/world_frame", world_frame);
-    ros::param::get("/local_planner_node/robot_base_frame", robot_base_frame);
-    ros::param::get("/local_planner_node/local_costmap_infl_x", localCostMapInflationX);
-    ros::param::get("/local_planner_node/local_costmap_infl_y", localCostMapInflationY);
-    ros::param::get("/local_planner_node/border_space", border_space);
+    
+    nh->param("/costmap_2d_local/costmap/width", ws_x_max, (float)0);
+    nh->param("/costmap_2d_local/costmap/height", ws_y_max,(float) 0);
+    nh->param("/costmap_2d_local/costmap/resolution", map_resolution, (float)0.05);
+    nh->param("/local_planner_node/goal_weight", goal_weight, (float)1.5);
+    nh->param("/local_planner_node/cost_weight", cost_weight, (float)0.2);
+    nh->param("/local_planner_node/lof_distance", lof_distance, (float)1.5);
+    nh->param("/local_planner_node/occ_threshold", occ_threshold, (float)99);
+    nh->param("/local_planner_node/traj_dxy_max", traj_dxy_max, (float)10);
+    nh->param("/local_planner_node/traj_pos_tol", traj_pos_tol, (float)10);
+    nh->param("/local_planner_node/traj_yaw_tol", traj_yaw_tol, (float)0.2);
+    nh->param("/local_planner_node/world_frame", world_frame, (string)"/map");
+    nh->param("/local_planner_node/robot_base_frame", robot_base_frame, (string)"/base_link");
+    nh->param("/local_planner_node/local_costmap_infl_x", localCostMapInflationX,(float)1);
+    nh->param("/local_planner_node/local_costmap_infl_y", localCostMapInflationY,(float)1);
+    nh->param("/local_planner_node/border_space", border_space, (float)1);
     ws_x_max += 2 * localCostMapInflationX;
     ws_y_max += 2 * localCostMapInflationY;
 
@@ -642,14 +627,10 @@ void localCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
 }
 void callback(theta_star_2d::localConfig &config, uint32_t level)
 {
-    /*ROS_INFO("Reconfigure Request: %d %f %s %s %d", 
-            config.double_param, 
-            config.size);*/
     ros::param::get("/local_planner_node/border_space", border_space);
 }
 
 void globalGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &goal)
 {
     globalGoalStamped = *goal;
-    //ROS_INFO("local Planner: Global Goal got [%.2f, %.2f]", globalGoalStamped.pose.position.x, globalGoalStamped.pose.position.y);
 }
