@@ -204,7 +204,7 @@ class ThetaStar
 		 Read map and set up discrete world with occupancy matrix from map_server
 		 	@param message:			Occupancy grid message from map_server
 		 **/
-		void getMap(nav_msgs::OccupancyGrid::ConstPtr &message);
+		//void getMap(nav_msgs::OccupancyGrid::ConstPtr &message);
 
 		void getMap(nav_msgs::OccupancyGrid *message);
 

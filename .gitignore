@@ -1,6 +1,6 @@
 *.ipch
 *.bin
 *.json
-./.vscode
+/.vscode
 ws.code-workspace
-./resource
+/resource/

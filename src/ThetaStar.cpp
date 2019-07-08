@@ -37,6 +37,7 @@ ThetaStar::ThetaStar(char *plannerName, char *frame_id,
                      float step_, float goal_weight_, float cost_weight_, float lof_distance_,int occ_threshold_, ros::NodeHandle *n)
 {
     // Call to initialization
+    ROS_WARN("\t 2WorkSpace: X:[%.2f, %.2f], Y:[%.2f, %.2f] \n", ws_x_min_, ws_x_max_, ws_y_min_, ws_y_max_);
     init(plannerName, frame_id, ws_x_max_, ws_y_max_, ws_x_min_, ws_y_min_, step_, goal_weight_, cost_weight_, lof_distance_,occ_threshold_, n);
 }
 void ThetaStar::setDynParams(float goal_weight_, float cost_weight_, float lof_distance_,int occ_threshold_)
@@ -65,7 +66,7 @@ void ThetaStar::init(char *plannerName, char *frame_id,
     ws_y_max = round(ws_y_max_ / step_);
     ws_x_min = round(ws_x_min_ / step_);
     ws_y_min = round(ws_y_min_ / step_);
-
+    ROS_INFO("3ws_x_max: %.2f, ws_y_max: %.2f, ws_x_min: %.2f, ws_y_min: %.2f, step: %.2f", ws_x_max_, ws_y_max_, ws_x_min_, ws_y_min_,step_);
     step = step_;
     step_inv = 1.0 / step_;
 
@@ -142,28 +143,27 @@ void ThetaStar::setTrajectoryParams(float dxy_max_, float dxy_tolerance_, float 
     trajectoryParamsConfigured = true;
 }
 
-void ThetaStar::getMap(nav_msgs::OccupancyGrid::ConstPtr &message)
-{
-
-    clearMap();
-    int size = message->info.width * message->info.height;
-    int x, y;
-    trf_x = message->info.origin.position.x;
-    trf_y = message->info.origin.position.y;
-    
-    for (unsigned int i = 0; i < size; i++)
-    {
-        getDiscreteWorldPositionFromIndex(x, y, i);
-
-        if (isInside(x, y) && message->data[i] >= occ_threshold)
-            discrete_world[i].notOccupied = false;
-
-        discrete_world[i].cost = message->data[i];
-    }
-}
+//void ThetaStar::getMap(nav_msgs::OccupancyGrid::ConstPtr &message)
+//{
+//
+//    clearMap();
+//    int size = message->info.width * message->info.height;
+//    int x, y;
+//    trf_x = message->info.origin.position.x;
+//    trf_y = message->info.origin.position.y;
+//    
+//    for (unsigned int i = 0; i < size; i++)
+//    {
+//        getDiscreteWorldPositionFromIndex(x, y, i);
+//
+//        if (isInside(x, y) && message->data[i] >= occ_threshold)
+//            discrete_world[i].notOccupied = false;
+//
+//        discrete_world[i].cost = message->data[i];
+//    }
+//}
 void ThetaStar::getMap(nav_msgs::OccupancyGrid *message)
 {
-
     clearMap();
     int size = message->info.width * message->info.height;
     int x, y;

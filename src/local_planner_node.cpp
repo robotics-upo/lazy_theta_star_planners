@@ -221,6 +221,7 @@ int main(int argc, char **argv)
                         globalTrajReceived = false;
                         occ.data = true;
                         occ_goal_pub.publish(occ);
+                        global_goal_pub.publish(globalGoalStamped);
                     }
                 }
                 else
@@ -254,7 +255,7 @@ int main(int argc, char **argv)
                 {
                     impossibles++;
                     //ROS_INFO("Local: +1 impossible");
-                    if (impossibles == 3)
+                    if (impossibles == 10)
                     {
                         std_msgs::Bool msg;
                         msg.data = true;
@@ -618,7 +619,10 @@ void globalTrajCallback(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr
 void localGoalReachedCallback(const std_msgs::Bool &data)
 {
     globalGoalReached = true;
-    globalTrajReceived = !data.data;
+    globalTrajReceived = false;
+    //if(data.data){
+    //    
+    //}
 }
 void localCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
 {
@@ -633,4 +637,6 @@ void callback(theta_star_2d::localConfig &config, uint32_t level)
 void globalGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &goal)
 {
     globalGoalStamped = *goal;
+    globalTrajReceived = false;
+    globalGoalReached = false;
 }

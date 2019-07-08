@@ -102,15 +102,13 @@ int main(int argc, char **argv)
 	//Dynamic reconfigure
 	dynamic_reconfigure::Server<theta_star_2d::globalConfig> server;
   	dynamic_reconfigure::Server<theta_star_2d::globalConfig>::CallbackType f;
-	//ROS_ERROR("2");
   	f = boost::bind(&callback, _1, _2);
   	server.setCallback(f);
-	//ROS_ERROR("3");
+	
 	configParams(true, &n);
 
 	ThetaStar theta((char *)node_name.c_str(), (char *)world_frame.c_str(), ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, cost_weight,lof_distance,occ_threshold, &n);
-	
-	
+	ROS_WARN("\t WorkSpace: X:[%.2f, %.2f], Y:[%.2f, %.2f] , step %.2f\n", ws_x_min, ws_x_max, ws_y_min, ws_y_max,map_resolution);
 	theta.setTimeOut(20);
 	theta.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
 	//ROS_ERROR("4");
@@ -122,16 +120,16 @@ int main(int argc, char **argv)
 	{
 		
 		ros::spinOnce();
-		configParams(false,&n);	
+		//configParams(false,&n);	
 		
 		theta.setDynParams(goal_weight,cost_weight,lof_distance, occ_threshold);
 
-		if (gCmReceived && !gCmPassed)
+		if (gCmReceived)
 		{
 			//ROS_INFO("Sending");
-			theta.getMap(gCmPtr);
-			gCmPassed = true;
-			//ROS_WARN("Global costmap passed to algorithm");
+			theta.getMap(&globalCostMap);
+			gCmReceived = false;
+			ROS_WARN("Global costmap passed to algorithm");
 		}
 
 		if (globalGoalReceived)
@@ -153,6 +151,7 @@ int main(int argc, char **argv)
 			else
 			{
 				ROS_ERROR("Global goal or start point occupied ");
+				globalGoalReceived = false;
 			}
 		}
 		loop_rate.sleep();
@@ -169,8 +168,6 @@ void globalCostMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &fp)
 	gCmPtr = fp;
 	globalCostMap = *fp;
 	gCmReceived = true;
-	gCmPassed = false;
-	
 }
 //TODO: delete robotPoseReceived flag change from this callback
 //Right now is here to refresh the current robot pose every time a goal is received, but this flag has to be changed inside the main loop
