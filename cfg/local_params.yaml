@@ -1,0 +1,27 @@
+local_planner_node:
+  show_config: true
+  debug: true
+  
+  ws_x_max: 6
+  ws_y_max: 6
+  ws_x_min: 0
+  ws_y_min: 0
+
+  map_resolution: 0.05
+  
+  goal_weight: 1.2
+  cost_weight: 0.2
+  lof_distance: 1.5
+  occ_threshold: 99
+
+  world_frame: map
+  robot_base_frame: base_link
+
+  #subscribing topics
+  global_traj_topic: /trajectory_tracker/input_trajectory
+  global_goal_topic: /move_base_simple/goal
+  local_costmap_topic: /costmap_2d_local/costmap/costmap
+  goal_reached_topic: /trajectory_tracker/local_goal_reached
+  #publishing topics
+  local_trajectory_output_topic: /trajectory_tracker/local_input_trajectory
+  local_trajectory_markers_topic: /local_planner_node/visualization_marker_trajectory

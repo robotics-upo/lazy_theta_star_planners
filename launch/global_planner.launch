@@ -1,0 +1,12 @@
+<launch>
+    <rosparam command="load" file="$(find theta_star_2d)/cfg/global_params.yaml"/>
+    
+    <node pkg="map_server" type="map_server" name="map_server" args="/home/fali-srl/catkin_ws/src/tintas.yaml" output="screen"/>
+
+    <!-- Static tf used to simulate robot pose-->
+    <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_broadcaster" args="40 20 0 0 0 1 map base_link" />
+
+
+    <node pkg="theta_star_2d" type="gb_planner_node" name="gb_planner_node" output="screen"/>
+
+</launch>

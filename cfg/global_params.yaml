@@ -1,0 +1,20 @@
+global_planner_node:
+  show_config: true
+  debug: true
+  
+  ws_x_max: 43.5
+  ws_y_max: 42.5
+  map_resolution: 0.05
+  
+  goal_weight: 1.5
+  cost_weight: 0.2
+  lof_distance: 1.5
+  occ_threshold: 99
+
+  world_frame: map
+  robot_base_frame: base_link
+
+  traj_topic: /trajectory_tracker/input_trajectory
+  vis_marker_traj_topic: /global_planner_node/visualization_marker_trajectory
+  goal_topic: /move_base_simple/goal
+  global_map_topic: /costmap_2d/costmap/costmap

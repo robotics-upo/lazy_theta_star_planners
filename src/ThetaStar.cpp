@@ -66,7 +66,6 @@ void ThetaStar::init(char *plannerName, char *frame_id,
     ws_y_max = round(ws_y_max_ / step_);
     ws_x_min = round(ws_x_min_ / step_);
     ws_y_min = round(ws_y_min_ / step_);
-    ROS_INFO("3ws_x_max: %.2f, ws_y_max: %.2f, ws_x_min: %.2f, ws_y_min: %.2f, step: %.2f", ws_x_max_, ws_y_max_, ws_x_min_, ws_y_min_,step_);
     step = step_;
     step_inv = 1.0 / step_;
 
