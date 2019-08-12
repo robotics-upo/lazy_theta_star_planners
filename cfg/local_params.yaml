@@ -2,12 +2,12 @@ local_planner_node:
   show_config: true
   debug: true
   
-  ws_x_max: 6
-  ws_y_max: 6
-  ws_x_min: 0
-  ws_y_min: 0
+  #ws_x_max: 6
+  #ws_y_max: 6
+  #ws_x_min: 0
+  #ws_y_min: 0
 
-  map_resolution: 0.05
+  #map_resolution: 0.05
   
   goal_weight: 1.2
   cost_weight: 0.2
