@@ -7,6 +7,6 @@
     <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_broadcaster" args="40 20 0 0 0 1 map base_link" />
 
 
-    <node pkg="theta_star_2d" type="gb_planner_node" name="gb_planner_node" output="screen"/>
+    <node pkg="theta_star_2d" type="global_planner_node" name="global_planner_node" output="screen"/>
 
 </launch>
