@@ -162,10 +162,25 @@ class ThetaStar
 		   @param Lazy Theta* with Optimization: goal point factor [0 to inf]. Bigger -> distance to target more weight than distance to origin -> minor exploration -> shorter runtime, grater path length
 		   @param NodeHandle 
 		**/
-		ThetaStar(char* plannerName, char* frame_id, 
+		ThetaStar(string plannerName, string frame_id, 
 		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
 		float step_, float goal_weight_,float cost_weight_,float lof_distance_, int occ_threshold_, ros::NodeHandle *n);
-
+		/**
+		 * Alternative constructor that calls initAuto function and automatically gets params from ros topics 
+		**/
+		ThetaStar(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandle *n);
+		/**
+		 * 
+		**/
+		void initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandle *n);
+		/**
+		 * 
+		**/
+		void loadMapParams(float ws_x_max_, float ws_y_max_, float map_resolution_);
+		/**
+		 * 
+		**/
+	    void configureMarkers(string plannerName, string frame_id, float step);
 		/**
 		 * Function used to reparse dynamic parameters from the node
 		**/
@@ -181,7 +196,7 @@ class ThetaStar
 		   @param Lazy Theta* with Optimization: goal point factor [0 to inf]. Bigger -> distance to target more weight than distance to origin -> minor exploration -> shorter runtime, grater path length
 		   @param NodeHandle 
 		**/ 
-		void init(char* plannerName, char* frame_id, 
+		void init(string plannerName, string frame_id, 
 		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
 		float step_, float goal_weight_,float cost_weight_,float lof_distance_,int occ_threshold_,ros::NodeHandle *n);
 
@@ -786,6 +801,7 @@ class ThetaStar
 
 		// Flag to print the ROS_WARN()
 		bool PRINT_WARNINGS;
+		bool mapParamsConfigured;
 
 		float cost_path;
 		float average_dist_to_obst;

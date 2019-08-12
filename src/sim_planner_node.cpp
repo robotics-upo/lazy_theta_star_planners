@@ -109,7 +109,7 @@ int main(int argc, char **argv)
 
 	configParams(true);
 
-	ThetaStar theta((char *)node_name.c_str(), (char *)"/map", ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, cost_weight, lof_distance, occ_threshold, &n);
+	ThetaStar theta(node_name, "/map", ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, cost_weight, lof_distance, occ_threshold, &n);
 	theta.setTimeOut(2000);
 	theta.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
 	theta.confPrintRosWarn(true);

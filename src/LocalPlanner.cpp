@@ -18,25 +18,28 @@ LocalPlanner::LocalPlanner(tf2_ros::Buffer *tfBuffer_)
 void LocalPlanner::configParams()
 {
     //Flags for flow control
-    bool localCostMapReceived = false;
-    bool globalTrajReceived = false;
-    bool localGoalReached = true;
-    bool globalGoalReached = false;
-
+    localCostMapReceived = false;
+    globalTrajReceived = false;
+    localGoalReached = true;
+    globalGoalReached = false;
+    mapGeometryConfigured = false;
     //nh_.param("/costmap_2d_local/costmap/width", ws_x_max, (float)0);
     //nh_.param("/costmap_2d_local/costmap/height", ws_y_max, (float)0);
     //nh_.param("/costmap_2d_local/costmap/resolution", map_resolution, (float)0.05);
-    
-    nh_.param("/local_planner_node/ws_x_max", ws_x_max, (float)6);
-    nh_.param("/local_planner_node/ws_y_max", ws_y_max, (float)6);
-    nh_.param("/local_planner_node/map_resolution", map_resolution, (float)0.05);
+
+    //nh_.param("/local_planner_node/ws_x_max", ws_x_max, (float)6);
+    //nh_.param("/local_planner_node/ws_y_max", ws_y_max, (float)6);
+    //nh_.param("/local_planner_node/map_resolution", map_resolution, (float)0.05);
+
     nh_.param("/local_planner_node/goal_weight", goal_weight, (float)1.5);
     nh_.param("/local_planner_node/cost_weight", cost_weight, (float)0.2);
     nh_.param("/local_planner_node/lof_distance", lof_distance, (float)1.5);
     nh_.param("/local_planner_node/occ_threshold", occ_threshold, (float)99);
+
     nh_.param("/local_planner_node/traj_dxy_max", traj_dxy_max, (float)10);
     nh_.param("/local_planner_node/traj_pos_tol", traj_pos_tol, (float)10);
     nh_.param("/local_planner_node/traj_yaw_tol", traj_yaw_tol, (float)0.2);
+
     nh_.param("/local_planner_node/world_frame", world_frame, (string) "/map");
     nh_.param("/local_planner_node/robot_base_frame", robot_base_frame, (string) "/base_link");
     nh_.param("/local_planner_node/local_costmap_infl_x", localCostMapInflationX, (float)1);
@@ -46,17 +49,15 @@ void LocalPlanner::configParams()
     nh_.param("/local_planner_node/debug", debug, (bool)0);
     nh_.param("/local_planner_node/show_config", showConfig, (bool)0);
 
-    ws_x_max += 2 * localCostMapInflationX;
-    ws_y_max += 2 * localCostMapInflationY;
-    ws_x_min = 0;
-    ws_y_min = 0;
-    local_costmap_center.x = ws_x_max / 2;
-    local_costmap_center.y = ws_y_max / 2;
+    //ws_x_max += 2 * localCostMapInflationX;
+    //ws_y_max += 2 * localCostMapInflationY;
+    //ws_x_min = 0;
+    //ws_y_min = 0;
 
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Local Planner Node Configuration:\n");
-    ROS_INFO_COND(showConfig, PRINTF_GREEN "\t WorkSpace: X:[%.2f, %.2f], Y:[%.2f, %.2f]", ws_x_min, ws_x_max, ws_y_min, ws_y_max);
-    ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Local Costmap Origin: [%.2f, %.2f]", local_costmap_center.x, local_costmap_center.y);
-    ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map: resol.= [%.2f]", map_resolution);
+    //ROS_INFO_COND(showConfig, PRINTF_GREEN "\t WorkSpace: X:[%.2f, %.2f], Y:[%.2f, %.2f]", ws_x_min, ws_x_max, ws_y_min, ws_y_max);
+    //ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Local Costmap Origin: [%.2f, %.2f]", local_costmap_center.x, local_costmap_center.y);
+    //ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map: resol.= [%.2f]", map_resolution);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* with optim.: goal_weight = [%.2f]", goal_weight);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* modified: cost_weight = [%.2f], lof_distance = [%.2f]", cost_weight, lof_distance);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* occ_threshold = %f", occ_threshold);
@@ -95,10 +96,11 @@ void LocalPlanner::configParams()
 void LocalPlanner::configTheta()
 {
     string node_name = "local_planner_node";
-    lcPlanner.init((char *)node_name.c_str(), (char *)world_frame.c_str(), ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, cost_weight, lof_distance, occ_threshold, &nh_);
+    //lcPlanner.init(node_name, world_frame, ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, cost_weight, lof_distance, occ_threshold, &nh_);
+    lcPlanner.initAuto(node_name, world_frame,goal_weight, cost_weight, lof_distance, &nh_);
     lcPlanner.setTimeOut(20);
     lcPlanner.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
-    ROS_INFO_COND(debug,PRINTF_MAGENTA"Local Planner: Theta Star Configured");
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Theta Star Configured");
 }
 void LocalPlanner::configTopics()
 {
@@ -161,7 +163,23 @@ void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
 {
     localCostMap = *lcp;
     localCostMapReceived = true;
-    ROS_INFO_COND(debug,PRINTF_MAGENTA"Local Planner: Received local costmap");
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received local costmap");
+    //First time the map is received, configure the geometric params
+    if (!mapGeometryConfigured)
+    {
+       
+        map_resolution = round(100* (lcp->info.resolution))/100;//Because sometimes the map server shows not exact long numbers as 0.0500003212
+        ws_x_max = lcp->info.width *map_resolution+ 2 * localCostMapInflationX;
+        ws_y_max = lcp->info.height*map_resolution + 2 * localCostMapInflationY;
+        local_costmap_center.x = ws_x_max / 2;
+        local_costmap_center.y = ws_y_max / 2;
+        ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: ws_x_max,ws_y_max, map_resolution: [%.2f, %.2f, %.2f]", ws_x_max, ws_y_max, map_resolution);
+        lcPlanner.loadMapParams(ws_x_max,ws_y_max,map_resolution);
+        mapGeometryConfigured = true;
+        ROS_INFO_COND(showConfig, PRINTF_GREEN "\t WorkSpace: X:[%.2f, %.2f], Y:[%.2f, %.2f]", ws_x_min, ws_x_max, ws_y_min, ws_y_max);
+        ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Local Costmap Origin: [%.2f, %.2f]", local_costmap_center.x, local_costmap_center.y);
+        ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map: resol.= [%.2f]", map_resolution);
+    }
 }
 //Global Input trajectory
 void LocalPlanner::globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr &traj)
@@ -172,7 +190,7 @@ void LocalPlanner::globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::C
     globalTrajectory.header.frame_id = world_frame;
     globalTrajReceived = true;
     globalGoalReached = false;
-    ROS_INFO_COND(debug,PRINTF_MAGENTA"Local Planner: Received global trajectory");
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received global trajectory");
 }
 //
 void LocalPlanner::globalGoalCb(const geometry_msgs::PoseStamped::ConstPtr &goal)
@@ -180,7 +198,7 @@ void LocalPlanner::globalGoalCb(const geometry_msgs::PoseStamped::ConstPtr &goal
     globalGoalStamped = *goal;
     globalTrajReceived = false;
     globalGoalReached = false;
-    ROS_INFO_COND(debug,PRINTF_MAGENTA"Local Planner: Received Global goal");
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received Global goal");
 }
 
 //Used to know when to stop calculating local trajectories
@@ -188,7 +206,7 @@ void LocalPlanner::goalReachedCb(const std_msgs::Bool::ConstPtr &data)
 {
     globalGoalReached = true;
     globalTrajReceived = false;
-    ROS_INFO_COND(debug,PRINTF_MAGENTA"Local Planner: Goal reached message received!");
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Goal reached message received!");
 }
 
 void LocalPlanner::dynRecCb(theta_star_2d::localPlannerConfig &config, uint32_t level)
@@ -197,22 +215,21 @@ void LocalPlanner::dynRecCb(theta_star_2d::localPlannerConfig &config, uint32_t 
     this->lof_distance = config.lof_distance;
     this->occ_threshold = config.occ_threshold;
     this->goal_weight = config.goal_weight;
-   
-    lcPlanner.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
-    ROS_INFO_COND(debug,PRINTF_MAGENTA"Local Planner: Dynamic reconfiguration required");
 
+    lcPlanner.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Dynamic reconfiguration required");
 }
 void LocalPlanner::plan()
 {
     ftime(&startT);
-    
+
     running_state_pub.publish(is_running);
     number_of_points = 0; //Reset variable
-    
+
     if (globalTrajReceived && localCostMapReceived)
     {
         //ROS_INFO("Local: Global Traj Received");
-         ROS_INFO_COND(debug,PRINTF_YELLOW"Local Planner: Global trj received and local costmap received");
+        ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Global trj received and local costmap received");
         localCostMapReceived = false;
         if (!lcPlanner.setValidInitialPosition(local_costmap_center))
         {
@@ -231,7 +248,7 @@ void LocalPlanner::plan()
         } //To get sure the next time it calculate a path it has refreshed the local costmap
         if (startOk)
         {
-            ROS_INFO_COND(debug,PRINTF_YELLOW"Local Planner: Calculating Local goal");
+            ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Calculating Local goal");
             localGoal = calculateLocalGoal();
 
             inflateCostMap();
@@ -247,7 +264,7 @@ void LocalPlanner::plan()
 
                 if (lcPlanner.searchFinalPosition2d(0.2)) //Estaba a 0.2 antes(en la demo de portugal)
                 {
-                    ROS_INFO_COND(debug,PRINTF_YELLOW"Local Planner: Computing Local Path(1)");
+                    ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path(1)");
                     number_of_points = lcPlanner.computePath();
                 }
                 else
@@ -267,23 +284,23 @@ void LocalPlanner::plan()
                     occ.data = false;
                     occ_goal_pub.publish(occ);
                 }
-                ROS_INFO_COND(debug,PRINTF_YELLOW"Local Planner: Computing Local Path(2)");
+                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path(2)");
                 number_of_points = lcPlanner.computePath();
             }
 
             if (number_of_points > 0 && !occ.data)
             {
-                ROS_INFO_COND(debug,PRINTF_YELLOW"Local Planner: Building and publishing local Path");
+                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Building and publishing local Path");
                 buildAndPubTrayectory();
-                ROS_INFO_COND(debug,PRINTF_YELLOW"Local Planner: Local Path build and published");
+                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Local Path build and published");
                 publishTrajMarker();
-                ROS_INFO_COND(debug,PRINTF_YELLOW"Local Planner: Published trajectory markers");
+                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Published trajectory markers");
                 startOk = false;
 
                 if (impossibles > 0)
                 {
                     //ROS_INFO("Local: Impossible reseted");
-                    
+
                     impossible_calculate.data = false;
                     impossible_to_find_sol_pub.publish(impossible_calculate);
                     impossibles = 0;
@@ -295,7 +312,7 @@ void LocalPlanner::plan()
                 //ROS_INFO("Local: +1 impossible");
                 if (impossibles == 10)
                 {
-                    
+
                     impossible_calculate.data = true;
                     impossible_to_find_sol_pub.publish(impossible_calculate);
                     global_goal_pub.publish(globalGoalStamped);
@@ -313,9 +330,9 @@ void LocalPlanner::plan()
     seconds = finishT.time - startT.time - 1;
     milliseconds = (1000 - startT.millitm) + finishT.millitm;
     time_spent_msg.data = (milliseconds + seconds * 1000);
-    if(debug)
-        showTime(PRINTF_YELLOW"Time spent", startT,finishT);
-    
+    //if (debug)
+    //    showTime(PRINTF_YELLOW "Time spent", startT, finishT);
+
     local_planning_time.publish(time_spent_msg);
 }
 
@@ -453,7 +470,6 @@ void LocalPlanner::inflateCostMap()
     localCostMapInflated.info.origin.position.x = localCostMap.info.origin.position.x - localCostMapInflationX;
     localCostMapInflated.info.origin.position.y = localCostMap.info.origin.position.y - localCostMapInflationY;
 
-
     float l = localCostMapInflated.info.width * localCostMapInflationY / map_resolution;
     //iterator to know where we are
     int iter = 0;
@@ -461,7 +477,7 @@ void LocalPlanner::inflateCostMap()
     for (int i = 0; i < l; i++)
     {
         localCostMapInflated.data.push_back(100);
-    }//Costmap from left border to right border, from upper original limit to lower original limit
+    } //Costmap from left border to right border, from upper original limit to lower original limit
     for (int i = 0; i < localCostMap.info.height; i++)
     {
         for (int j = 0; j < localCostMapInflationX / map_resolution; j++)

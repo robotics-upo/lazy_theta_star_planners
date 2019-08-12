@@ -94,6 +94,7 @@ private:
     ros::Publisher running_state_pub, occ_goal_pub, impossible_to_find_sol_pub;
 
     bool showConfig;
+    bool mapGeometryConfigured;
 
     //Flow control flags
     bool localCostMapReceived;

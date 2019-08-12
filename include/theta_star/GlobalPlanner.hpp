@@ -64,6 +64,8 @@ private:
 
     bool setGoal();
     bool setStart();
+
+
     //Input variables
 
     ros::NodeHandle nh_;
@@ -99,7 +101,7 @@ private:
     bool globalGoalReceived;
     bool gCmReceived;
 
-    bool showConfig,debug;
+    bool showConfig,debug,mapParamsConfigured;
     
     //Publishers and Subscribers
     ros::Publisher trj_pub, vis_trj_pub;
