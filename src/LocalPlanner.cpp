@@ -92,12 +92,13 @@ void LocalPlanner::configParams()
     impossibles = 0;
     number_of_points = 0;
     startOk = false;
+    startIter = 1;
 }
 void LocalPlanner::configTheta()
 {
     string node_name = "local_planner_node";
     //lcPlanner.init(node_name, world_frame, ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, cost_weight, lof_distance, occ_threshold, &nh_);
-    lcPlanner.initAuto(node_name, world_frame,goal_weight, cost_weight, lof_distance, &nh_);
+    lcPlanner.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, &nh_);
     lcPlanner.setTimeOut(20);
     lcPlanner.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Theta Star Configured");
@@ -167,16 +168,16 @@ void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
     //First time the map is received, configure the geometric params
     if (!mapGeometryConfigured)
     {
-       
-        map_resolution = round(100* (lcp->info.resolution))/100;//Because sometimes the map server shows not exact long numbers as 0.0500003212
-        ws_x_max = lcp->info.width *map_resolution+ 2 * localCostMapInflationX;
-        ws_y_max = lcp->info.height*map_resolution + 2 * localCostMapInflationY;
+
+        map_resolution = round(100 * (lcp->info.resolution)) / 100; //Because sometimes the map server shows not exact long numbers as 0.0500003212
+        ws_x_max = lcp->info.width * map_resolution + 2 * localCostMapInflationX;
+        ws_y_max = lcp->info.height * map_resolution + 2 * localCostMapInflationY;
         local_costmap_center.x = ws_x_max / 2;
         local_costmap_center.y = ws_y_max / 2;
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: ws_x_max,ws_y_max, map_resolution: [%.2f, %.2f, %.2f]", ws_x_max, ws_y_max, map_resolution);
-        lcPlanner.loadMapParams(ws_x_max,ws_y_max,map_resolution);
+        lcPlanner.loadMapParams(ws_x_max, ws_y_max, map_resolution);
         mapGeometryConfigured = true;
-        ROS_INFO_COND(showConfig, PRINTF_GREEN "\t WorkSpace: X:[%.2f, %.2f], Y:[%.2f, %.2f]", ws_x_min, ws_x_max, ws_y_min, ws_y_max);
+        ROS_INFO_COND(showConfig, PRINTF_GREEN "\t WorkSpace: X:[%.2f], Y:[%.2f]", ws_x_max, ws_y_max);
         ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Local Costmap Origin: [%.2f, %.2f]", local_costmap_center.x, local_costmap_center.y);
         ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map: resol.= [%.2f]", map_resolution);
     }
@@ -250,7 +251,7 @@ void LocalPlanner::plan()
         {
             ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Calculating Local goal");
             localGoal = calculateLocalGoal();
-
+            ROS_INFO_COND(debug, PRINTF_YELLOW "Local Goal: [%.2f, %.2f]", localGoal.x, localGoal.y);
             inflateCostMap();
 
             freeLocalGoal();
@@ -359,22 +360,35 @@ geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
     {
         C.vector.x = globalTrajBLFrame.points[i].transforms[0].translation.x + (ws_x_max) / 2;
         C.vector.y = globalTrajBLFrame.points[i].transforms[0].translation.y + (ws_y_max) / 2;
-
+        ROS_INFO(PRINTF_GREEN "[%.2f, %.2f], i: %d", globalTrajectory.points[i].transforms[0].translation.x, globalTrajectory.points[i].transforms[0].translation.y, i);
         if (fabs(globalTrajBLFrame.points[i].transforms[0].translation.x) > (ws_x_max / 2 - localCostMapInflationX) ||
             fabs(globalTrajBLFrame.points[i].transforms[0].translation.y) > (ws_y_max / 2 - localCostMapInflationY) || i == globalTrajArrLen - 1)
         {
-            startIter = i;
+            if (fabs(globalTrajBLFrame.points[i].transforms[0].translation.x) > ws_x_max / 2 || fabs(globalTrajBLFrame.points[i].transforms[0].translation.y) > ws_y_max / 2)
+            {
+                C.vector.x = globalTrajBLFrame.points[i-1].transforms[0].translation.x + (ws_x_max) / 2;
+                C.vector.y = globalTrajBLFrame.points[i-1].transforms[0].translation.y + (ws_y_max) / 2;
+                startIter = i-1;
+            }else{
+                startIter = i;
+            }
+           
+            //ROS_INFO(PRINTF_BLUE "[%.2f, %.2f]", globalTrajectory.points[i].transforms[0].translation.x,globalTrajectory.points[i].transforms[0].translation.y);
+            ROS_INFO(PRINTF_BLUE "[%.2f, %.2f]", globalTrajBLFrame.points[i].transforms[0].translation.x, globalTrajBLFrame.points[i].transforms[0].translation.y);
+            ROS_INFO(PRINTF_BLUE "[%.2f, %.2f], %d", C.vector.x, C.vector.y, startIter);
+
             break;
         }
     }
     //ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
     C.vector.x = floor(C.vector.x * 10 + 10 * map_resolution) / 10;
     C.vector.y = floor(C.vector.y * 10 + 10 * map_resolution) / 10;
+    //ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
     if (C.vector.x == 0)
         C.vector.x += 0.05;
     if (C.vector.y == 0)
         C.vector.y += 0.05;
-
+    //ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
     return C.vector;
 }
 
