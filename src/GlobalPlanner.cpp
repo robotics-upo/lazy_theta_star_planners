@@ -13,6 +13,7 @@ GlobalPlanner::GlobalPlanner(tf2_ros::Buffer *tfBuffer_)
     tfBuffer = tfBuffer_;
     configParams();
     configTopics();
+    configServices();
     //Pase parameters from configParams to thetastar object
     configTheta();
 }
@@ -45,6 +46,11 @@ void GlobalPlanner::configTopics()
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Global costmap input topic: %s", topicPath.c_str());
     global_costmap_sub = nh_.subscribe<nav_msgs::OccupancyGrid>(topicPath, 1, &GlobalPlanner::globalCostMapCb, this);
 }
+void GlobalPlanner::configServices()
+{
+
+    global_replanning_service = nh_.advertiseService("/global_planner_node/global_replanning_service", &GlobalPlanner::replanningSrvCb, this);
+}
 //This function gets parameter from param server at startup if they exists, if not it passes default values
 void GlobalPlanner::configParams()
 {
@@ -69,13 +75,6 @@ void GlobalPlanner::configParams()
     nh_.param("/global_planner_node/traj_yaw_tol", traj_yaw_tol, (float)0.2);
     nh_.param("/global_planner_node/world_frame", world_frame, (string) "/map");
     nh_.param("/global_planner_node/robot_base_frame", robot_base_frame, (string) "/base_link");
-
-    //We use the convenant of setting the coordinate frame from 0 to max_x and 0 to max_y
-    ws_x_max = 0;
-    ws_y_max = 0;
-    map_resolution = 0;
-    ws_x_min = 0;
-    ws_y_min = 0;
 
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Global Planner Node Configuration:");
     //ROS_INFO_COND(showConfig, PRINTF_GREEN "\t WorkSpace: X:[%.2f, %.2f], Y:[%.2f, %.2f] ", ws_x_min, ws_x_max, ws_y_min, ws_y_max);
@@ -102,10 +101,16 @@ void GlobalPlanner::configParams()
     marker.scale.x = 0.4;
     marker.scale.y = 0.1;
     marker.scale.z = 0.1;
-    
-   
 }
+bool GlobalPlanner::replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
+{
+    rep.message = "Calculating New Global Path";
+    //Load the more recent map and calculate a new path
+    gbPlanner.getMap(&globalCostMap);
 
+    rep.success = calculatePath();
+    return true;
+}
 void GlobalPlanner::dynReconfCb(theta_star_2d::globalPlannerConfig &config, uint32_t level)
 {
     this->cost_weight = config.cost_weight;
@@ -145,7 +150,7 @@ void GlobalPlanner::goalCb(const geometry_msgs::PoseStamped::ConstPtr &goalMsg)
 }
 void GlobalPlanner::plan()
 {
-    
+
     if (gCmReceived)
     {
         //TODO: Control maps timeout when using non static maps, like global cosmtap with dynamics obstacles refreshing at low rate
@@ -156,29 +161,34 @@ void GlobalPlanner::plan()
     if (globalGoalReceived && mapParamsConfigured)
     {
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal received");
-        //It seems that you can get a goal and no map and try to get a path but setGoal and setStart will check if the points are valid
-        //so if there is no map received it won't calculate a path
-        if (setGoal() && setStart())
-        {
-            ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal and start successfull set");
-            // Path calculation
-            number_of_points = gbPlanner.computePath();
-
-            if (number_of_points > 0)
-            {
-                ROS_INFO_COND(debug, PRINTF_MAGENTA "Publishing trajectory");
-                publishTrajectory();
-            }
-        }
-        else
-        {
-            ROS_ERROR("Global goal or start point occupied ");
-        }
+        calculatePath();
         //Reset flag and wait for a new goal
         globalGoalReceived = false;
     }
 }
+bool GlobalPlanner::calculatePath()
+{
+    //It seems that you can get a goal and no map and try to get a path but setGoal and setStart will check if the points are valid
+    //so if there is no map received it won't calculate a path
+    if (setGoal() && setStart())
+    {
+        ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal and start successfull set");
+        // Path calculation
+        number_of_points = gbPlanner.computePath();
 
+        if (number_of_points > 0)
+        {
+            ROS_INFO_COND(debug, PRINTF_MAGENTA "Publishing trajectory");
+            publishTrajectory();
+            return true;
+        }
+    }
+    else
+    {
+        ROS_ERROR("Global goal or start point occupied ");
+    }
+    return false;
+}
 geometry_msgs::TransformStamped GlobalPlanner::getRobotPose()
 {
     geometry_msgs::TransformStamped ret;
@@ -244,7 +254,8 @@ void GlobalPlanner::publishTrajectory()
     marker.action = RVizMarker::ADD;
     marker.header.stamp = ros::Time::now();
 
-    for(int i = 0; i < trajectory.points.size(); i++){
+    for (int i = 0; i < trajectory.points.size(); i++)
+    {
         marker.pose.position.x = trajectory.points[i].transforms[0].translation.x;
         marker.pose.position.y = trajectory.points[i].transforms[0].translation.y;
         marker.pose.orientation = trajectory.points[i].transforms[0].rotation;

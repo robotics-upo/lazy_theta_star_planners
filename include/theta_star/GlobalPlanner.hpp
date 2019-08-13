@@ -16,6 +16,8 @@
 
 #include <theta_star/ThetaStar.hpp>
 
+#include <std_srvs/Trigger.h>
+
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
@@ -49,7 +51,8 @@ public:
     void dynReconfCb(theta_star_2d::globalPlannerConfig &config, uint32_t level);
     void globalCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &fp);
     void goalCb(const geometry_msgs::PoseStamped::ConstPtr &goalMsg);
-   
+    bool replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep);
+
 private:
 
     //These functions gets parameters from param server at startup if they exists, if not it passes default values
@@ -57,12 +60,14 @@ private:
     void configTopics();
     //Config thetastar class parameters
     void configTheta();
+    void configServices();
     
     //get robot pose to know from where to plan
     geometry_msgs::TransformStamped getRobotPose();
     
     void publishTrajectory();
 
+    bool calculatePath();
     bool setGoal();
     bool setStart();
 
@@ -108,6 +113,8 @@ private:
     //Publishers and Subscribers
     ros::Publisher trj_pub, vis_trj_pub;
     ros::Subscriber goal_sub, global_costmap_sub;
+
+    ros::ServiceServer global_replanning_service;
     //tf buffer used to get the base_link position on the map(i.e. tf base_link-map)
     tf2_ros::Buffer *tfBuffer;
     //ThetaStar object
