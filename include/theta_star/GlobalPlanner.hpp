@@ -17,6 +17,7 @@
 #include <theta_star/ThetaStar.hpp>
 
 #include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Transform.h>
@@ -70,7 +71,7 @@ private:
 
     ros::NodeHandle nh_;
 
-    visualization_msgs::Marker markerTraj;
+    visualization_msgs::MarkerArray markerTraj;
 
     geometry_msgs::PoseStamped goalPoseStamped;
     geometry_msgs::Vector3Stamped goal;

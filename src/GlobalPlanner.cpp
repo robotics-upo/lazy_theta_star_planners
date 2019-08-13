@@ -33,7 +33,7 @@ void GlobalPlanner::configTopics()
     //Visualization topic for RViz marker
     nh_.param("/global_planner_node/vis_marker_traj_topic", topicPath, (string) "global_planner_node/visualization_marker_trajectory");
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Visualization marker trajectory output topic: %s", topicPath.c_str());
-    vis_trj_pub = nh_.advertise<visualization_msgs::Marker>(topicPath, 0);
+    vis_trj_pub = nh_.advertise<visualization_msgs::MarkerArray>(topicPath, 0);
 
     //goal input topic
     nh_.param("/global_planner_node/goal_topic", topicPath, (string) "/move_base_simple/goal");
@@ -87,7 +87,7 @@ void GlobalPlanner::configParams()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Line of sight restriction = [%.2f]", lof_distance);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t World frame: %s, Robot base frame: %s", world_frame.c_str(), robot_base_frame.c_str());
 
-    //Configure markers
+    /* Configure markers
     markerTraj.header.frame_id = world_frame;
     markerTraj.header.stamp = ros::Time();
     markerTraj.ns = "global_path";
@@ -103,6 +103,7 @@ void GlobalPlanner::configParams()
     markerTraj.color.r = 0.0;
     markerTraj.color.g = 1.0;
     markerTraj.color.b = 0.0;
+    */
 }
 
 void GlobalPlanner::dynReconfCb(theta_star_2d::globalPlannerConfig &config, uint32_t level)
@@ -111,6 +112,7 @@ void GlobalPlanner::dynReconfCb(theta_star_2d::globalPlannerConfig &config, uint
     this->lof_distance = config.lof_distance;
     this->goal_weight = config.goal_weight;
     this->occ_threshold = config.occ_threshold;
+    gbPlanner.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Dynamic reconfigure requested");
 }
 void GlobalPlanner::globalCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &fp)
@@ -143,7 +145,7 @@ void GlobalPlanner::goalCb(const geometry_msgs::PoseStamped::ConstPtr &goalMsg)
 }
 void GlobalPlanner::plan()
 {
-    gbPlanner.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
+    
     if (gCmReceived)
     {
         //TODO: Control maps timeout when using non static maps, like global cosmtap with dynamics obstacles refreshing at low rate
@@ -154,8 +156,8 @@ void GlobalPlanner::plan()
     if (globalGoalReceived && mapParamsConfigured)
     {
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal received");
-        //It seems that you can get a goal and no map and try to get a path but setGoal and setStart will check if the points are alid
-        //so if there is no map received it won't calculate a map
+        //It seems that you can get a goal and no map and try to get a path but setGoal and setStart will check if the points are valid
+        //so if there is no map received it won't calculate a path
         if (setGoal() && setStart())
         {
             ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal and start successfull set");
@@ -233,13 +235,37 @@ void GlobalPlanner::publishTrajectory()
 
     trj_pub.publish(trajectory);
 
-    markerTraj.points.clear();
-    geometry_msgs::Point p;
-    for (int i = 0; i < trajectory.points.size(); i++)
-    {
-        p.x = trajectory.points[i].transforms[0].translation.x;
-        p.y = trajectory.points[i].transforms[0].translation.y;
-        markerTraj.points.push_back(p);
+    
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = world_frame;
+    marker.header.stamp = ros::Time::now();
+    marker.ns = "global_path";
+    marker.lifetime = ros::Duration(200);
+    marker.type = RVizMarker::ARROW;
+    marker.action = RVizMarker::DELETEALL;
+    marker.pose.position.z = 0.1;
+    marker.color.r = 0.0;
+    marker.color.g = 1.0;
+    marker.color.b = 0.0;
+    marker.color.a = 1.0;
+    marker.scale.x = 0.4;
+    marker.scale.y = 0.1;
+    marker.scale.z = 0.1;
+
+    //First send a message with a DELETE marker to remove previous markers
+    markerTraj.markers.empty();
+    markerTraj.markers.push_back(marker);
+    vis_trj_pub.publish(markerTraj);
+    markerTraj.markers.empty();
+    //Now change action to ADD (normal work)
+    marker.action = RVizMarker::ADD;
+
+    for(int i = 0; i < trajectory.points.size(); i++){
+        marker.pose.position.x = trajectory.points[i].transforms[0].translation.x;
+        marker.pose.position.y = trajectory.points[i].transforms[0].translation.y;
+        marker.pose.orientation = trajectory.points[i].transforms[0].rotation;
+        marker.id = rand();
+        markerTraj.markers.push_back(marker);
     }
     vis_trj_pub.publish(markerTraj);
 }
