@@ -72,7 +72,8 @@ private:
     ros::NodeHandle nh_;
 
     visualization_msgs::MarkerArray markerTraj;
-
+    visualization_msgs::Marker marker;
+    
     geometry_msgs::PoseStamped goalPoseStamped;
     geometry_msgs::Vector3Stamped goal;
 

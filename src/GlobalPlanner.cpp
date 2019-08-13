@@ -87,23 +87,23 @@ void GlobalPlanner::configParams()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Line of sight restriction = [%.2f]", lof_distance);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t World frame: %s, Robot base frame: %s", world_frame.c_str(), robot_base_frame.c_str());
 
-    /* Configure markers
-    markerTraj.header.frame_id = world_frame;
-    markerTraj.header.stamp = ros::Time();
-    markerTraj.ns = "global_path";
-    markerTraj.id = rand();
-    markerTraj.type = RVizMarker::CUBE_LIST;
-    markerTraj.action = RVizMarker::ADD;
-    markerTraj.pose.orientation.w = 1.0;
-    markerTraj.lifetime = ros::Duration(200);
-    markerTraj.scale.x = 0.1;
-    markerTraj.scale.y = 0.1;
-    markerTraj.pose.position.z = 0.2;
-    markerTraj.color.a = 1.0;
-    markerTraj.color.r = 0.0;
-    markerTraj.color.g = 1.0;
-    markerTraj.color.b = 0.0;
-    */
+    //Configure markers
+    marker.header.frame_id = world_frame;
+    marker.header.stamp = ros::Time::now();
+    marker.ns = "global_path";
+    marker.lifetime = ros::Duration(200);
+    marker.type = RVizMarker::ARROW;
+    marker.action = RVizMarker::DELETEALL;
+    marker.pose.position.z = 0.1;
+    marker.color.r = 0.0;
+    marker.color.g = 1.0;
+    marker.color.b = 0.0;
+    marker.color.a = 1.0;
+    marker.scale.x = 0.4;
+    marker.scale.y = 0.1;
+    marker.scale.z = 0.1;
+    
+   
 }
 
 void GlobalPlanner::dynReconfCb(theta_star_2d::globalPlannerConfig &config, uint32_t level)
@@ -191,7 +191,6 @@ geometry_msgs::TransformStamped GlobalPlanner::getRobotPose()
     {
         ROS_WARN("Global Planner: Couldn't get Robot Pose, so not possible to set start point; tf exception: %s", ex.what());
     }
-
     return ret;
 }
 void GlobalPlanner::publishTrajectory()
@@ -235,23 +234,7 @@ void GlobalPlanner::publishTrajectory()
 
     trj_pub.publish(trajectory);
 
-    
-    visualization_msgs::Marker marker;
-    marker.header.frame_id = world_frame;
-    marker.header.stamp = ros::Time::now();
-    marker.ns = "global_path";
-    marker.lifetime = ros::Duration(200);
-    marker.type = RVizMarker::ARROW;
     marker.action = RVizMarker::DELETEALL;
-    marker.pose.position.z = 0.1;
-    marker.color.r = 0.0;
-    marker.color.g = 1.0;
-    marker.color.b = 0.0;
-    marker.color.a = 1.0;
-    marker.scale.x = 0.4;
-    marker.scale.y = 0.1;
-    marker.scale.z = 0.1;
-
     //First send a message with a DELETE marker to remove previous markers
     markerTraj.markers.empty();
     markerTraj.markers.push_back(marker);
@@ -259,6 +242,7 @@ void GlobalPlanner::publishTrajectory()
     markerTraj.markers.empty();
     //Now change action to ADD (normal work)
     marker.action = RVizMarker::ADD;
+    marker.header.stamp = ros::Time::now();
 
     for(int i = 0; i < trajectory.points.size(); i++){
         marker.pose.position.x = trajectory.points[i].transforms[0].translation.x;

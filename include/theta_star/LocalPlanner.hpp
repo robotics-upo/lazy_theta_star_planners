@@ -138,8 +138,9 @@ private:
     trajectory_msgs::MultiDOFJointTrajectory globalTrajectory, localTrajectory;
     trajectory_msgs::MultiDOFJointTrajectoryPoint globalGoal;
 
-    visualization_msgs::Marker markerTraj;
-
+    visualization_msgs::Marker marker;
+    visualization_msgs::MarkerArray markerTraj;
+    
     geometry_msgs::PoseStamped globalGoalStamped;
     geometry_msgs::Vector3 local_costmap_center, localGoal;
    

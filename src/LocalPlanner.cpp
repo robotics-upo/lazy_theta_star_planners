@@ -66,21 +66,23 @@ void LocalPlanner::configParams()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Free space around local goal inside borders = [%.2f]", border_space);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Robot base frame: %s, World frame: %s", robot_base_frame.c_str(), world_frame.c_str());
 
-    markerTraj.header.frame_id = world_frame;
-    markerTraj.header.stamp = ros::Time();
-    markerTraj.ns = "local_path";
-    markerTraj.id = rand();
-    markerTraj.type = RVizMarker::SPHERE_LIST;
-    markerTraj.action = RVizMarker::ADD;
-    markerTraj.pose.orientation.w = 1.0;
-    markerTraj.lifetime = ros::Duration(0.5);
-    markerTraj.scale.x = 0.2;
-    markerTraj.scale.y = 0.2;
-    markerTraj.pose.position.z = 1.0;
-    markerTraj.color.a = 1.0;
-    markerTraj.color.r = 1.0;
-    markerTraj.color.g = 0.0;
-    markerTraj.color.b = 0.0;
+
+    marker.header.frame_id = world_frame;
+    marker.header.stamp = ros::Time::now();
+    marker.ns = "local_path";
+    marker.id = rand();
+    marker.type = RVizMarker::ARROW;
+    marker.action = RVizMarker::ADD;
+    marker.lifetime = ros::Duration(10);
+    marker.scale.x = 0.4;
+    marker.scale.y = 0.1;
+    marker.scale.z = 0.1;
+    marker.pose.position.z = 0.5;
+    marker.color.a = 1.0;
+    marker.color.r = 1.0;
+    marker.color.g = 0.0;
+    marker.color.b = 0.0;
+
 
     localGoal.x = 0;
     localGoal.y = 0;
@@ -131,7 +133,7 @@ void LocalPlanner::configTopics()
 
     nh_.param("/local_planner_node/local_trajectory_markers_topic", topicPath, (string) "/local_planner_node/visualization_marker_trajectory");
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Visualization marker traj. output topic: %s", topicPath.c_str());
-    vis_marker_traj_pub = nh_.advertise<visualization_msgs::Marker>(topicPath, 0);
+    vis_marker_traj_pub = nh_.advertise<visualization_msgs::MarkerArray>(topicPath, 0);
 
     nh_.param("/local_planner_node/global_goal_topic", topicPath, (string) "/move_base_simple/goal");
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Global goal topic topic: %s", topicPath.c_str());
@@ -168,15 +170,17 @@ void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
     //First time the map is received, configure the geometric params
     if (!mapGeometryConfigured)
     {
-
         map_resolution = round(100 * (lcp->info.resolution)) / 100; //Because sometimes the map server shows not exact long numbers as 0.0500003212
+
         ws_x_max = lcp->info.width * map_resolution + 2 * localCostMapInflationX;
         ws_y_max = lcp->info.height * map_resolution + 2 * localCostMapInflationY;
+
         local_costmap_center.x = ws_x_max / 2;
         local_costmap_center.y = ws_y_max / 2;
-        ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: ws_x_max,ws_y_max, map_resolution: [%.2f, %.2f, %.2f]", ws_x_max, ws_y_max, map_resolution);
+
         lcPlanner.loadMapParams(ws_x_max, ws_y_max, map_resolution);
         mapGeometryConfigured = true;
+
         ROS_INFO_COND(showConfig, PRINTF_GREEN "\t WorkSpace: X:[%.2f], Y:[%.2f]", ws_x_max, ws_y_max);
         ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Local Costmap Origin: [%.2f, %.2f]", local_costmap_center.x, local_costmap_center.y);
         ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map: resol.= [%.2f]", map_resolution);
@@ -187,6 +191,7 @@ void LocalPlanner::globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::C
 {
     globalTrajectory = *traj;
     globalTrajArrLen = globalTrajectory.points.size();
+
     startIter = 1;
     globalTrajectory.header.frame_id = world_frame;
     globalTrajReceived = true;
@@ -229,10 +234,10 @@ void LocalPlanner::plan()
 
     if (globalTrajReceived && localCostMapReceived)
     {
-        //ROS_INFO("Local: Global Traj Received");
         ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Global trj received and local costmap received");
         localCostMapReceived = false;
-        if (!lcPlanner.setValidInitialPosition(local_costmap_center))
+
+        if (!lcPlanner.setValidInitialPosition(local_costmap_center)) //&& !lcPlanner.searchInitialPosition2d(0.5))
         {
             if (lcPlanner.searchInitialPosition2d(0.5))
             {
@@ -250,20 +255,23 @@ void LocalPlanner::plan()
         if (startOk)
         {
             ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Calculating Local goal");
+
             localGoal = calculateLocalGoal();
-            ROS_INFO_COND(debug, PRINTF_YELLOW "Local Goal: [%.2f, %.2f]", localGoal.x, localGoal.y);
+
             inflateCostMap();
 
             freeLocalGoal();
 
-            inf_costmap_pub.publish(localCostMapInflated);
+            ROS_INFO_COND(debug, PRINTF_YELLOW "Local Goal: [%.2f, %.2f]", localGoal.x, localGoal.y);
+
+            //inf_costmap_pub.publish(localCostMapInflated); //Debug purposes
 
             lcPlanner.getMap(&localCostMapInflated);
 
             if (!lcPlanner.setValidFinalPosition(localGoal))
             {
 
-                if (lcPlanner.searchFinalPosition2d(0.2)) //Estaba a 0.2 antes(en la demo de portugal)
+                if (lcPlanner.searchFinalPosition2d(0.2))
                 {
                     ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path(1)");
                     number_of_points = lcPlanner.computePath();
@@ -281,7 +289,7 @@ void LocalPlanner::plan()
             {
                 if (occ.data)
                 {
-                    //ROS_INFO("Local: Local goal desocuupied");
+                    //ROS_INFO("Local: Local goal disocuupied");
                     occ.data = false;
                     occ_goal_pub.publish(occ);
                 }
@@ -291,11 +299,11 @@ void LocalPlanner::plan()
 
             if (number_of_points > 0 && !occ.data)
             {
-                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Building and publishing local Path");
+                //ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Building and publishing local Path");
                 buildAndPubTrayectory();
-                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Local Path build and published");
+                //ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Local Path build and published");
                 publishTrajMarker();
-                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Published trajectory markers");
+                //ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Published trajectory markers");
                 startOk = false;
 
                 if (impossibles > 0)
@@ -340,7 +348,7 @@ void LocalPlanner::plan()
 geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
 {
 
-    geometry_msgs::Vector3Stamped C;
+    geometry_msgs::Vector3Stamped A, B, C;
 
     trajectory_msgs::MultiDOFJointTrajectory globalTrajBLFrame = globalTrajectory;
     //First we transform the trajectory published by global planner to base_link frame
@@ -356,30 +364,51 @@ geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
     }
 
     //Ya esta referida al base_link. Ahora la recorro desde i=1(porque i=0 es siempre la pos del base_link que al pasarla al sistema base_link sera (0,0))
+
     for (int i = startIter; i < globalTrajArrLen; i++)
     {
-        C.vector.x = globalTrajBLFrame.points[i].transforms[0].translation.x + (ws_x_max) / 2;
-        C.vector.y = globalTrajBLFrame.points[i].transforms[0].translation.y + (ws_y_max) / 2;
-        ROS_INFO(PRINTF_GREEN "[%.2f, %.2f], i: %d", globalTrajectory.points[i].transforms[0].translation.x, globalTrajectory.points[i].transforms[0].translation.y, i);
-        if (fabs(globalTrajBLFrame.points[i].transforms[0].translation.x) > (ws_x_max / 2 - localCostMapInflationX) ||
-            fabs(globalTrajBLFrame.points[i].transforms[0].translation.y) > (ws_y_max / 2 - localCostMapInflationY) || i == globalTrajArrLen - 1)
+        B.vector.x = globalTrajBLFrame.points[i].transforms[0].translation.x;
+        B.vector.y = globalTrajBLFrame.points[i].transforms[0].translation.y;
+
+        C.vector.x = B.vector.x + (ws_x_max) / 2;
+        C.vector.y = B.vector.y + (ws_y_max) / 2;
+
+        //ROS_INFO(PRINTF_GREEN "[%.2f, %.2f], i: %d", B.vector.x,B.vector.y, i);
+
+        if (fabs(B.vector.x) > (ws_x_max / 2 - localCostMapInflationX) ||
+            fabs(B.vector.y) > (ws_y_max / 2 - localCostMapInflationY) ||
+            i == globalTrajArrLen - 1)
         {
-            if (fabs(globalTrajBLFrame.points[i].transforms[0].translation.x) > ws_x_max / 2 || fabs(globalTrajBLFrame.points[i].transforms[0].translation.y) > ws_y_max / 2)
+            if (fabs(B.vector.x) > ws_x_max / 2 || fabs(B.vector.y) > ws_y_max / 2)
             {
-                C.vector.x = globalTrajBLFrame.points[i-1].transforms[0].translation.x + (ws_x_max) / 2;
-                C.vector.y = globalTrajBLFrame.points[i-1].transforms[0].translation.y + (ws_y_max) / 2;
-                startIter = i-1;
-            }else{
+                A.vector.x = globalTrajBLFrame.points[i - 1].transforms[0].translation.x;
+                A.vector.y = globalTrajBLFrame.points[i - 1].transforms[0].translation.y;
+
+                C.vector.x = A.vector.x + (ws_x_max) / 2;
+                C.vector.y = A.vector.y + (ws_y_max) / 2;
+
+                while (C.vector.x < (ws_x_max - localCostMapInflationX) && C.vector.x > localCostMapInflationX &&
+                       C.vector.y < (ws_y_max - localCostMapInflationY) && C.vector.y > localCostMapInflationY)
+                { //Put the point between i-1 and i
+                    C.vector.x += 0.2 * (B.vector.x - A.vector.x) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
+                    C.vector.y += 0.2 * (B.vector.y - A.vector.y) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
+                    //ROS_INFO("WHILING: [%.2f, %.2f]", C.vector.x, C.vector.y);
+                }
+                startIter = i - 1;
+            }
+            else
+            {
                 startIter = i;
             }
-           
+
             //ROS_INFO(PRINTF_BLUE "[%.2f, %.2f]", globalTrajectory.points[i].transforms[0].translation.x,globalTrajectory.points[i].transforms[0].translation.y);
-            ROS_INFO(PRINTF_BLUE "[%.2f, %.2f]", globalTrajBLFrame.points[i].transforms[0].translation.x, globalTrajBLFrame.points[i].transforms[0].translation.y);
-            ROS_INFO(PRINTF_BLUE "[%.2f, %.2f], %d", C.vector.x, C.vector.y, startIter);
+            //ROS_INFO(PRINTF_BLUE "[%.2f, %.2f]", B.vector.x, B.vector.y);
+            //ROS_INFO(PRINTF_BLUE "[%.2f, %.2f], %d", C.vector.x, C.vector.y, startIter);
 
             break;
         }
     }
+
     //ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
     C.vector.x = floor(C.vector.x * 10 + 10 * map_resolution) / 10;
     C.vector.y = floor(C.vector.y * 10 + 10 * map_resolution) / 10;
@@ -410,13 +439,24 @@ geometry_msgs::TransformStamped LocalPlanner::getTransformFromMapToBaseLink()
 
 void LocalPlanner::publishTrajMarker()
 {
-    markerTraj.points.clear();
-    geometry_msgs::Point p;
+    markerTraj.markers.clear();
+
+    marker.action = RVizMarker::DELETEALL;
+
+    markerTraj.markers.push_back(marker);
+    vis_marker_traj_pub.publish(markerTraj);
+    marker.action = RVizMarker::ADD;
+
+    markerTraj.markers.clear();
+    marker.header.stamp = ros::Time::now();
+
     for (int i = 0; i < localTrajArrLen; i++)
     {
-        p.x = localTrajectory.points[i].transforms[0].translation.x;
-        p.y = localTrajectory.points[i].transforms[0].translation.y;
-        markerTraj.points.push_back(p);
+        marker.pose.position.x = localTrajectory.points[i].transforms[0].translation.x;
+        marker.pose.position.y = localTrajectory.points[i].transforms[0].translation.y;
+        marker.pose.orientation = localTrajectory.points[i].transforms[0].rotation;
+        marker.id = rand();
+        markerTraj.markers.push_back(marker);
     }
     vis_marker_traj_pub.publish(markerTraj);
 }
@@ -426,7 +466,9 @@ void LocalPlanner::buildAndPubTrayectory()
     trajectory_msgs::MultiDOFJointTrajectoryPoint goal_temp;
     geometry_msgs::Transform temp1;
     //La trayectoria se obtiene en el frame del local costmap, que tiene la misma orientacion que el map pero esta centrado en el base_link
+
     localTrajectory.points.clear();
+
     lcPlanner.getTrajectoryYawInAdvance(localTrajectory, getTransformFromMapToBaseLink().transform);
 
     localTrajArrLen = localTrajectory.points.size();
@@ -441,8 +483,9 @@ void LocalPlanner::buildAndPubTrayectory()
 
     temp1.translation.x = localGoal.x;
     temp1.translation.y = localGoal.y;
+
     //TODO: PONER LA OPRIENTATION DEL WAYPOINT SIGUIENTE AL LOCAL GOAL
-    temp1.rotation.w = 1;
+    temp1.rotation = globalTrajectory.points[startIter].transforms[0].rotation;
 
     goal_temp.transforms.resize(1, temp1);
 
