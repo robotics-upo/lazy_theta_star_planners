@@ -21,10 +21,11 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include <std_msgs/Int32.h>
+#include <std_msgs/Bool.h>
+
+#include <std_srvs/Trigger.h>
 
 #include <geometry_msgs/PoseStamped.h>
-
-#include <std_msgs/Bool.h>
 
 #include <theta_star/ThetaStar.hpp>
 
@@ -52,20 +53,19 @@ public:
     void localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp);
     //Global Input trajectory
     void globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr &traj);
-    //
-    void globalGoalCb(const geometry_msgs::PoseStamped::ConstPtr &goal);
-
+    
     //Used to know when to stop calculating local trajectories
     void goalReachedCb(const std_msgs::Bool::ConstPtr &data);
 
     void dynRecCb(theta_star_2d::localPlannerConfig &config, uint32_t level);
-
+    bool stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep);
 private:
     //These functions gets parameters from param server at startup if they exists, if not it passes default values
     void configParams();
     void configTopics();
     //Config thetastar class parameters
     void configTheta();
+    void configServices();
 
     geometry_msgs::Vector3 calculateLocalGoal();
 
@@ -85,6 +85,8 @@ private:
 
     //Variables
     ros::NodeHandle nh_;
+    ros::ServiceClient replanning_client_srv;
+    ros::ServiceServer stop_planning_srv;
     ros::Subscriber local_map_sub, goal_reached_sub, global_goal_sub, global_trj_sub;
     //TODO: Replace global goal publisher used to request a new global trajectory by a Service call
     //Not much sense that local planner publishes global goals
@@ -99,8 +101,6 @@ private:
     //Flow control flags
     bool localCostMapReceived;
     bool globalTrajReceived;
-    bool localGoalReached;
-    bool globalGoalReached;
     //To calculate planning time
     struct timeb startT, finishT;
 
@@ -109,8 +109,8 @@ private:
     float map_resolution;
     float ws_x_max;
     float ws_y_max;
-    float ws_x_min; //TODO Delete these variables, They are always zero
-    float ws_y_min; //TODO Delete these variables, They are always zero
+    //float ws_x_min; //TODO Delete these variables, They are always zero
+    //float ws_y_min; //TODO Delete these variables, They are always zero
     //Algorithm params
     float goal_weight;
     float cost_weight;

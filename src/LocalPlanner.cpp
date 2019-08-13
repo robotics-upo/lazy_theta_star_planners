@@ -14,15 +14,15 @@ LocalPlanner::LocalPlanner(tf2_ros::Buffer *tfBuffer_)
     configParams();
     configTopics();
     configTheta();
+    configServices();
 }
 void LocalPlanner::configParams()
 {
     //Flags for flow control
     localCostMapReceived = false;
     globalTrajReceived = false;
-    localGoalReached = true;
-    globalGoalReached = false;
     mapGeometryConfigured = false;
+
     //nh_.param("/costmap_2d_local/costmap/width", ws_x_max, (float)0);
     //nh_.param("/costmap_2d_local/costmap/height", ws_y_max, (float)0);
     //nh_.param("/costmap_2d_local/costmap/resolution", map_resolution, (float)0.05);
@@ -66,14 +66,13 @@ void LocalPlanner::configParams()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Free space around local goal inside borders = [%.2f]", border_space);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Robot base frame: %s, World frame: %s", robot_base_frame.c_str(), world_frame.c_str());
 
-
     marker.header.frame_id = world_frame;
     marker.header.stamp = ros::Time::now();
     marker.ns = "local_path";
     marker.id = rand();
     marker.type = RVizMarker::ARROW;
     marker.action = RVizMarker::ADD;
-    marker.lifetime = ros::Duration(10);
+    marker.lifetime = ros::Duration(2);
     marker.scale.x = 0.4;
     marker.scale.y = 0.1;
     marker.scale.z = 0.1;
@@ -83,9 +82,8 @@ void LocalPlanner::configParams()
     marker.color.g = 0.0;
     marker.color.b = 0.0;
 
-
-    localGoal.x = 0;
-    localGoal.y = 0;
+    //localGoal.x = 0;
+    //localGoal.y = 0;
 
     occ.data = false;
     is_running.data = true;
@@ -95,6 +93,10 @@ void LocalPlanner::configParams()
     number_of_points = 0;
     startOk = false;
     startIter = 1;
+}
+void LocalPlanner::configServices(){
+    replanning_client_srv = nh_.serviceClient<std_srvs::Trigger>("/global_planner_node/global_replanning_service");
+    stop_planning_srv = nh_.advertiseService("/local_planner_node/stop_planning_srv",  &LocalPlanner::stopPlanningSrvCb, this);
 }
 void LocalPlanner::configTheta()
 {
@@ -114,14 +116,6 @@ void LocalPlanner::configTopics()
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Local Costmap Topic: %s", topicPath.c_str());
     local_map_sub = nh_.subscribe<nav_msgs::OccupancyGrid>(topicPath, 1, &LocalPlanner::localCostMapCb, this);
 
-    nh_.param("/local_planner_node/goal_reached_topic", topicPath, (string) "/trajectory_tracker/local_goal_reached");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Goal Reached Flag Topic: %s", topicPath.c_str());
-    goal_reached_sub = nh_.subscribe<std_msgs::Bool>(topicPath, 1, &LocalPlanner::goalReachedCb, this);
-
-    nh_.param("/local_planner_node/global_goal_topic", topicPath, (string) "/move_base_simple/goal");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Global Goal Topic: %s", topicPath.c_str());
-    global_goal_sub = nh_.subscribe<geometry_msgs::PoseStamped>(topicPath, 1, &LocalPlanner::globalGoalCb, this);
-
     nh_.param("/local_planner_node/global_traj_topic", topicPath, (string) "/trajectory_tracker/input_trajectory");
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Global Trajectory Topic: %s", topicPath.c_str());
     global_trj_sub = nh_.subscribe<trajectory_msgs::MultiDOFJointTrajectory>(topicPath, 1, &LocalPlanner::globalTrjCb, this);
@@ -134,10 +128,6 @@ void LocalPlanner::configTopics()
     nh_.param("/local_planner_node/local_trajectory_markers_topic", topicPath, (string) "/local_planner_node/visualization_marker_trajectory");
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Visualization marker traj. output topic: %s", topicPath.c_str());
     vis_marker_traj_pub = nh_.advertise<visualization_msgs::MarkerArray>(topicPath, 0);
-
-    nh_.param("/local_planner_node/global_goal_topic", topicPath, (string) "/move_base_simple/goal");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Global goal topic topic: %s", topicPath.c_str());
-    global_goal_pub = nh_.advertise<geometry_msgs::PoseStamped>(topicPath, 0);
 
     nh_.param("/local_planner_node/local_planning_time_topic", topicPath, (string) "/local_planning_time");
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Local Planning time output topic: %s", topicPath.c_str());
@@ -160,6 +150,14 @@ void LocalPlanner::configTopics()
     nh_.param("/local_planner_node/impossible_to_find_solution_topic_flag", topicPath, (string) "/trajectory_tracker/impossible_to_find");
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Impossible to find solution output topic: %s", topicPath.c_str());
     impossible_to_find_sol_pub = nh_.advertise<std_msgs::Bool>(topicPath, 0);
+}
+bool LocalPlanner::stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep){
+
+    globalTrajReceived = false;
+    rep.message = "Waiting for a new global trajectory";
+    rep.success = true;
+
+return true;
 }
 //Calbacks and publication functions
 void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
@@ -195,24 +193,7 @@ void LocalPlanner::globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::C
     startIter = 1;
     globalTrajectory.header.frame_id = world_frame;
     globalTrajReceived = true;
-    globalGoalReached = false;
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received global trajectory");
-}
-//
-void LocalPlanner::globalGoalCb(const geometry_msgs::PoseStamped::ConstPtr &goal)
-{
-    globalGoalStamped = *goal;
-    globalTrajReceived = false;
-    globalGoalReached = false;
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received Global goal");
-}
-
-//Used to know when to stop calculating local trajectories
-void LocalPlanner::goalReachedCb(const std_msgs::Bool::ConstPtr &data)
-{
-    globalGoalReached = true;
-    globalTrajReceived = false;
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Goal reached message received!");
 }
 
 void LocalPlanner::dynRecCb(theta_star_2d::localPlannerConfig &config, uint32_t level)
@@ -278,11 +259,14 @@ void LocalPlanner::plan()
                 }
                 else
                 {
-                    ROS_INFO("Local: Couldn't find a free point near local goal ");
-                    globalTrajReceived = false;
-                    occ.data = true;
-                    occ_goal_pub.publish(occ);
-                    global_goal_pub.publish(globalGoalStamped);
+                    ROS_INFO("Local: Couldn't find a free point near local goal: [%.2f, %.2f]", localGoal.x, localGoal.y);
+                    //TODO: Check and test if this block is useful: I think it's not because final position will always be in the border(free) except when the robot
+                    //TODO is close enough to the global goal so local goal fall inside original local costmap
+                    //TODO
+                    //globalTrajReceived = false;
+                    //occ.data = true;
+                    //occ_goal_pub.publish(occ);
+                    //global_goal_pub.publish(globalGoalStamped);
                 }
             }
             else
@@ -319,15 +303,24 @@ void LocalPlanner::plan()
             {
                 impossibles++;
                 //ROS_INFO("Local: +1 impossible");
-                if (impossibles == 10)
+                if (impossibles == 3)
                 {
-
+                    
                     impossible_calculate.data = true;
                     impossible_to_find_sol_pub.publish(impossible_calculate);
-                    global_goal_pub.publish(globalGoalStamped);
-                    globalTrajReceived = false;
-                    //startOk = false;
-                    ROS_WARN("Requesting new global path to same global goal");
+
+                    ROS_WARN("Requesting new global path to same global goal, %d", impossibles);
+                    std_srvs::Trigger srv;
+                    replanning_client_srv.call(srv);
+                    
+                    if(srv.response.success){
+                        impossibles = 0;
+                    }else{
+                        ROS_WARN("Local Planner: Failed to obstain new global path from global planner");
+                    }
+                    //global_goal_pub.publish(globalGoalStamped);
+                    //globalTrajReceived = false;
+                    startOk = false;
                     //Tambien publicar
                     //impossibles=0;
                 }
@@ -379,19 +372,19 @@ geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
             fabs(B.vector.y) > (ws_y_max / 2 - localCostMapInflationY) ||
             i == globalTrajArrLen - 1)
         {
+            A.vector.x = globalTrajBLFrame.points[i - 1].transforms[0].translation.x;
+            A.vector.y = globalTrajBLFrame.points[i - 1].transforms[0].translation.y;
             if (fabs(B.vector.x) > ws_x_max / 2 || fabs(B.vector.y) > ws_y_max / 2)
             {
-                A.vector.x = globalTrajBLFrame.points[i - 1].transforms[0].translation.x;
-                A.vector.y = globalTrajBLFrame.points[i - 1].transforms[0].translation.y;
 
                 C.vector.x = A.vector.x + (ws_x_max) / 2;
                 C.vector.y = A.vector.y + (ws_y_max) / 2;
 
-                while (C.vector.x < (ws_x_max - localCostMapInflationX) && C.vector.x > localCostMapInflationX &&
-                       C.vector.y < (ws_y_max - localCostMapInflationY) && C.vector.y > localCostMapInflationY)
+                while (C.vector.x < (ws_x_max - localCostMapInflationX+map_resolution) && C.vector.x > localCostMapInflationX - 2*map_resolution &&
+                       C.vector.y < (ws_y_max - localCostMapInflationY+map_resolution) && C.vector.y > localCostMapInflationY - 2*map_resolution)
                 { //Put the point between i-1 and i
-                    C.vector.x += 0.2 * (B.vector.x - A.vector.x) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
-                    C.vector.y += 0.2 * (B.vector.y - A.vector.y) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
+                    C.vector.x += map_resolution * (B.vector.x - A.vector.x) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
+                    C.vector.y += map_resolution * (B.vector.y - A.vector.y) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
                     //ROS_INFO("WHILING: [%.2f, %.2f]", C.vector.x, C.vector.y);
                 }
                 startIter = i - 1;
@@ -414,9 +407,14 @@ geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
     C.vector.y = floor(C.vector.y * 10 + 10 * map_resolution) / 10;
     //ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
     if (C.vector.x == 0)
-        C.vector.x += 0.05;
+        C.vector.x += 2*map_resolution;
     if (C.vector.y == 0)
-        C.vector.y += 0.05;
+        C.vector.y += 2*map_resolution;
+    while (C.vector.x > (ws_x_max-map_resolution) || C.vector.y > (ws_y_max-map_resolution))
+    {
+        C.vector.x -= map_resolution * (B.vector.x - A.vector.x) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
+        C.vector.y -= map_resolution * (B.vector.y - A.vector.y) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
+    }
     //ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
     return C.vector;
 }
@@ -677,7 +675,7 @@ void LocalPlanner::freeLocalGoal()
     }
     else
     {
-        ROS_WARN_THROTTLE(1, "No he entrado en ninguna zona");
+        ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: No need to free space in the border, local goal inside original local costmap");
     }
 }
 
