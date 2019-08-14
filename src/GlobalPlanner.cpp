@@ -48,7 +48,6 @@ void GlobalPlanner::configTopics()
 }
 void GlobalPlanner::configServices()
 {
-
     global_replanning_service = nh_.advertiseService("/global_planner_node/global_replanning_service", &GlobalPlanner::replanningSrvCb, this);
 }
 //This function gets parameter from param server at startup if they exists, if not it passes default values
@@ -58,27 +57,21 @@ void GlobalPlanner::configParams()
     globalGoalReceived = false;
     gCmReceived = false;
     mapParamsConfigured = false;
+
     //Get params from param server. If they dont exist give variables default values
     nh_.param("/global_planner_node/show_config", showConfig, (bool)0);
     nh_.param("/global_planner_node/debug", debug, (bool)0);
-
-    //nh_.param("/global_planner_node/ws_x_max", ws_x_max, (float)6);
-    //nh_.param("/global_planner_node/ws_y_max", ws_y_max, (float)6);
-    //nh_.param("/global_planner_node/map_resolution", map_resolution, (float)0.05);
-
     nh_.param("/global_planner_node/goal_weight", goal_weight, (float)1.5);
     nh_.param("/global_planner_node/cost_weight", cost_weight, (float)0.2);
     nh_.param("/global_planner_node/lof_distance", lof_distance, (float)0.2);
     nh_.param("/global_planner_node/occ_threshold", occ_threshold, (float)99);
-    nh_.param("/global_planner_node/traj_dxy_max", traj_dxy_max, (float)10);
-    nh_.param("/global_planner_node/traj_pos_tol", traj_pos_tol, (float)10);
-    nh_.param("/global_planner_node/traj_yaw_tol", traj_yaw_tol, (float)0.2);
+    nh_.param("/global_planner_node/traj_dxy_max", traj_dxy_max, (float)1);
+    nh_.param("/global_planner_node/traj_pos_tol", traj_pos_tol, (float)1);
+    nh_.param("/global_planner_node/traj_yaw_tol", traj_yaw_tol, (float)0.1);
     nh_.param("/global_planner_node/world_frame", world_frame, (string) "/map");
     nh_.param("/global_planner_node/robot_base_frame", robot_base_frame, (string) "/base_link");
 
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Global Planner Node Configuration:");
-    //ROS_INFO_COND(showConfig, PRINTF_GREEN "\t WorkSpace: X:[%.2f, %.2f], Y:[%.2f, %.2f] ", ws_x_min, ws_x_max, ws_y_min, ws_y_max);
-    //ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map: resol.= [%.2f]", map_resolution);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* with optim.: goal_weight = [%.2f]", goal_weight);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Trajectory Position Increments = [%.2f], Tolerance: [%.2f]", traj_dxy_max, traj_pos_tol);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Occupied threshold = %.0f", occ_threshold);
@@ -104,12 +97,16 @@ void GlobalPlanner::configParams()
 }
 bool GlobalPlanner::replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
 {
-    rep.message = "Calculating New Global Path";
     //Load the more recent map and calculate a new path
     gbPlanner.getMap(&globalCostMap);
-
     rep.success = calculatePath();
-    return true;
+    rep.message = "New Global Path Calculated";
+    
+    if(!rep.success){
+         rep.message = "New Global Path not Possible";
+    }
+
+    return rep.success;
 }
 void GlobalPlanner::dynReconfCb(theta_star_2d::globalPlannerConfig &config, uint32_t level)
 {
@@ -125,7 +122,7 @@ void GlobalPlanner::globalCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &fp)
     globalCostMap = *fp;
     gCmReceived = true;
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Global map received");
-    if (!mapParamsConfigured)
+    if (!mapParamsConfigured)//It enters only the first time a map received, I assume the geometry (size and resolution) of the map does not change during the mission
     {
         map_resolution = round(100 * (fp->info.resolution)) / 100;
         ws_x_max = fp->info.width * map_resolution;
