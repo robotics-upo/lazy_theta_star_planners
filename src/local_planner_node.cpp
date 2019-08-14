@@ -20,14 +20,14 @@ int main(int argc, char **argv)
   	f = boost::bind(&LocalPlanner::dynRecCb,&lcPlanner,  _1, _2);
   	server.setCallback(f);
 
-	//ros::Rate loop_rate(5);
+	ros::Rate loop_rate(30);
     while(ros::ok()){
 
         ros::spinOnce();
         
         lcPlanner.plan();
         
-        //loop_rate.sleep();
+        loop_rate.sleep();
     }
     return 0;
 }
