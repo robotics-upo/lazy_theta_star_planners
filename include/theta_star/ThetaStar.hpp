@@ -545,8 +545,8 @@ class ThetaStar
 		}
 		inline bool isInside(int &x, int &y) //quitar z
 		{
-			return  (x < (ws_x_max-1) && x > (ws_x_min+1)) &&
-					(y < (ws_y_max-1) && y > (ws_y_min+1)); 
+			return  (x < (ws_x_max-1) && x > (ws_x_min)) &&
+					(y < (ws_y_max-1) && y > (ws_y_min)); 
 		}
 		/**
 		  Check if the [x,y] position is inside the circle [xo,yo,R] 
