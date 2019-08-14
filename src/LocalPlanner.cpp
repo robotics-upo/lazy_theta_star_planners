@@ -22,23 +22,15 @@ void LocalPlanner::configParams()
     localCostMapReceived = false;
     globalTrajReceived = false;
     mapGeometryConfigured = false;
-
-    //nh_.param("/costmap_2d_local/costmap/width", ws_x_max, (float)0);
-    //nh_.param("/costmap_2d_local/costmap/height", ws_y_max, (float)0);
-    //nh_.param("/costmap_2d_local/costmap/resolution", map_resolution, (float)0.05);
-
-    //nh_.param("/local_planner_node/ws_x_max", ws_x_max, (float)6);
-    //nh_.param("/local_planner_node/ws_y_max", ws_y_max, (float)6);
-    //nh_.param("/local_planner_node/map_resolution", map_resolution, (float)0.05);
-
+    doPlan = true;
     nh_.param("/local_planner_node/goal_weight", goal_weight, (float)1.5);
     nh_.param("/local_planner_node/cost_weight", cost_weight, (float)0.2);
     nh_.param("/local_planner_node/lof_distance", lof_distance, (float)1.5);
     nh_.param("/local_planner_node/occ_threshold", occ_threshold, (float)99);
 
-    nh_.param("/local_planner_node/traj_dxy_max", traj_dxy_max, (float)10);
-    nh_.param("/local_planner_node/traj_pos_tol", traj_pos_tol, (float)10);
-    nh_.param("/local_planner_node/traj_yaw_tol", traj_yaw_tol, (float)0.2);
+    nh_.param("/local_planner_node/traj_dxy_max", traj_dxy_max, (float)1);
+    nh_.param("/local_planner_node/traj_pos_tol", traj_pos_tol, (float)1);
+    nh_.param("/local_planner_node/traj_yaw_tol", traj_yaw_tol, (float)0.1);
 
     nh_.param("/local_planner_node/world_frame", world_frame, (string) "/map");
     nh_.param("/local_planner_node/robot_base_frame", robot_base_frame, (string) "/base_link");
@@ -49,15 +41,7 @@ void LocalPlanner::configParams()
     nh_.param("/local_planner_node/debug", debug, (bool)0);
     nh_.param("/local_planner_node/show_config", showConfig, (bool)0);
 
-    //ws_x_max += 2 * localCostMapInflationX;
-    //ws_y_max += 2 * localCostMapInflationY;
-    //ws_x_min = 0;
-    //ws_y_min = 0;
-
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Local Planner Node Configuration:\n");
-    //ROS_INFO_COND(showConfig, PRINTF_GREEN "\t WorkSpace: X:[%.2f, %.2f], Y:[%.2f, %.2f]", ws_x_min, ws_x_max, ws_y_min, ws_y_max);
-    //ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Local Costmap Origin: [%.2f, %.2f]", local_costmap_center.x, local_costmap_center.y);
-    //ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map: resol.= [%.2f]", map_resolution);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* with optim.: goal_weight = [%.2f]", goal_weight);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* modified: cost_weight = [%.2f], lof_distance = [%.2f]", cost_weight, lof_distance);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* occ_threshold = %f", occ_threshold);
@@ -82,26 +66,25 @@ void LocalPlanner::configParams()
     marker.color.g = 0.0;
     marker.color.b = 0.0;
 
-    //localGoal.x = 0;
-    //localGoal.y = 0;
-
     occ.data = false;
     is_running.data = true;
     impossible_calculate.data = false;
-
-    impossibles = 0;
-    number_of_points = 0;
     startOk = false;
+
+    impossibleCnt = 0;
+    occGoalCnt = 0;
+    number_of_points = 0;
     startIter = 1;
 }
-void LocalPlanner::configServices(){
+void LocalPlanner::configServices()
+{
     replanning_client_srv = nh_.serviceClient<std_srvs::Trigger>("/global_planner_node/global_replanning_service");
-    stop_planning_srv = nh_.advertiseService("/local_planner_node/stop_planning_srv",  &LocalPlanner::stopPlanningSrvCb, this);
+    stop_planning_srv = nh_.advertiseService("/local_planner_node/stop_planning_srv", &LocalPlanner::stopPlanningSrvCb, this);
+    pause_planning_srv = nh_.advertiseService("/local_planner_node/pause_planning_srv", &LocalPlanner::pausePlanningSrvCb, this);
 }
 void LocalPlanner::configTheta()
 {
     string node_name = "local_planner_node";
-    //lcPlanner.init(node_name, world_frame, ws_x_max, ws_y_max, ws_x_min, ws_y_min, map_resolution, goal_weight, cost_weight, lof_distance, occ_threshold, &nh_);
     lcPlanner.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, &nh_);
     lcPlanner.setTimeOut(20);
     lcPlanner.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
@@ -151,20 +134,33 @@ void LocalPlanner::configTopics()
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Impossible to find solution output topic: %s", topicPath.c_str());
     impossible_to_find_sol_pub = nh_.advertise<std_msgs::Bool>(topicPath, 0);
 }
-bool LocalPlanner::stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep){
+bool LocalPlanner::stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
+{
 
     globalTrajReceived = false;
     rep.message = "Waiting for a new global trajectory";
     rep.success = true;
 
-return true;
+    return true;
+}
+bool LocalPlanner::pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep){
+
+    rep.success=true;
+    rep.message="Planning resumed";
+
+    if(doPlan)
+        rep.message="Planning paused";
+    
+    doPlan = !doPlan;
+    
+    return true;
 }
 //Calbacks and publication functions
 void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
 {
     localCostMap = *lcp;
     localCostMapReceived = true;
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received local costmap");
+    //ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received local costmap");
     //First time the map is received, configure the geometric params
     if (!mapGeometryConfigured)
     {
@@ -188,11 +184,10 @@ void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
 void LocalPlanner::globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr &traj)
 {
     globalTrajectory = *traj;
-    globalTrajArrLen = globalTrajectory.points.size();
 
     startIter = 1;
-    globalTrajectory.header.frame_id = world_frame;
     globalTrajReceived = true;
+    doPlan=true; //Restore the doPlan flag because we get a new trajectory do a new goal
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received global trajectory");
 }
 
@@ -208,17 +203,17 @@ void LocalPlanner::dynRecCb(theta_star_2d::localPlannerConfig &config, uint32_t 
 }
 void LocalPlanner::plan()
 {
-    ftime(&startT);
 
     running_state_pub.publish(is_running);
     number_of_points = 0; //Reset variable
 
-    if (globalTrajReceived && localCostMapReceived)
+    ftime(&startT);
+    if (globalTrajReceived && localCostMapReceived && doPlan)
     {
         ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Global trj received and local costmap received");
         localCostMapReceived = false;
 
-        if (!lcPlanner.setValidInitialPosition(local_costmap_center)) //&& !lcPlanner.searchInitialPosition2d(0.5))
+        if (!lcPlanner.setValidInitialPosition(local_costmap_center))
         {
             if (lcPlanner.searchInitialPosition2d(0.5))
             {
@@ -236,37 +231,33 @@ void LocalPlanner::plan()
         if (startOk)
         {
             ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Calculating Local goal");
-
             localGoal = calculateLocalGoal();
-
+            ROS_INFO_COND(debug, PRINTF_YELLOW "Local Goal: [%.2f, %.2f]", localGoal.x, localGoal.y);
+            ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Adding borders to local costmap");
             inflateCostMap();
-
+            ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Freeing space around local goal in the border");
             freeLocalGoal();
 
-            ROS_INFO_COND(debug, PRINTF_YELLOW "Local Goal: [%.2f, %.2f]", localGoal.x, localGoal.y);
-
-            //inf_costmap_pub.publish(localCostMapInflated); //Debug purposes
+            inf_costmap_pub.publish(localCostMapInflated); //Debug purposes
 
             lcPlanner.getMap(&localCostMapInflated);
 
             if (!lcPlanner.setValidFinalPosition(localGoal))
             {
-
-                if (lcPlanner.searchFinalPosition2d(0.2))
+                if (lcPlanner.searchFinalPosition2d(0.35))
                 {
                     ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path(1)");
                     number_of_points = lcPlanner.computePath();
-                }
-                else
-                {
-                    ROS_INFO("Local: Couldn't find a free point near local goal: [%.2f, %.2f]", localGoal.x, localGoal.y);
-                    //TODO: Check and test if this block is useful: I think it's not because final position will always be in the border(free) except when the robot
-                    //TODO is close enough to the global goal so local goal fall inside original local costmap
-                    //TODO
-                    //globalTrajReceived = false;
-                    //occ.data = true;
-                    //occ_goal_pub.publish(occ);
-                    //global_goal_pub.publish(globalGoalStamped);
+                    occGoalCnt = 0;
+                }else if(occGoalCnt > 3){//If it cant find a free position near local goal, it means that there is something there. 
+                    //Send message to tracker to stop
+                    
+                    //And pause planning, under construction
+                    doPlan = false;
+                    ROS_INFO_COND(debug, PRINTF_YELLOW"Pausing planning, final position busy");
+                    //In order to resume planning, someone must call the pause/resume planning Service that will change the flag to true
+                }else{
+                    occGoalCnt++;
                 }
             }
             else
@@ -290,45 +281,43 @@ void LocalPlanner::plan()
                 //ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Published trajectory markers");
                 startOk = false;
 
-                if (impossibles > 0)
+                if (impossibleCnt > 0)
                 {
                     //ROS_INFO("Local: Impossible reseted");
-
                     impossible_calculate.data = false;
                     impossible_to_find_sol_pub.publish(impossible_calculate);
-                    impossibles = 0;
+                    impossibleCnt = 0;
                 }
             }
-            else
+            else if(!occ.data)
             {
-                impossibles++;
+                impossibleCnt++;
                 //ROS_INFO("Local: +1 impossible");
-                if (impossibles == 3)
+                if (impossibleCnt == 3)
                 {
-                    
+
                     impossible_calculate.data = true;
                     impossible_to_find_sol_pub.publish(impossible_calculate);
 
-                    ROS_WARN("Requesting new global path to same global goal, %d", impossibles);
+                    ROS_WARN("Requesting new global path to same global goal, %d", impossibleCnt);
                     std_srvs::Trigger srv;
                     replanning_client_srv.call(srv);
-                    
-                    if(srv.response.success){
-                        impossibles = 0;
-                    }else{
+
+                    if (srv.response.success)
+                    {
+                        impossibleCnt = 0;
+                    }
+                    else
+                    {
                         ROS_WARN("Local Planner: Failed to obstain new global path from global planner");
                     }
-                    //global_goal_pub.publish(globalGoalStamped);
-                    //globalTrajReceived = false;
                     startOk = false;
-                    //Tambien publicar
-                    //impossibles=0;
                 }
             }
         }
     }
-
     ftime(&finishT);
+
     seconds = finishT.time - startT.time - 1;
     milliseconds = (1000 - startT.millitm) + finishT.millitm;
     time_spent_msg.data = (milliseconds + seconds * 1000);
@@ -346,11 +335,11 @@ geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
     trajectory_msgs::MultiDOFJointTrajectory globalTrajBLFrame = globalTrajectory;
     //First we transform the trajectory published by global planner to base_link frame
 
-    geometry_msgs::TransformStamped tr = getTransformFromMapToBaseLink();
+    geometry_msgs::TransformStamped tr = getTfMapToRobot();
 
     globalTrajBLFrame.header.frame_id = robot_base_frame;
 
-    for (int i = 0; i < globalTrajArrLen; i++)
+    for (size_t i = 0; i < globalTrajectory.points.size(); i++)
     {
         globalTrajBLFrame.points[i].transforms[0].translation.x -= tr.transform.translation.x;
         globalTrajBLFrame.points[i].transforms[0].translation.y -= tr.transform.translation.y;
@@ -358,7 +347,7 @@ geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
 
     //Ya esta referida al base_link. Ahora la recorro desde i=1(porque i=0 es siempre la pos del base_link que al pasarla al sistema base_link sera (0,0))
 
-    for (int i = startIter; i < globalTrajArrLen; i++)
+    for (size_t i = startIter; i < globalTrajectory.points.size(); i++, startIter++)
     {
         B.vector.x = globalTrajBLFrame.points[i].transforms[0].translation.x;
         B.vector.y = globalTrajBLFrame.points[i].transforms[0].translation.y;
@@ -366,11 +355,7 @@ geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
         C.vector.x = B.vector.x + (ws_x_max) / 2;
         C.vector.y = B.vector.y + (ws_y_max) / 2;
 
-        //ROS_INFO(PRINTF_GREEN "[%.2f, %.2f], i: %d", B.vector.x,B.vector.y, i);
-
-        if (fabs(B.vector.x) > (ws_x_max / 2 - localCostMapInflationX) ||
-            fabs(B.vector.y) > (ws_y_max / 2 - localCostMapInflationY) ||
-            i == globalTrajArrLen - 1)
+        if (fabs(B.vector.x) > (ws_x_max / 2 - localCostMapInflationX) || fabs(B.vector.y) > (ws_y_max / 2 - localCostMapInflationY) || (i == globalTrajectory.points.size() - (size_t)1))
         {
             A.vector.x = globalTrajBLFrame.points[i - 1].transforms[0].translation.x;
             A.vector.y = globalTrajBLFrame.points[i - 1].transforms[0].translation.y;
@@ -380,46 +365,38 @@ geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
                 C.vector.x = A.vector.x + (ws_x_max) / 2;
                 C.vector.y = A.vector.y + (ws_y_max) / 2;
 
-                while (C.vector.x < (ws_x_max - localCostMapInflationX+map_resolution) && C.vector.x > localCostMapInflationX - 2*map_resolution &&
-                       C.vector.y < (ws_y_max - localCostMapInflationY+map_resolution) && C.vector.y > localCostMapInflationY - 2*map_resolution)
+                while (C.vector.x < (ws_x_max - localCostMapInflationX + map_resolution) && C.vector.x > localCostMapInflationX - 2 * map_resolution &&
+                       C.vector.y < (ws_y_max - localCostMapInflationY + map_resolution) && C.vector.y > localCostMapInflationY - 2 * map_resolution)
                 { //Put the point between i-1 and i
                     C.vector.x += map_resolution * (B.vector.x - A.vector.x) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
                     C.vector.y += map_resolution * (B.vector.y - A.vector.y) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
-                    //ROS_INFO("WHILING: [%.2f, %.2f]", C.vector.x, C.vector.y);
                 }
                 startIter = i - 1;
             }
-            else
-            {
-                startIter = i;
-            }
-
-            //ROS_INFO(PRINTF_BLUE "[%.2f, %.2f]", globalTrajectory.points[i].transforms[0].translation.x,globalTrajectory.points[i].transforms[0].translation.y);
-            //ROS_INFO(PRINTF_BLUE "[%.2f, %.2f]", B.vector.x, B.vector.y);
-            //ROS_INFO(PRINTF_BLUE "[%.2f, %.2f], %d", C.vector.x, C.vector.y, startIter);
 
             break;
         }
     }
-
-    //ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
-    C.vector.x = floor(C.vector.x * 10 + 10 * map_resolution) / 10;
-    C.vector.y = floor(C.vector.y * 10 + 10 * map_resolution) / 10;
-    //ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
-    if (C.vector.x == 0)
-        C.vector.x += 2*map_resolution;
-    if (C.vector.y == 0)
-        C.vector.y += 2*map_resolution;
-    while (C.vector.x > (ws_x_max-map_resolution) || C.vector.y > (ws_y_max-map_resolution))
+    //TODO: Mejorar esta chapuza
+    while (C.vector.x > (ws_x_max - map_resolution) || C.vector.y > (ws_y_max - map_resolution))
     {
         C.vector.x -= map_resolution * (B.vector.x - A.vector.x) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
         C.vector.y -= map_resolution * (B.vector.y - A.vector.y) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
     }
-    //ROS_INFO_THROTTLE(1, PRINTF_BLUE "[%.2f, %.2f]", C.vector.x, C.vector.y);
+    if (C.vector.x == 0)
+        C.vector.x += 2* map_resolution;
+    if (C.vector.y == 0)
+        C.vector.y += 2* map_resolution;
+
+
+    C.vector.x = floor(C.vector.x * 10 + 10 * map_resolution) / 10;
+    
+    C.vector.y = floor(C.vector.y * 10 + 10 * map_resolution) / 10;
+    
     return C.vector;
 }
 
-geometry_msgs::TransformStamped LocalPlanner::getTransformFromMapToBaseLink()
+geometry_msgs::TransformStamped LocalPlanner::getTfMapToRobot()
 {
     geometry_msgs::TransformStamped ret;
 
@@ -448,7 +425,7 @@ void LocalPlanner::publishTrajMarker()
     markerTraj.markers.clear();
     marker.header.stamp = ros::Time::now();
 
-    for (int i = 0; i < localTrajArrLen; i++)
+    for (size_t i = 0; i < localTrajectory.points.size(); i++)
     {
         marker.pose.position.x = localTrajectory.points[i].transforms[0].translation.x;
         marker.pose.position.y = localTrajectory.points[i].transforms[0].translation.y;
@@ -467,11 +444,9 @@ void LocalPlanner::buildAndPubTrayectory()
 
     localTrajectory.points.clear();
 
-    lcPlanner.getTrajectoryYawInAdvance(localTrajectory, getTransformFromMapToBaseLink().transform);
+    lcPlanner.getTrajectoryYawInAdvance(localTrajectory, getTfMapToRobot().transform);
 
-    localTrajArrLen = localTrajectory.points.size();
-
-    for (int i = 0; i < localTrajArrLen; i++)
+    for (size_t i = 0; i < localTrajectory.points.size(); i++)
     {
         localTrajectory.points[i].transforms[0].translation.x += localCostMapInflated.info.origin.position.x;
         localTrajectory.points[i].transforms[0].translation.y += localCostMapInflated.info.origin.position.y;
@@ -482,13 +457,11 @@ void LocalPlanner::buildAndPubTrayectory()
     temp1.translation.x = localGoal.x;
     temp1.translation.y = localGoal.y;
 
-    //TODO: PONER LA OPRIENTATION DEL WAYPOINT SIGUIENTE AL LOCAL GOAL
     temp1.rotation = globalTrajectory.points[startIter].transforms[0].rotation;
 
     goal_temp.transforms.resize(1, temp1);
 
     localTrajectory.points.push_back(goal_temp);
-    localTrajArrLen = localTrajectory.points.size();
 
     localTrajectory.header.stamp = ros::Time::now();
 
@@ -518,7 +491,7 @@ void LocalPlanner::inflateCostMap()
     localCostMapInflated.header.stamp = ros::Time(0);
 
     localCostMapInflated.info.height = localCostMap.info.height + 2 * localCostMapInflationY / map_resolution;
-    localCostMapInflated.info.width = localCostMap.info.width + 2 * localCostMapInflationX / map_resolution;
+   localCostMapInflated.info.width = localCostMap.info.width + 2 * localCostMapInflationX / map_resolution;
 
     localCostMapInflated.info.resolution = map_resolution;
 
@@ -582,30 +555,34 @@ void LocalPlanner::freeLocalGoal()
     //First we do is to detect in which case we are
     //Primero: Esquinas: modulo de las componentes x e y mayor que el w y h
     //Luego si no es una esquina
-    // TODO: Lo mas eficiente no es esto, sino comprobar primero los casos mas probables)
+    // TODO: Lo mas eficiente no es esto, sino comprobar primero los casos mas probables, que serian las 4 paredes, y luego las 4 esquinas)
 
     //Para todos los bucles siempre es igual
     // ! i: Numero de fila
     // ! j: columna
+    int st,end;
+    ROS_INFO(PRINTF_GREEN "1");
     if (localGoal.y > localCostMapInflated.info.height * map_resolution - localCostMapInflationY)
     {
         //Esquina 1 o 3 o borde 2
         if (localGoal.x < localCostMapInflationX) //1
         {
+            ROS_INFO(PRINTF_GREEN "2");
             for (int i = localCostMapInflated.info.height - 2 * localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i++)
                 for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-
+            ROS_INFO(PRINTF_GREEN "3");
             for (int i = localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height; i++)
                 for (int j = 0; j < 2 * localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
         }
         else if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX) //5
         {
+            ROS_INFO(PRINTF_GREEN "4");
             for (int i = localCostMapInflated.info.height - 2 * localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i++)
                 for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-
+            ROS_INFO(PRINTF_GREEN "5");
             for (int i = localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height; i++)
                 for (int j = localCostMapInflated.info.width - 2 * localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
@@ -613,65 +590,94 @@ void LocalPlanner::freeLocalGoal()
         else //Borde 2
         {
 
+            st = (localGoal.x-border_space)/map_resolution;
+            if(st < 0) st =0;
+
+            end = (localGoal.x + border_space)/map_resolution;
+            if(end > ws_x_max/map_resolution) end = ws_x_max/map_resolution;
+
+            ROS_INFO(PRINTF_GREEN "6");
             for (int i = localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height; i++)
-            {
-                for (int j = (localGoal.x - border_space) / map_resolution; j < (localGoal.x + border_space) / map_resolution; j++)
-                {
+                for (int j = st; j < end; j++)
                     localCostMapInflated.data[i * localCostMapInflated.info.width + j] = 0;
-                }
-            }
+            ROS_INFO(PRINTF_GREEN "7");
         }
     }
     else if (localGoal.y < localCostMapInflationY)
-    {                                                                                                //Esquina 3 o 1 o borde 6
+    {              
+        ROS_INFO(PRINTF_GREEN "8");                                                                                  //Esquina 3 o 1 o borde 6
         if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX) //3
         {
+            ROS_INFO(PRINTF_GREEN "9");
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++)
                 for (int j = localCostMapInflated.info.width - 2 * localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
+            ROS_INFO(PRINTF_GREEN "10");
             for (int i = localCostMapInflationY / map_resolution; i < 2 * localCostMapInflationY / map_resolution; i++)
                 for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
+            ROS_INFO(PRINTF_GREEN "11");
         }
         else if (localGoal.x < localCostMapInflationX) //1
         {
+            ROS_INFO(PRINTF_GREEN "12");
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++) //Filas
                 for (int j = 0; j < 2 * localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
+            ROS_INFO(PRINTF_GREEN "13");
             for (int i = localCostMapInflationY / map_resolution; i < 2 * localCostMapInflationY / map_resolution; i++)
                 for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
         }
         else //Borde 6
         {
+            ROS_INFO(PRINTF_GREEN "14");
+            
+            st = (localGoal.x - border_space) / map_resolution;
+            if(st<0) st=0;
+            
+            end = (localGoal.x + border_space) / map_resolution;
+            if(end>ws_x_max/map_resolution) end = ws_x_max/map_resolution;
+
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++)
-            {
-                for (int j = (localGoal.x - border_space) / map_resolution; j < (localGoal.x + border_space) / map_resolution; j++)
-                {
+                for (int j = st; j < end; j++)
                     localCostMapInflated.data[i * localCostMapInflated.info.width + j] = 0;
-                }
-            }
+            ROS_INFO(PRINTF_GREEN "15");
         }
     } //Si hemos llegado hasta aqui sabemos que la y esta dentro del costmap original
     else if (localGoal.x < localCostMapInflationX)
     { //Borde 8
         //Se recorren las filas desde la primera hasta la ultima y se ponen a 0 los N primeros valores de cada fila(numero de columnas infladas)
-        for (int i = (localGoal.y - border_space) / map_resolution; i < (localGoal.y + border_space) / map_resolution; i++)
-        {
+        ROS_INFO(PRINTF_GREEN "16");
+
+        st=(localGoal.y - border_space) / map_resolution;
+        if(st<0) st=0;
+
+        end=(localGoal.y + border_space) / map_resolution;
+        if(end > ws_y_max/map_resolution) end = ws_y_max /map_resolution;
+
+        for (int i = st ; i < end; i++)
             for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                 localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-        }
+        ROS_INFO(PRINTF_GREEN "17");
     }
-    else if (localGoal.x > localCostMap.info.width * map_resolution + localCostMapInflationX)
+    else if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX)
     { //Borde 4
         //Se recorren las filas desde la primera hasta la ultima y se ponen a 0 los N ultimos valores de cada fila (numero de columnas infladas)
-        for (int i = (localGoal.y - border_space) / map_resolution; i < (localGoal.y + border_space) / map_resolution; i++)
-        {
+        ROS_INFO(PRINTF_GREEN "18");
+        st = (localGoal.y - border_space) / map_resolution;
+        end = (localGoal.y + border_space) / map_resolution;
+        if(st < 0)
+            st=0;
+        if(end > ws_y_max/map_resolution)
+            end= ws_y_max/map_resolution;
+        
+        
+        for (int i = st; i < end; i++)
             for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
-            {
                 localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            }
-        }
+        
+        ROS_INFO(PRINTF_GREEN "19");
     }
     else
     {

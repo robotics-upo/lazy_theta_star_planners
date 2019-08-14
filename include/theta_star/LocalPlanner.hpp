@@ -59,6 +59,8 @@ public:
 
     void dynRecCb(theta_star_2d::localPlannerConfig &config, uint32_t level);
     bool stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep);
+    bool pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep);
+
 private:
     //These functions gets parameters from param server at startup if they exists, if not it passes default values
     void configParams();
@@ -69,7 +71,7 @@ private:
 
     geometry_msgs::Vector3 calculateLocalGoal();
 
-    geometry_msgs::TransformStamped getTransformFromMapToBaseLink();
+    geometry_msgs::TransformStamped getTfMapToRobot();
 
     void publishTrajMarker();
 
@@ -86,7 +88,7 @@ private:
     //Variables
     ros::NodeHandle nh_;
     ros::ServiceClient replanning_client_srv;
-    ros::ServiceServer stop_planning_srv;
+    ros::ServiceServer stop_planning_srv,pause_planning_srv;
     ros::Subscriber local_map_sub, goal_reached_sub, global_goal_sub, global_trj_sub;
     //TODO: Replace global goal publisher used to request a new global trajectory by a Service call
     //Not much sense that local planner publishes global goals
@@ -97,7 +99,7 @@ private:
 
     bool showConfig;
     bool mapGeometryConfigured;
-
+    bool doPlan;
     //Flow control flags
     bool localCostMapReceived;
     bool globalTrajReceived;
@@ -109,8 +111,6 @@ private:
     float map_resolution;
     float ws_x_max;
     float ws_y_max;
-    //float ws_x_min; //TODO Delete these variables, They are always zero
-    //float ws_y_min; //TODO Delete these variables, They are always zero
     //Algorithm params
     float goal_weight;
     float cost_weight;
@@ -127,21 +127,17 @@ private:
 
     //
 
-    unsigned int startIter = 0;
-    int globalTrajArrLen;
-    int localTrajArrLen;
+    unsigned int startIter;
 
     string robot_base_frame, world_frame;
 
     nav_msgs::OccupancyGrid localCostMap, localCostMapInflated;
 
     trajectory_msgs::MultiDOFJointTrajectory globalTrajectory, localTrajectory;
-    trajectory_msgs::MultiDOFJointTrajectoryPoint globalGoal;
-
+    
     visualization_msgs::Marker marker;
     visualization_msgs::MarkerArray markerTraj;
     
-    geometry_msgs::PoseStamped globalGoalStamped;
     geometry_msgs::Vector3 local_costmap_center, localGoal;
    
     ThetaStar lcPlanner;
@@ -151,7 +147,7 @@ private:
     std_msgs::Bool is_running, occ, impossible_calculate;
     std_msgs::Int32 time_spent_msg;
     
-    int impossibles;
+    int impossibleCnt,occGoalCnt;
     int number_of_points;
     bool startOk;
     bool debug;
