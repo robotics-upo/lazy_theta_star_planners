@@ -89,7 +89,7 @@ void ThetaStar::loadMapParams(float ws_x_max_, float ws_y_max_, float map_resolu
     Lx_inv = 1.0 / Lx;
     Ly_inv = 1.0 / Ly;
     matrix_size = Lx * Ly;
-    
+
     printf("1. ThetaStar: Occupancy Matrix has %d nodes [%d MB]\n", matrix_size, (int)(matrix_size * sizeof(ThetaStarNode)) / (1024 * 1024));
     discrete_world.resize(matrix_size);
     mapParamsConfigured = true;
@@ -123,6 +123,8 @@ void ThetaStar::init(string plannerName, string frame_id,
     printf("ThetaStar (%s): Occupancy Matrix has %d nodes [%d MB]\n", plannerName.c_str(), matrix_size, (int)(matrix_size * sizeof(ThetaStarNode)) / (1024 * 1024));
     discrete_world.resize(matrix_size);
 
+    //Get the value used by the functuion getAverageDistance2Obstacles
+    //TODO: Check it work
     if (boost::algorithm::contains("local", plannerName))
     {
         nh->param("/costmap_2d_local/costmap/inflation_layer/cost_scaling_factor", csf, (float)1);
@@ -253,6 +255,23 @@ void ThetaStar::setTrajectoryParams(float dxy_max_, float dxy_tolerance_, float 
 //        discrete_world[i].cost = message->data[i];
 //    }
 //}
+void ThetaStar::getMap(unsigned char *map)
+{
+    clearMap();
+    int x, y;
+    for (unsigned int i = 0; i < matrix_size; i++, map++)
+    {
+        getDiscreteWorldPositionFromIndex(x, y, i);
+
+        if (isInside(x, y) && *map > 252)
+            discrete_world[i].notOccupied = false;
+
+        discrete_world[i].cost = ((float)*map) / 252 * 100;
+    }
+    // for(auto i = 0; i < discrete_world.size(); i++){
+        // ROS_WARN("Cost %d: %f", i, discrete_world[i].cost);
+    // }
+}
 void ThetaStar::getMap(nav_msgs::OccupancyGrid *message)
 {
     clearMap();
@@ -345,7 +364,7 @@ bool ThetaStar::setFinalPosition(DiscretePosition p_)
     }
     else
     {
-        ROS_WARN_THROTTLE(1, "is not Inside!");
+        ROS_WARN("is not Inside! [%.2f, %.2f] ", p_.x * step, p_.y * step);
         //~ std::cerr << "ThetaStar: Final point ["<< p.x << ";"<< p.y <<";"<< p.z <<"] not valid." << std::endl;
         disc_final = NULL;
         return false;
@@ -718,6 +737,8 @@ int ThetaStar::getCurrentPathNPoints()
 {
     return last_path.size();
 }
+//!Test function to deduce the distance from the cost
+//TODO: Check it work
 void ThetaStar::computeAverageDist2Obs()
 {
     average_dist_to_obst = 1 / csf * log(occ_threshold / cost_path) + rob_rad;

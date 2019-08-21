@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
   roscpp
   tf
+  costmap_2d
 )
 generate_dynamic_reconfigure_options(
   cfg/sim.cfg

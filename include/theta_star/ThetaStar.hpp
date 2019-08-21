@@ -67,7 +67,7 @@ class ThetaStartNodeLink
 {
 	public:
 	   ThetaStartNodeLink(): 	node(NULL), isInOpenList(false), isInCandidateList(false), checked(false), 
-								notOccupied(true), lastTimeSeen(std::numeric_limits<int>::max()), countToBeOccupied(0)
+								notOccupied(true), lastTimeSeen(std::numeric_limits<int>::max()), countToBeOccupied(0), cost(0)
 	   {
 	   }
 
@@ -223,6 +223,7 @@ class ThetaStar
 
 		void getMap(nav_msgs::OccupancyGrid *message);
 
+		void getMap(unsigned char *map);
 		/** 
 		   Clear occupancy discrete matrix
 		**/
