@@ -22,10 +22,14 @@ GlobalPlanner::GlobalPlanner(tf2_ros::Buffer *tfBuffer_, string node_name_)
 //!Experimental: Costmap object inside Planner
 bool GlobalPlanner::resetCostmapSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &rep)
 {
-    //Lock costmap so others threads cannot modify it
+    resetGlobalCostmap();
+    return true;
+}
+
+void GlobalPlanner::resetGlobalCostmap(){
+     //Lock costmap so others threads cannot modify it
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     global_costmap_ptr->resetLayers();
-    return true;
 }
 void GlobalPlanner::configTheta()
 {
@@ -146,7 +150,7 @@ void GlobalPlanner::goalCb(const geometry_msgs::PoseStamped::ConstPtr &goalMsg)
     goal.header = goalMsg->header;
 
     globalGoalReceived = true;
-
+    resetGlobalCostmap();
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Goal received");
 }
 void GlobalPlanner::plan()

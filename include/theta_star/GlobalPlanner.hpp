@@ -69,7 +69,7 @@ private:
     
     //get robot pose to know from where to plan
     geometry_msgs::TransformStamped getRobotPose();
-    
+    void resetGlobalCostmap();
     void publishTrajectory();
 
     bool calculatePath();
