@@ -41,7 +41,7 @@ class GlobalPlanner : public ThetaStar
 
 public:
     //Default constructor
-    GlobalPlanner(tf2_ros::Buffer *tfBuffer_);
+    GlobalPlanner(tf2_ros::Buffer *tfBuffer_, string node_name);
     /**
 		Default destructor
 	**/
@@ -85,8 +85,6 @@ private:
     geometry_msgs::PoseStamped goalPoseStamped;
     geometry_msgs::Vector3Stamped goal;
 
-    nav_msgs::OccupancyGrid globalCostMap;
-
     //Input parameters
     float map_resolution;
     float ws_x_max;
@@ -101,7 +99,7 @@ private:
     float traj_pos_tol;
     float traj_yaw_tol;
 
-    string robot_base_frame, world_frame;
+    string robot_base_frame, world_frame,node_name;
 
     //Output variables
     int number_of_points;

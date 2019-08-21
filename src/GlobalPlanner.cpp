@@ -6,14 +6,13 @@
 
 namespace PathPlanners
 {
-//TODO: use ros::NodeHandlePtr instead of classic pointer
-GlobalPlanner::GlobalPlanner(tf2_ros::Buffer *tfBuffer_)
+GlobalPlanner::GlobalPlanner(tf2_ros::Buffer *tfBuffer_, string node_name_)
 {
     //The tf buffer is used to lookup the base link position(tf from world frame to robot base frame)
     tfBuffer = tfBuffer_;
     tf_list_ptr = new tf::TransformListener(ros::Duration(5));
     global_costmap_ptr = new costmap_2d::Costmap2DROS("global_costmap", *tf_list_ptr); //In ros kinetic the constructor uses tf instead of tf2 :(
-
+    node_name = node_name_;
     configParams();
     configTopics();
     configServices();
@@ -26,14 +25,12 @@ bool GlobalPlanner::resetCostmapSrvCb(std_srvs::EmptyRequest &req, std_srvs::Emp
     //Lock costmap so others threads cannot modify it
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     global_costmap_ptr->resetLayers();
-
     return true;
 }
 void GlobalPlanner::configTheta()
 {
-    string node_name = "global_planner_node";
     gbPlanner.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, &nh_);
-    gbPlanner.setTimeOut(1000);
+    gbPlanner.setTimeOut(10);
     gbPlanner.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
 }
 void GlobalPlanner::configTopics()
@@ -53,10 +50,6 @@ void GlobalPlanner::configTopics()
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Goal input topic: %s", topicPath.c_str());
     goal_sub = nh_.subscribe<geometry_msgs::PoseStamped>(topicPath, 1, &GlobalPlanner::goalCb, this);
 
-    //map input topic, it could a map from map server or a costmap
-    //nh_.param("/global_planner_node/global_map_topic", topicPath, (string) "/costmap_2d/costmap/costmap");
-    //ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Global costmap input topic: %s", topicPath.c_str());
-    //global_costmap_sub = nh_.subscribe<nav_msgs::OccupancyGrid>(topicPath, 1, &GlobalPlanner::globalCostMapCb, this);
 }
 void GlobalPlanner::configServices()
 {
@@ -182,14 +175,10 @@ bool GlobalPlanner::calculatePath()
 
         if (number_of_points > 0)
         {
-            ROS_INFO_COND(debug, PRINTF_MAGENTA "Publishing trajectory");
+            ROS_INFO_COND(debug, PRINTF_MAGENTA "Publishing trajectory, %d", number_of_points);
             publishTrajectory();
             ret = true;
         }
-    }
-    else
-    {
-        ROS_ERROR("Global goal or start point occupied ");
     }
     return ret;
 }
@@ -270,8 +259,7 @@ void GlobalPlanner::publishTrajectory()
 }
 bool GlobalPlanner::setGoal()
 {
-    bool ret;
-    ROS_INFO("hEY");
+    bool ret=false;
     if (gbPlanner.setValidFinalPosition(goal.vector))
     {
         ret = true;
@@ -279,14 +267,12 @@ bool GlobalPlanner::setGoal()
     else
     {
         ROS_ERROR("Global Planner: Failed to set final global position: [%.2f, %.2f] ", goal.vector.x, goal.vector.y);
-        ret = false;
     }
     return ret;
 }
 bool GlobalPlanner::setStart()
 {
-    ROS_INFO("HEY2");
-    bool ret;
+    bool ret=false;
     geometry_msgs::Vector3Stamped start;
     start.vector.x = getRobotPose().transform.translation.x;
     start.vector.y = getRobotPose().transform.translation.y;
@@ -298,7 +284,6 @@ bool GlobalPlanner::setStart()
     else
     {
         ROS_ERROR("Global Planner: Failed to set initial global position: [%.2f, %.2f]", start.vector.x, start.vector.y);
-        ret = false;
     }
     return ret;
 }
