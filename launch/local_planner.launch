@@ -4,7 +4,7 @@
     <rosparam command="load" file="$(find theta_star_2d)/cfg/costmap_params.yaml"/>
 
     <!-- Used to have map server services when playing back data from rosbag files in simulation -->
-    <node pkg="map_server" type="map_server" name="map_server" args="/home/fali-srl/catkin_ws/src/theta_star_2d/launch/tintas.yaml" output="screen"/>
+    <node pkg="map_server" type="map_server" name="map_server" args="$(find theta_star_2d)/launch/tintas.yaml" output="screen"/>
     <!-- Static tf used to simulate robot pose-->
     <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_broadcaster" args="19.4 16.7 0 0 0 1 map base_link" /> -->
 
