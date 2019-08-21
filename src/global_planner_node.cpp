@@ -13,7 +13,7 @@ int main(int argc, char **argv)
     tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener tfListener(tfBuffer);
     
-    GlobalPlanner globalPlanner(&tfBuffer);
+    GlobalPlanner globalPlanner(&tfBuffer, node_name);
 
     dynamic_reconfigure::Server<theta_star_2d::globalPlannerConfig> server;
   	dynamic_reconfigure::Server<theta_star_2d::globalPlannerConfig>::CallbackType f;
