@@ -75,8 +75,6 @@ void ThetaStar::loadMapParams(float ws_x_max_, float ws_y_max_, float map_resolu
     disc_initial = NULL;
     disc_final = NULL;
 
-    //timeout = std::numeric_limits<int>::max();
-
     // Init asymetric and inflated occupancy matrix
     ws_x_max = round(ws_x_max_ / map_resolution_);
     ws_y_max = round(ws_y_max_ / map_resolution_);
@@ -103,8 +101,6 @@ void ThetaStar::init(string plannerName, string frame_id,
     // Not target initially
     disc_initial = NULL;
     disc_final = NULL;
-
-    //timeout = std::numeric_limits<int>::max();
 
     // Init asymetric and inflated occupancy matrix
     ws_x_max = round(ws_x_max_ / step_);
