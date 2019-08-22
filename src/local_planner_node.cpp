@@ -22,7 +22,7 @@ int main(int argc, char **argv)
 
 	ros::Rate loop_rate(30);
     while(ros::ok()){
-
+        
         ros::spinOnce();
         
         lcPlanner.plan();

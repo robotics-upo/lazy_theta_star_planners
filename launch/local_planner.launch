@@ -2,9 +2,10 @@
     <rosparam command="load" file="$(find theta_star_2d)/cfg/global_params.yaml"/>
     <rosparam command="load" file="$(find theta_star_2d)/cfg/local_params.yaml"/>
     <rosparam command="load" file="$(find theta_star_2d)/cfg/costmap_params.yaml"/>
-
+    <rosparam command="load" file="$(find theta_star_2d)/cfg/local_costmap_params.yaml" ns="custom_costmap_node"/>    
     <!-- Used to have map server services when playing back data from rosbag files in simulation -->
     <node pkg="map_server" type="map_server" name="map_server" args="$(find theta_star_2d)/launch/tintas.yaml" output="screen"/>
+    <node pkg="theta_star_2d" type="custom_costmap_node" name="custom_costmap_node" />
     <!-- Static tf used to simulate robot pose-->
     <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_broadcaster" args="19.4 16.7 0 0 0 1 map base_link" /> -->
 

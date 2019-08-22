@@ -44,9 +44,12 @@ class LocalPlanner : public ThetaStar
 public:
     /*
         Default constructor    
-     */
+    */
     LocalPlanner(tf2_ros::Buffer *tfBuffer_);
 
+    /*
+    
+    */
     void plan();
 
     //Calbacks and publication functions
@@ -87,7 +90,7 @@ private:
 
     //Variables
     ros::NodeHandle nh_;
-    ros::ServiceClient replanning_client_srv;
+    ros::ServiceClient replanning_client_srv, costmap_clean_srv;
     ros::ServiceServer stop_planning_srv,pause_planning_srv;
     ros::Subscriber local_map_sub, goal_reached_sub, global_goal_sub, global_trj_sub;
     //TODO: Replace global goal publisher used to request a new global trajectory by a Service call

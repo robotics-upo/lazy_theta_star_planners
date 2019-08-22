@@ -80,10 +80,9 @@ void LocalPlanner::configServices()
 {
     replanning_client_srv = nh_.serviceClient<std_srvs::Trigger>("/global_planner_node/global_replanning_service");
     costmap_clean_srv = nh_.serviceClient<std_srvs::Trigger>("/custom_costmap_node/reset_costmap");
-    
+
     stop_planning_srv = nh_.advertiseService("/local_planner_node/stop_planning_srv", &LocalPlanner::stopPlanningSrvCb, this);
     pause_planning_srv = nh_.advertiseService("/local_planner_node/pause_planning_srv", &LocalPlanner::pausePlanningSrvCb, this);
-
 }
 void LocalPlanner::configTheta()
 {
@@ -146,16 +145,17 @@ bool LocalPlanner::stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::Tr
 
     return true;
 }
-bool LocalPlanner::pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep){
+bool LocalPlanner::pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
+{
 
-    rep.success=true;
-    rep.message="Planning resumed";
+    rep.success = true;
+    rep.message = "Planning resumed";
 
-    if(doPlan)
-        rep.message="Planning paused";
-    
+    if (doPlan)
+        rep.message = "Planning paused";
+
     doPlan = !doPlan;
-    
+
     return true;
 }
 //Calbacks and publication functions
@@ -163,6 +163,7 @@ void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
 {
     localCostMap = *lcp;
     localCostMapReceived = true;
+
     //ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received local costmap");
     //First time the map is received, configure the geometric params
     if (!mapGeometryConfigured)
@@ -190,7 +191,14 @@ void LocalPlanner::globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::C
 
     startIter = 1;
     globalTrajReceived = true;
-    doPlan=true; //Restore the doPlan flag because we get a new trajectory do a new goal
+    doPlan = true; //Restore the doPlan flag because we get a new trajectory do a new goal
+
+    //Also clean the local costmap 
+
+    std_srvs::Trigger trg;
+    costmap_clean_srv.call(trg);
+    usleep(1e6);
+
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received global trajectory");
 }
 
@@ -224,7 +232,9 @@ void LocalPlanner::plan()
             }
             else
             {
-                ROS_INFO("Local:Couldn't find a free point near start point");
+                ROS_INFO("Local:Couldn't find a free point near start point, trying to clean the local costmap");
+                std_srvs::Trigger trg;
+                costmap_clean_srv.call(trg);
             }
         }
         else
@@ -252,14 +262,18 @@ void LocalPlanner::plan()
                     ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path(1)");
                     number_of_points = lcPlanner.computePath();
                     occGoalCnt = 0;
-                }else if(occGoalCnt > 3){//If it cant find a free position near local goal, it means that there is something there. 
+                }
+                else if (occGoalCnt > 3)
+                { //If it cant find a free position near local goal, it means that there is something there.
                     //Send message to tracker to stop
-                    
+
                     //And pause planning, under construction
                     doPlan = false;
-                    ROS_INFO_COND(debug, PRINTF_YELLOW"Pausing planning, final position busy");
+                    ROS_INFO_COND(debug, PRINTF_YELLOW "Pausing planning, final position busy");
                     //In order to resume planning, someone must call the pause/resume planning Service that will change the flag to true
-                }else{
+                }
+                else
+                {
                     occGoalCnt++;
                 }
             }
@@ -292,7 +306,7 @@ void LocalPlanner::plan()
                     impossibleCnt = 0;
                 }
             }
-            else if(!occ.data)
+            else if (!occ.data)
             {
                 impossibleCnt++;
                 //ROS_INFO("Local: +1 impossible");
@@ -387,15 +401,14 @@ geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
         C.vector.y -= map_resolution * (B.vector.y - A.vector.y) / sqrtf(pow(B.vector.x - A.vector.x, 2) + pow(B.vector.y - A.vector.y, 2));
     }
     if (C.vector.x == 0)
-        C.vector.x += 2* map_resolution;
+        C.vector.x += 2 * map_resolution;
     if (C.vector.y == 0)
-        C.vector.y += 2* map_resolution;
-
+        C.vector.y += 2 * map_resolution;
 
     C.vector.x = floor(C.vector.x * 10 + 10 * map_resolution) / 10;
-    
+
     C.vector.y = floor(C.vector.y * 10 + 10 * map_resolution) / 10;
-    
+
     return C.vector;
 }
 
@@ -494,7 +507,7 @@ void LocalPlanner::inflateCostMap()
     localCostMapInflated.header.stamp = ros::Time(0);
 
     localCostMapInflated.info.height = localCostMap.info.height + 2 * localCostMapInflationY / map_resolution;
-   localCostMapInflated.info.width = localCostMap.info.width + 2 * localCostMapInflationX / map_resolution;
+    localCostMapInflated.info.width = localCostMap.info.width + 2 * localCostMapInflationX / map_resolution;
 
     localCostMapInflated.info.resolution = map_resolution;
 
@@ -563,7 +576,7 @@ void LocalPlanner::freeLocalGoal()
     //Para todos los bucles siempre es igual
     // ! i: Numero de fila
     // ! j: columna
-    int st,end;
+    int st, end;
     ROS_INFO_COND(debug, PRINTF_GREEN "1");
     if (localGoal.y > localCostMapInflated.info.height * map_resolution - localCostMapInflationY)
     {
@@ -593,11 +606,13 @@ void LocalPlanner::freeLocalGoal()
         else //Borde 2
         {
 
-            st = (localGoal.x-border_space)/map_resolution;
-            if(st < 0) st =0;
+            st = (localGoal.x - border_space) / map_resolution;
+            if (st < 0)
+                st = 0;
 
-            end = (localGoal.x + border_space)/map_resolution;
-            if(end > ws_x_max/map_resolution) end = ws_x_max/map_resolution;
+            end = (localGoal.x + border_space) / map_resolution;
+            if (end > ws_x_max / map_resolution)
+                end = ws_x_max / map_resolution;
 
             ROS_INFO_COND(debug, PRINTF_GREEN "6");
             for (int i = localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height; i++)
@@ -607,8 +622,8 @@ void LocalPlanner::freeLocalGoal()
         }
     }
     else if (localGoal.y < localCostMapInflationY)
-    {              
-        ROS_INFO_COND(debug, PRINTF_GREEN "8");                                                                                  //Esquina 3 o 1 o borde 6
+    {
+        ROS_INFO_COND(debug, PRINTF_GREEN "8");                                                      //Esquina 3 o 1 o borde 6
         if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX) //3
         {
             ROS_INFO_COND(debug, PRINTF_GREEN "9");
@@ -635,12 +650,14 @@ void LocalPlanner::freeLocalGoal()
         else //Borde 6
         {
             ROS_INFO_COND(debug, PRINTF_GREEN "14");
-            
+
             st = (localGoal.x - border_space) / map_resolution;
-            if(st<0) st=0;
-            
+            if (st < 0)
+                st = 0;
+
             end = (localGoal.x + border_space) / map_resolution;
-            if(end>ws_x_max/map_resolution) end = ws_x_max/map_resolution;
+            if (end > ws_x_max / map_resolution)
+                end = ws_x_max / map_resolution;
 
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++)
                 for (int j = st; j < end; j++)
@@ -653,13 +670,15 @@ void LocalPlanner::freeLocalGoal()
         //Se recorren las filas desde la primera hasta la ultima y se ponen a 0 los N primeros valores de cada fila(numero de columnas infladas)
         ROS_INFO_COND(debug, PRINTF_GREEN "16");
 
-        st=(localGoal.y - border_space) / map_resolution;
-        if(st<0) st=0;
+        st = (localGoal.y - border_space) / map_resolution;
+        if (st < 0)
+            st = 0;
 
-        end=(localGoal.y + border_space) / map_resolution;
-        if(end > ws_y_max/map_resolution) end = ws_y_max /map_resolution;
+        end = (localGoal.y + border_space) / map_resolution;
+        if (end > ws_y_max / map_resolution)
+            end = ws_y_max / map_resolution;
 
-        for (int i = st ; i < end; i++)
+        for (int i = st; i < end; i++)
             for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                 localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
         ROS_INFO_COND(debug, PRINTF_GREEN "17");
@@ -670,16 +689,15 @@ void LocalPlanner::freeLocalGoal()
         ROS_INFO_COND(debug, PRINTF_GREEN "18");
         st = (localGoal.y - border_space) / map_resolution;
         end = (localGoal.y + border_space) / map_resolution;
-        if(st < 0)
-            st=0;
-        if(end > ws_y_max/map_resolution)
-            end= ws_y_max/map_resolution;
-        
-        
+        if (st < 0)
+            st = 0;
+        if (end > ws_y_max / map_resolution)
+            end = ws_y_max / map_resolution;
+
         for (int i = st; i < end; i++)
             for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                 localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-        
+
         ROS_INFO_COND(debug, PRINTF_GREEN "19");
     }
     else
