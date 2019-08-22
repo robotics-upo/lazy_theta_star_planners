@@ -45,3 +45,7 @@ add_executable(local_planner_node src/local_planner_node.cpp src/LocalPlanner.cp
 target_link_libraries(local_planner_node ${catkin_LIBRARIES})
 add_dependencies(local_planner_node ${PROJECT_NAME}_gencfg)
 add_dependencies(local_planner_node ${catkin_EXPORTED_TARGETS})
+
+add_executable(custom_costmap_node src/custom_costmap_node.cpp)
+target_link_libraries(custom_costmap_node ${catkin_LIBRARIES})
+add_dependencies(local_planner_node ${catkin_EXPORTED_TARGETS})
