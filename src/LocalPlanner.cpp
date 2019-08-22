@@ -79,8 +79,11 @@ void LocalPlanner::configParams()
 void LocalPlanner::configServices()
 {
     replanning_client_srv = nh_.serviceClient<std_srvs::Trigger>("/global_planner_node/global_replanning_service");
+    costmap_clean_srv = nh_.serviceClient<std_srvs::Trigger>("/custom_costmap_node/reset_costmap");
+    
     stop_planning_srv = nh_.advertiseService("/local_planner_node/stop_planning_srv", &LocalPlanner::stopPlanningSrvCb, this);
     pause_planning_srv = nh_.advertiseService("/local_planner_node/pause_planning_srv", &LocalPlanner::pausePlanningSrvCb, this);
+
 }
 void LocalPlanner::configTheta()
 {
@@ -561,28 +564,28 @@ void LocalPlanner::freeLocalGoal()
     // ! i: Numero de fila
     // ! j: columna
     int st,end;
-    ROS_INFO(PRINTF_GREEN "1");
+    ROS_INFO_COND(debug, PRINTF_GREEN "1");
     if (localGoal.y > localCostMapInflated.info.height * map_resolution - localCostMapInflationY)
     {
         //Esquina 1 o 3 o borde 2
         if (localGoal.x < localCostMapInflationX) //1
         {
-            ROS_INFO(PRINTF_GREEN "2");
+            ROS_INFO_COND(debug, PRINTF_GREEN "2");
             for (int i = localCostMapInflated.info.height - 2 * localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i++)
                 for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            ROS_INFO(PRINTF_GREEN "3");
+            ROS_INFO_COND(debug, PRINTF_GREEN "3");
             for (int i = localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height; i++)
                 for (int j = 0; j < 2 * localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
         }
         else if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX) //5
         {
-            ROS_INFO(PRINTF_GREEN "4");
+            ROS_INFO_COND(debug, PRINTF_GREEN "4");
             for (int i = localCostMapInflated.info.height - 2 * localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i++)
                 for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            ROS_INFO(PRINTF_GREEN "5");
+            ROS_INFO_COND(debug, PRINTF_GREEN "5");
             for (int i = localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height; i++)
                 for (int j = localCostMapInflated.info.width - 2 * localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
@@ -596,42 +599,42 @@ void LocalPlanner::freeLocalGoal()
             end = (localGoal.x + border_space)/map_resolution;
             if(end > ws_x_max/map_resolution) end = ws_x_max/map_resolution;
 
-            ROS_INFO(PRINTF_GREEN "6");
+            ROS_INFO_COND(debug, PRINTF_GREEN "6");
             for (int i = localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height; i++)
                 for (int j = st; j < end; j++)
                     localCostMapInflated.data[i * localCostMapInflated.info.width + j] = 0;
-            ROS_INFO(PRINTF_GREEN "7");
+            ROS_INFO_COND(debug, PRINTF_GREEN "7");
         }
     }
     else if (localGoal.y < localCostMapInflationY)
     {              
-        ROS_INFO(PRINTF_GREEN "8");                                                                                  //Esquina 3 o 1 o borde 6
+        ROS_INFO_COND(debug, PRINTF_GREEN "8");                                                                                  //Esquina 3 o 1 o borde 6
         if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX) //3
         {
-            ROS_INFO(PRINTF_GREEN "9");
+            ROS_INFO_COND(debug, PRINTF_GREEN "9");
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++)
                 for (int j = localCostMapInflated.info.width - 2 * localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            ROS_INFO(PRINTF_GREEN "10");
+            ROS_INFO_COND(debug, PRINTF_GREEN "10");
             for (int i = localCostMapInflationY / map_resolution; i < 2 * localCostMapInflationY / map_resolution; i++)
                 for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            ROS_INFO(PRINTF_GREEN "11");
+            ROS_INFO_COND(debug, PRINTF_GREEN "11");
         }
         else if (localGoal.x < localCostMapInflationX) //1
         {
-            ROS_INFO(PRINTF_GREEN "12");
+            ROS_INFO_COND(debug, PRINTF_GREEN "12");
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++) //Filas
                 for (int j = 0; j < 2 * localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            ROS_INFO(PRINTF_GREEN "13");
+            ROS_INFO_COND(debug, PRINTF_GREEN "13");
             for (int i = localCostMapInflationY / map_resolution; i < 2 * localCostMapInflationY / map_resolution; i++)
                 for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
         }
         else //Borde 6
         {
-            ROS_INFO(PRINTF_GREEN "14");
+            ROS_INFO_COND(debug, PRINTF_GREEN "14");
             
             st = (localGoal.x - border_space) / map_resolution;
             if(st<0) st=0;
@@ -642,13 +645,13 @@ void LocalPlanner::freeLocalGoal()
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++)
                 for (int j = st; j < end; j++)
                     localCostMapInflated.data[i * localCostMapInflated.info.width + j] = 0;
-            ROS_INFO(PRINTF_GREEN "15");
+            ROS_INFO_COND(debug, PRINTF_GREEN "15");
         }
     } //Si hemos llegado hasta aqui sabemos que la y esta dentro del costmap original
     else if (localGoal.x < localCostMapInflationX)
     { //Borde 8
         //Se recorren las filas desde la primera hasta la ultima y se ponen a 0 los N primeros valores de cada fila(numero de columnas infladas)
-        ROS_INFO(PRINTF_GREEN "16");
+        ROS_INFO_COND(debug, PRINTF_GREEN "16");
 
         st=(localGoal.y - border_space) / map_resolution;
         if(st<0) st=0;
@@ -659,12 +662,12 @@ void LocalPlanner::freeLocalGoal()
         for (int i = st ; i < end; i++)
             for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                 localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-        ROS_INFO(PRINTF_GREEN "17");
+        ROS_INFO_COND(debug, PRINTF_GREEN "17");
     }
     else if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX)
     { //Borde 4
         //Se recorren las filas desde la primera hasta la ultima y se ponen a 0 los N ultimos valores de cada fila (numero de columnas infladas)
-        ROS_INFO(PRINTF_GREEN "18");
+        ROS_INFO_COND(debug, PRINTF_GREEN "18");
         st = (localGoal.y - border_space) / map_resolution;
         end = (localGoal.y + border_space) / map_resolution;
         if(st < 0)
@@ -677,7 +680,7 @@ void LocalPlanner::freeLocalGoal()
             for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                 localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
         
-        ROS_INFO(PRINTF_GREEN "19");
+        ROS_INFO_COND(debug, PRINTF_GREEN "19");
     }
     else
     {
