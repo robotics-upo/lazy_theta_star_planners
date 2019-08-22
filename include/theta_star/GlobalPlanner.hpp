@@ -1,10 +1,8 @@
 /*
+Rafael Rey Arcenegui, 2019 UPO
 
-
-
-
-
- */
+Global Planner Class using the Lazy ThetaStar 2d Algorithm
+*/
 #ifndef GLOBALPLANNER_H_
 #define GLOBALPLANNER_H_
 
@@ -13,7 +11,7 @@
 #include <string>
 #include <math.h>
 #include <ros/ros.h>
-
+#include <memory>
 #include <theta_star/ThetaStar.hpp>
 
 #include <std_srvs/Trigger.h>
@@ -31,8 +29,48 @@
 #include <dynamic_reconfigure/server.h>
 #include <theta_star_2d/globalPlannerConfig.h>
 
+#include <ctime>
+#include <sys/timeb.h>
+
 #include <costmap_2d/costmap_2d.h>
 #include <costmap_2d/costmap_2d_ros.h>
+
+struct ReportElement
+{
+    trajectory_msgs::MultiDOFJointTrajectory trajectory;
+    geometry_msgs::PoseStamped goal, robot_pose;
+    ros::Time requested, published;
+    bool replan;
+};
+
+class MissionReport
+{
+public:
+    MissionReport()
+    {
+        data.resize(0);
+    }
+    void newElement()
+    {
+        ReportElement elem;
+        data.push_back(elem);
+    }
+    /*
+    Puedo crear una funcion publica que se llame con cada nueva trayectoria creada
+    *Se guarda la trayectoria con todos sus puntitos
+    *Se guarda el instante en el que se solicito
+    *Se guarda el instante en el que se envio(publico)
+    *Se guarda un flag si fue una solicitud de replanning o que
+    */
+
+    /*
+   Tambien deberia tener una funcion para guardar el report en un archivito
+
+   */
+
+private:
+    std::vector<ReportElement> data;
+};
 
 namespace PathPlanners
 {
@@ -45,38 +83,69 @@ public:
     /**
 		Default destructor
 	**/
-	// ~GlobalPlanner();
+    // ~GlobalPlanner();
 
-    //Main function
+    /*
+    @brief: This is the main function that should be executed in loop by the node
+    */
     void plan();
-    
-    //Dynamic callback
-    void dynReconfCb(theta_star_2d::globalPlannerConfig &config, uint32_t level); 
+
+    /* 
+    @brief: Dynamic reconfiguration server callback declaration
+    */
+    void dynReconfCb(theta_star_2d::globalPlannerConfig &config, uint32_t level);
 
 private:
-    
+    /*
+    @brief: goal topic callback 
+    */
     void goalCb(const geometry_msgs::PoseStamped::ConstPtr &goalMsg);
-
+    /*
+    @brief: Service servers callback for replanning, it takes the same goal and launch the planner again with the more recent costmap
+    */
     bool replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep);
+    /*
+    @brief: Calls the resetLayers() costmap_2d member function in order to clean old obstacles 
+    */
     bool resetCostmapSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &rep);
-    
-    //These functions gets parameters from param server at startup if they exists, if not it passes default values
+    /*
+    @brief: Loads parameters from ros param server, if they are not present, load defaults ones
+            It also configure markers and global map geometry 
+    */
     void configParams();
+    /*
+    @brief: Load topics names from param server and if they are not present, set defaults topics names for 
+            Subscribers and publishers
+    */
     void configTopics();
-    //Config thetastar class parameters
+    /*
+    @brief: Config thetastar class parameters
+    */
     void configTheta();
+    /*
+    @brief: It declares the two service servers
+    */
     void configServices();
-    
+
     //get robot pose to know from where to plan
     geometry_msgs::TransformStamped getRobotPose();
+    /*
+    @brief: Lock and reset costmap layers
+    */
     void resetGlobalCostmap();
+
     void publishTrajectory();
 
     bool calculatePath();
+    
+    /*
+    @brief: These functions tries to pass the start and goal positions to the thetastar object
+            They return true if the points are not occupied
+    */
     bool setGoal();
     bool setStart();
 
-    //Input variables
+    /*              Class Variables                 */
     ros::NodeHandle nh_;
 
     visualization_msgs::MarkerArray markerTraj;
@@ -84,6 +153,26 @@ private:
     
     geometry_msgs::PoseStamped goalPoseStamped;
     geometry_msgs::Vector3Stamped goal;
+    
+    //Publishers and Subscribers
+    ros::Publisher trj_pub, vis_trj_pub;
+    ros::Subscriber goal_sub, global_costmap_sub;
+    
+    //Services servers
+    ros::ServiceServer global_replanning_service, reset_global_costmap_service;
+    
+    //ThetaStar object
+    ThetaStar gbPlanner;
+    
+    //tf buffer used to get the base_link position on the map(i.e. tf base_link-map)
+    tf2_ros::Buffer *tfBuffer;
+    
+    //Old tf1 used by the costmap wrapper
+    // tf::TransformListener *tf_list_ptr;
+    // costmap_2d::Costmap2DROS *global_costmap_ptr;
+    
+    std::unique_ptr<tf::TransformListener> tf_list_ptr;
+    std::unique_ptr<costmap_2d::Costmap2DROS> global_costmap_ptr;
 
     //Input parameters
     float map_resolution;
@@ -94,33 +183,22 @@ private:
     float goal_weight;
     float occ_threshold;
     float lof_distance;
-    
+
     float traj_dxy_max;
     float traj_pos_tol;
     float traj_yaw_tol;
 
-    string robot_base_frame, world_frame,node_name;
+    string robot_base_frame, world_frame, node_name;
 
     //Output variables
     int number_of_points;
     Trajectory trajectory;
-    //Control flags
-
-    bool globalGoalReceived;
-    bool showConfig,debug;
     
-    //Publishers and Subscribers
-    ros::Publisher trj_pub, vis_trj_pub;
-    ros::Subscriber goal_sub, global_costmap_sub;
-
-    ros::ServiceServer global_replanning_service,reset_global_costmap_service;
-    //tf buffer used to get the base_link position on the map(i.e. tf base_link-map)
-    tf2_ros::Buffer *tfBuffer;
-    //ThetaStar object
-    ThetaStar gbPlanner;
-
-    tf::TransformListener *tf_list_ptr;
-    costmap_2d::Costmap2DROS *global_costmap_ptr;
+    //Control flags
+    bool globalGoalReceived;
+    
+    //These two flags can be configured as parameters
+    bool showConfig, debug;
 
 }; //class GlobalPlanner
 

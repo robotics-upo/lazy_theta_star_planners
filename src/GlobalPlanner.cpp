@@ -10,8 +10,8 @@ GlobalPlanner::GlobalPlanner(tf2_ros::Buffer *tfBuffer_, string node_name_)
 {
     //The tf buffer is used to lookup the base link position(tf from world frame to robot base frame)
     tfBuffer = tfBuffer_;
-    tf_list_ptr = new tf::TransformListener(ros::Duration(5));
-    global_costmap_ptr = new costmap_2d::Costmap2DROS("global_costmap", *tf_list_ptr); //In ros kinetic the constructor uses tf instead of tf2 :(
+    tf_list_ptr.reset(new tf::TransformListener(ros::Duration(5)));
+    global_costmap_ptr.reset( new costmap_2d::Costmap2DROS("global_costmap", *tf_list_ptr)); //In ros kinetic the constructor uses tf instead of tf2 :(
     node_name = node_name_;
     configParams();
     configTopics();
@@ -19,17 +19,19 @@ GlobalPlanner::GlobalPlanner(tf2_ros::Buffer *tfBuffer_, string node_name_)
     //Pase parameters from configParams to thetastar object
     configTheta();
 }
-//!Experimental: Costmap object inside Planner
+
 bool GlobalPlanner::resetCostmapSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &rep)
 {
     resetGlobalCostmap();
     return true;
 }
 
-void GlobalPlanner::resetGlobalCostmap(){
-     //Lock costmap so others threads cannot modify it
+void GlobalPlanner::resetGlobalCostmap()
+{
+    //Lock costmap so others threads cannot modify it
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     global_costmap_ptr->resetLayers();
+    lock.unlock();
 }
 void GlobalPlanner::configTheta()
 {
@@ -53,7 +55,6 @@ void GlobalPlanner::configTopics()
     nh_.param("/global_planner_node/goal_topic", topicPath, (string) "/move_base_simple/goal");
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Goal input topic: %s", topicPath.c_str());
     goal_sub = nh_.subscribe<geometry_msgs::PoseStamped>(topicPath, 1, &GlobalPlanner::goalCb, this);
-
 }
 void GlobalPlanner::configServices()
 {
@@ -114,13 +115,14 @@ void GlobalPlanner::configParams()
 
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: ws_x_max,ws_y_max, map_resolution: [%.2f, %.2f, %.2f]", ws_x_max, ws_y_max, map_resolution);
     gbPlanner.loadMapParams(ws_x_max, ws_y_max, map_resolution);
-    gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
+    //gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
 }
 bool GlobalPlanner::replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
 {
     //Load the more recent map and calculate a new path
-
+    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
+    lock.unlock();
 
     rep.success = calculatePath();
     rep.message = "New Global Path Calculated";
@@ -151,6 +153,7 @@ void GlobalPlanner::goalCb(const geometry_msgs::PoseStamped::ConstPtr &goalMsg)
 
     globalGoalReceived = true;
     resetGlobalCostmap();
+    usleep(1e6);
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Goal received");
 }
 void GlobalPlanner::plan()
@@ -158,8 +161,9 @@ void GlobalPlanner::plan()
     //TODO: Control maps timeout when using non static maps, like global cosmtap with dynamics obstacles refreshing at low rate
     if (globalGoalReceived)
     {
+        boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
         gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
-
+        lock.unlock();
         bool path = calculatePath();
         ROS_INFO_COND(path, PRINTF_MAGENTA "Patch calculated");
         //Reset flag and wait for a new goal
@@ -175,7 +179,14 @@ bool GlobalPlanner::calculatePath()
     {
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal and start successfull set");
         // Path calculation
+        struct timeb start, finish;
+        ftime(&start);
         number_of_points = gbPlanner.computePath();
+        ftime(&finish);
+        float seconds, milliseconds;
+        seconds = finish.time - start.time - 1;
+        milliseconds = (1000 - start.millitm) + finish.millitm;
+        ROS_INFO(PRINTF_YELLOW "Time Spent in Global Path Calculation: %f ms", milliseconds + seconds*1000);
 
         if (number_of_points > 0)
         {
@@ -263,7 +274,7 @@ void GlobalPlanner::publishTrajectory()
 }
 bool GlobalPlanner::setGoal()
 {
-    bool ret=false;
+    bool ret = false;
     if (gbPlanner.setValidFinalPosition(goal.vector))
     {
         ret = true;
@@ -276,7 +287,7 @@ bool GlobalPlanner::setGoal()
 }
 bool GlobalPlanner::setStart()
 {
-    bool ret=false;
+    bool ret = false;
     geometry_msgs::Vector3Stamped start;
     start.vector.x = getRobotPose().transform.translation.x;
     start.vector.y = getRobotPose().transform.translation.y;
