@@ -1,0 +1,71 @@
+costmap:
+
+  height: 6
+  width: 6
+  
+  origin_x: -3
+  origin_y: -3
+  
+  footprint: '[[0.15,0.15],[-0.15,0.15],[-0.15,-0.15],[0.15,-0.15]]'
+  footprint_padding: 0.35 #0.55 es mas conservador 
+  robot_radius: 0.55
+  publish_frequency: 40.0
+  update_frequency: 40.0
+  resolution: 0.05
+  transform_tolerance: 0.5
+
+  robot_base_frame: base_link
+  map_type: costmap
+  global_frame: map
+
+  rolling_window: true
+  static_map: false
+  subscribe_to_updates: false
+  always_send_full_costmap: true
+  
+  inflation_layer: 
+    cost_scaling_factor: 0.5
+    enabled: true
+    inflate_unknown: false
+    inflation_radius: 2.0
+
+  obstacle_layer:
+    combination_method: 1
+    enabled: true
+    max_obstacle_height: 2.0
+    footprint_clearing_enabled: true
+    #obstacle_range: 6
+    #raytrace_range: 31
+    observation_sources: laser_scan_sensor #fused_cameras #laser_scan_sensor_back # front_camera right_camera left_camera  
+   
+    laser_scan_sensor: {clearing: true, data_type: LaserScan, expected_update_rate: 0.1,observation_persistence: 0.0,
+      marking: true, sensor_frame: base_link, topic: /scanMulti, raytrace_range: 31, obstacle_range: 6}
+   
+    laser_scan_sensor_back: {clearing: true, data_type: LaserScan, expected_update_rate: 0.015,observation_persistence: 0.0,
+      marking: true, sensor_frame: back_laser_link, topic: /scanBackFiltered, raytrace_range: 31, obstacle_range: 6}
+   
+    fused_cameras: {clearing: true, data_type: LaserScan, expected_update_rate: 0.1,
+      marking: true, sensor_frame: base_link, topic: /scanCams, raytrace_range: 2, obstacle_range: 2}
+   
+    front_camera: {clearing: true, data_type: LaserScan, expected_update_rate: 0.1, observation_persistence: 0,
+      marking: true, sensor_frame: camera_front_link, topic: /depthcamscan_node/scanFrontCamera, raytrace_range: 2, obstacle_range: 2}
+   
+    left_camera: {clearing: true, data_type: LaserScan, expected_update_rate: 0.1,observation_persistence: 0,
+      marking: true, sensor_frame: camera_left_link, topic: /depthcamscan_node/scanLeftCamera,  raytrace_range: 2, obstacle_range: 2}
+   
+    right_camera: {clearing: true, data_type: LaserScan, expected_update_rate: 0.1,observation_persistence: 0,
+      marking: true, sensor_frame: camera_right_link, topic: /depthcamscan_node/scanRightCamera,  raytrace_range: 2, obstacle_range: 2}
+
+  plugins:
+  - {name: obstacle_layer, type: 'costmap_2d::ObstacleLayer'}
+  - {name: inflation_layer, type: 'costmap_2d::InflationLayer'}
+  - {name: social_layer,    type: 'social_navigation_layers::ProxemicLayer'}
+  
+  social_layer:
+    cutoff: 100
+    amplitude: 254
+    covariance: 5
+    factor: 15
+    observation_sources: tracked_persons
+    tracked_persons: {data_type: TrackedPersons, sensor_frame: /map, topic: /people}
+    keep_time: 1

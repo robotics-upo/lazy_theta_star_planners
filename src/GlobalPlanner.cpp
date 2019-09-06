@@ -51,6 +51,9 @@ void GlobalPlanner::configTopics()
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Visualization marker trajectory output topic: %s", topicPath.c_str());
     vis_trj_pub = nh_.advertise<visualization_msgs::MarkerArray>(topicPath, 0);
 
+    nh_.param("/global_planner_node/replan_status_topic", topicPath, (string) "global_planner_node/replanning_status");
+    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Replanning status topic: %s", topicPath.c_str());
+    replan_status_pub = nh_.advertise<std_msgs::Bool>(topicPath,0);
     //goal input topic
     nh_.param("/global_planner_node/goal_topic", topicPath, (string) "/move_base_simple/goal");
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Goal input topic: %s", topicPath.c_str());
@@ -61,6 +64,9 @@ void GlobalPlanner::configServices()
     global_replanning_service = nh_.advertiseService("/global_planner_node/global_replanning_service", &GlobalPlanner::replanningSrvCb, this);
 
     reset_global_costmap_service = nh_.advertiseService("/global_planner_node/reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
+
+    recovery_rot_srv_client = nh_.serviceClient<std_srvs::Trigger>("/nav_node/rotate_server");
+
 }
 //This function gets parameter from param server at startup if they exists, if not it passes default values
 void GlobalPlanner::configParams()
@@ -120,12 +126,18 @@ void GlobalPlanner::configParams()
 bool GlobalPlanner::replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
 {
     //Load the more recent map and calculate a new path
+    resetGlobalCostmap();
+    usleep(1e6);
+
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
     lock.unlock();
 
     rep.success = calculatePath();
     rep.message = "New Global Path Calculated";
+    
+    flg_replan_status.data = true;
+    replan_status_pub.publish(flg_replan_status);
 
     if (!rep.success)
         rep.message = "New Global Path not Possible";
@@ -153,7 +165,7 @@ void GlobalPlanner::goalCb(const geometry_msgs::PoseStamped::ConstPtr &goalMsg)
 
     globalGoalReceived = true;
     resetGlobalCostmap();
-    usleep(1e6);
+    usleep(5e5);
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Goal received");
 }
 void GlobalPlanner::plan()
@@ -164,10 +176,16 @@ void GlobalPlanner::plan()
         boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
         gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
         lock.unlock();
+
         bool path = calculatePath();
         ROS_INFO_COND(path, PRINTF_MAGENTA "Patch calculated");
         //Reset flag and wait for a new goal
-        globalGoalReceived = false;
+        if(path){
+            globalGoalReceived = false;
+            ROS_INFO("global goal received to false: succesfully calculated trajectory");
+        }else{
+            ROS_INFO("Trying again to calcualte global path");
+        }
     }
 }
 bool GlobalPlanner::calculatePath()
@@ -175,7 +193,17 @@ bool GlobalPlanner::calculatePath()
     //It seems that you can get a goal and no map and try to get a path but setGoal and setStart will check if the points are valid
     //so if there is no map received it won't calculate a path
     bool ret = false;
-    if (setGoal() && setStart())
+    bool startOk = false;
+    if(!setStart()){
+        ROS_INFO(PRINTF_MAGENTA "Global Planner: Searching around initial position a free one");
+        if(gbPlanner.searchInitialPosition2d(0.3)){
+            startOk = true;
+            ROS_INFO(PRINTF_MAGENTA "Global Planner: Found a free initial position");
+        }
+    }else{
+        startOk=true;
+    }
+    if (setGoal() && startOk)
     {
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal and start successfull set");
         // Path calculation
@@ -193,6 +221,19 @@ bool GlobalPlanner::calculatePath()
             ROS_INFO_COND(debug, PRINTF_MAGENTA "Publishing trajectory, %d", number_of_points);
             publishTrajectory();
             ret = true;
+            countImpossible = 0;
+            if(flg_replan_status.data){
+                flg_replan_status.data = false;
+                replan_status_pub.publish(flg_replan_status);
+            }
+        }else{
+            countImpossible++;
+            if(countImpossible == 3){
+                std_srvs::Trigger trg;
+                recovery_rot_srv_client.call(trg);
+                sleep(10);//TODO: Improve, search for elegant solution
+                countImpossible=0;
+            }
         }
     }
     return ret;

@@ -21,6 +21,7 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Transform.h>
+#include <std_msgs/Bool.h>
 
 #include <tf2_ros/transform_listener.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -155,12 +156,12 @@ private:
     geometry_msgs::Vector3Stamped goal;
     
     //Publishers and Subscribers
-    ros::Publisher trj_pub, vis_trj_pub;
+    ros::Publisher trj_pub, vis_trj_pub,replan_status_pub;
     ros::Subscriber goal_sub, global_costmap_sub;
     
     //Services servers
     ros::ServiceServer global_replanning_service, reset_global_costmap_service;
-    
+    ros::ServiceClient recovery_rot_srv_client;
     //ThetaStar object
     ThetaStar gbPlanner;
     
@@ -173,6 +174,8 @@ private:
     
     std::unique_ptr<tf::TransformListener> tf_list_ptr;
     std::unique_ptr<costmap_2d::Costmap2DROS> global_costmap_ptr;
+
+    std_msgs::Bool flg_replan_status;
 
     //Input parameters
     float map_resolution;
@@ -199,6 +202,8 @@ private:
     
     //These two flags can be configured as parameters
     bool showConfig, debug;
+
+    int countImpossible = 0;
 
 }; //class GlobalPlanner
 

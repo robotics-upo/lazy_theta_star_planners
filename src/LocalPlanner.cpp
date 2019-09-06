@@ -81,6 +81,8 @@ void LocalPlanner::configServices()
     replanning_client_srv = nh_.serviceClient<std_srvs::Trigger>("/global_planner_node/global_replanning_service");
     costmap_clean_srv = nh_.serviceClient<std_srvs::Trigger>("/custom_costmap_node/reset_costmap");
 
+    stop_nav_client_srv = nh_.serviceClient<std_srvs::Trigger>("/nav_node/pause_navigation_srv");
+
     stop_planning_srv = nh_.advertiseService("/local_planner_node/stop_planning_srv", &LocalPlanner::stopPlanningSrvCb, this);
     pause_planning_srv = nh_.advertiseService("/local_planner_node/pause_planning_srv", &LocalPlanner::pausePlanningSrvCb, this);
 }
@@ -97,7 +99,7 @@ void LocalPlanner::configTopics()
 
     string topicPath;
     //First Subscribers
-    nh_.param("/local_planner_node/local_costmap_topic", topicPath, (string) "/costmap_2d_local/costmap/costmap");
+    nh_.param("/local_planner_node/local_costmap_topic", topicPath, (string) "/custom_costmap_node/costmap/costmap");
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Local Costmap Topic: %s", topicPath.c_str());
     local_map_sub = nh_.subscribe<nav_msgs::OccupancyGrid>(topicPath, 1, &LocalPlanner::localCostMapCb, this);
 
@@ -194,10 +196,9 @@ void LocalPlanner::globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::C
     doPlan = true; //Restore the doPlan flag because we get a new trajectory do a new goal
 
     //Also clean the local costmap 
-
     std_srvs::Trigger trg;
     costmap_clean_srv.call(trg);
-    usleep(1e6);
+    usleep(5e5);
 
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received global trajectory");
 }
@@ -304,22 +305,27 @@ void LocalPlanner::plan()
                     impossible_calculate.data = false;
                     impossible_to_find_sol_pub.publish(impossible_calculate);
                     impossibleCnt = 0;
+                    std_srvs::Trigger trg;
+                    stop_nav_client_srv.call(trg);
                 }
             }
             else if (!occ.data)
             {
                 impossibleCnt++;
                 //ROS_INFO("Local: +1 impossible");
-                if (impossibleCnt == 3)
+                if (impossibleCnt > 2)
                 {
 
                     impossible_calculate.data = true;
                     impossible_to_find_sol_pub.publish(impossible_calculate);
 
                     ROS_WARN("Requesting new global path to same global goal, %d", impossibleCnt);
-                    std_srvs::Trigger srv;
+                    std_srvs::Trigger srv,stop_nav;
                     replanning_client_srv.call(srv);
-
+                    
+                    if(impossibleCnt == 3)
+                        stop_nav_client_srv.call(stop_nav);
+                    
                     if (srv.response.success)
                     {
                         impossibleCnt = 0;

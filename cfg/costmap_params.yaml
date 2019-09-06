@@ -15,8 +15,8 @@ global_planner_node:
       transform_tolerance: 1
       resolution: 0.05
 
-      robot_radius: 0.50
-
+      robot_radius: 0.50 #0.4
+      #footprint_padding: 0.25
       obstacle_layer:
          combination_method: 1
          enabled: true
@@ -27,7 +27,7 @@ global_planner_node:
          observation_sources: scan_multi 
 
          scan_multi: {clearing: true, data_type: LaserScan, expected_update_rate: 0.5, observation_persistence: 1.0,
-            marking: true, sensor_frame: base_link, topic: /scanReMulti, raytrace_range: 31, obstacle_range: 6}
+            marking: true, sensor_frame: base_link, topic: /scanMulti, raytrace_range: 31, obstacle_range: 6}
          
       inflation_layer: 
          cost_scaling_factor: 1
