@@ -13,8 +13,6 @@ bool resetCostmapSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &r
 
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_ptr->getCostmap()->getMutex()));
     costmap_ptr->resetLayers();
-    rep.message="Custom costmap layers reseted";
-    rep.success = true;
     return true;
 }
 int main(int argc, char** argv){
@@ -23,8 +21,7 @@ int main(int argc, char** argv){
     ros::init(argc,argv,"custom_costmap_node");
     
     ros::NodeHandle n;
-    ros::ServiceServer reset_costmap_srv = n.advertiseService("/custom_costmap_node/reset_costmap", resetCostmapSrv);
-
+    ros::ServiceServer reset_costmap_svr = n.advertiseService("/custom_costmap_node/reset_costmap", resetCostmapSrv);
 
     tf::TransformListener tfListener(ros::Duration(5));
     costmap_2d::Costmap2DROS costmap("costmap", tfListener);
