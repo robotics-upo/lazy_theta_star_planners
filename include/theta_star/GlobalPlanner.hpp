@@ -28,7 +28,7 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 
 //Dynamic reconfigure auto generated libraries
 #include <dynamic_reconfigure/server.h>
-#include <theta_star_2d/globalPlannerConfig.h>
+#include <theta_star_2d/GlobalPlannerConfig.h>
 
 #include <ctime>
 #include <sys/timeb.h>
@@ -94,7 +94,7 @@ public:
     /* 
     @brief: Dynamic reconfiguration server callback declaration
     */
-    void dynReconfCb(theta_star_2d::globalPlannerConfig &config, uint32_t level);
+    void dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level);
 
 private:
     /*

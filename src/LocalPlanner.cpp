@@ -203,7 +203,7 @@ void LocalPlanner::globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::C
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received global trajectory");
 }
 
-void LocalPlanner::dynRecCb(theta_star_2d::localPlannerConfig &config, uint32_t level)
+void LocalPlanner::dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t level)
 {
     this->cost_weight = config.cost_weight;
     this->lof_distance = config.lof_distance;

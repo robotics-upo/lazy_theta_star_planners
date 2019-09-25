@@ -144,7 +144,7 @@ bool GlobalPlanner::replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::Tri
 
     return rep.success;
 }
-void GlobalPlanner::dynReconfCb(theta_star_2d::globalPlannerConfig &config, uint32_t level)
+void GlobalPlanner::dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level)
 {
     this->cost_weight = config.cost_weight;
     this->lof_distance = config.lof_distance;

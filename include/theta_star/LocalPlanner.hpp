@@ -34,7 +34,7 @@
 #include <trajectory_msgs/MultiDOFJointTrajectory.h>
 
 #include <dynamic_reconfigure/server.h>
-#include <theta_star_2d/localPlannerConfig.h>
+#include <theta_star_2d/LocalPlannerConfig.h>
 
 namespace PathPlanners
 {
@@ -60,7 +60,7 @@ public:
     //Used to know when to stop calculating local trajectories
     void goalReachedCb(const std_msgs::Bool::ConstPtr &data);
 
-    void dynRecCb(theta_star_2d::localPlannerConfig &config, uint32_t level);
+    void dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t level);
     bool stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep);
     bool pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep);
 

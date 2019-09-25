@@ -15,8 +15,8 @@ int main(int argc, char **argv)
     
     GlobalPlanner globalPlanner(&tfBuffer, node_name);
 
-    dynamic_reconfigure::Server<theta_star_2d::globalPlannerConfig> server;
-  	dynamic_reconfigure::Server<theta_star_2d::globalPlannerConfig>::CallbackType f;
+    dynamic_reconfigure::Server<theta_star_2d::GlobalPlannerConfig> server;
+  	dynamic_reconfigure::Server<theta_star_2d::GlobalPlannerConfig>::CallbackType f;
 
   	f = boost::bind(&GlobalPlanner::dynReconfCb,&globalPlanner,  _1, _2);
   	server.setCallback(f);

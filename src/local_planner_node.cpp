@@ -14,8 +14,8 @@ int main(int argc, char **argv)
     tf2_ros::TransformListener tfListener(tfBuffer);
     
     LocalPlanner lcPlanner(&tfBuffer);
-    dynamic_reconfigure::Server<theta_star_2d::localPlannerConfig> server;
-  	dynamic_reconfigure::Server<theta_star_2d::localPlannerConfig>::CallbackType f;
+    dynamic_reconfigure::Server<theta_star_2d::LocalPlannerConfig> server;
+  	dynamic_reconfigure::Server<theta_star_2d::LocalPlannerConfig>::CallbackType f;
 
   	f = boost::bind(&LocalPlanner::dynRecCb,&lcPlanner,  _1, _2);
   	server.setCallback(f);
