@@ -8,17 +8,30 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   tf
   costmap_2d
+  message_generation
+  geometry_msgs
+  trajectory_msgs
 )
 generate_dynamic_reconfigure_options(
   cfg/LocalPlanner.cfg
   cfg/GlobalPlanner.cfg
   cfg/sim.cfg
 )
+
+add_service_files(
+  FILES
+  GoalCmd.srv
+)
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  geometry_msgs
+  trajectory_msgs
+)
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS roscpp
+  CATKIN_DEPENDS roscpp message_runtime
 )
-
 ###########
 ## Build ##
 ###########

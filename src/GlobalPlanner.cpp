@@ -11,7 +11,7 @@ GlobalPlanner::GlobalPlanner(tf2_ros::Buffer *tfBuffer_, string node_name_)
     //The tf buffer is used to lookup the base link position(tf from world frame to robot base frame)
     tfBuffer = tfBuffer_;
     tf_list_ptr.reset(new tf::TransformListener(ros::Duration(5)));
-    global_costmap_ptr.reset( new costmap_2d::Costmap2DROS("global_costmap", *tf_list_ptr)); //In ros kinetic the constructor uses tf instead of tf2 :(
+    global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", *tf_list_ptr)); //In ros kinetic the constructor uses tf instead of tf2 :(
     node_name = node_name_;
     configParams();
     configTopics();
@@ -53,11 +53,14 @@ void GlobalPlanner::configTopics()
 
     nh_.param("/global_planner_node/replan_status_topic", topicPath, (string) "global_planner_node/replanning_status");
     ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Replanning status topic: %s", topicPath.c_str());
-    replan_status_pub = nh_.advertise<std_msgs::Bool>(topicPath,0);
+    replan_status_pub = nh_.advertise<std_msgs::Bool>(topicPath, 0);
     //goal input topic
-    nh_.param("/global_planner_node/goal_topic", topicPath, (string) "/move_base_simple/goal");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Goal input topic: %s", topicPath.c_str());
-    goal_sub = nh_.subscribe<geometry_msgs::PoseStamped>(topicPath, 1, &GlobalPlanner::goalCb, this);
+    //nh_.param("/global_planner_node/goal_topic", topicPath, (string) "/move_base_simple/goal");
+    //ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Goal input topic: %s", topicPath.c_str());
+    bool use_goal_srv;
+    nh_.param("/global_planner_node/use_goal_srvs", use_goal_srv, (bool)1);
+    if (!use_goal_srv)
+        goal_sub = nh_.subscribe<geometry_msgs::PoseStamped>(topicPath, 1, &GlobalPlanner::goalCb, this);
 }
 void GlobalPlanner::configServices()
 {
@@ -65,8 +68,9 @@ void GlobalPlanner::configServices()
 
     reset_global_costmap_service = nh_.advertiseService("/global_planner_node/reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
 
-    recovery_rot_srv_client = nh_.serviceClient<std_srvs::Trigger>("/nav_node/rotate_server");
+    plan_request_service = nh_.advertiseService("/global_planner_node/plan", &GlobalPlanner::makePlanSrvCb, this);
 
+    recovery_rot_srv_client = nh_.serviceClient<std_srvs::Trigger>("/nav_node/rotate_server");
 }
 //This function gets parameter from param server at startup if they exists, if not it passes default values
 void GlobalPlanner::configParams()
@@ -123,6 +127,30 @@ void GlobalPlanner::configParams()
     gbPlanner.loadMapParams(ws_x_max, ws_y_max, map_resolution);
     //gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
 }
+bool GlobalPlanner::makePlanSrvCb(theta_star_2d::GoalCmdRequest &req, theta_star_2d::GoalCmdResponse &resp)
+{
+    globalGoalReceived = true;
+    goalPoseStamped = req.pose;
+    goal.vector.x = req.pose.pose.position.x;
+    goal.vector.y = req.pose.pose.position.y;
+    goal.header = req.header;
+
+    resp.success = calculatePath();
+
+    if (resp.success)
+    {
+        geometry_msgs::Pose pose_temp;
+        for (auto it = trajectory.points.begin(); it != trajectory.points.end(); ++it)
+        {
+            pose_temp.position.x = it->transforms[0].translation.x;
+            pose_temp.position.y = it->transforms[0].translation.y;
+            pose_temp.position.z = it->transforms[0].translation.z;
+            pose_temp.orientation = it->transforms[0].rotation;
+            resp.path.push_back(pose_temp);
+        }
+    }
+    return resp.success;
+}
 bool GlobalPlanner::replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
 {
     //Load the more recent map and calculate a new path
@@ -135,7 +163,7 @@ bool GlobalPlanner::replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::Tri
 
     rep.success = calculatePath();
     rep.message = "New Global Path Calculated";
-    
+
     flg_replan_status.data = true;
     replan_status_pub.publish(flg_replan_status);
 
@@ -180,10 +208,13 @@ void GlobalPlanner::plan()
         bool path = calculatePath();
         ROS_INFO_COND(path, PRINTF_MAGENTA "Patch calculated");
         //Reset flag and wait for a new goal
-        if(path){
+        if (path)
+        {
             globalGoalReceived = false;
             ROS_INFO("global goal received to false: succesfully calculated trajectory");
-        }else{
+        }
+        else
+        {
             ROS_INFO("Trying again to calcualte global path");
         }
     }
@@ -194,14 +225,18 @@ bool GlobalPlanner::calculatePath()
     //so if there is no map received it won't calculate a path
     bool ret = false;
     bool startOk = false;
-    if(!setStart()){
+    if (!setStart())
+    {
         ROS_INFO(PRINTF_MAGENTA "Global Planner: Searching around initial position a free one");
-        if(gbPlanner.searchInitialPosition2d(0.3)){
+        if (gbPlanner.searchInitialPosition2d(0.3))
+        {
             startOk = true;
             ROS_INFO(PRINTF_MAGENTA "Global Planner: Found a free initial position");
         }
-    }else{
-        startOk=true;
+    }
+    else
+    {
+        startOk = true;
     }
     if (setGoal() && startOk)
     {
@@ -214,7 +249,7 @@ bool GlobalPlanner::calculatePath()
         float seconds, milliseconds;
         seconds = finish.time - start.time - 1;
         milliseconds = (1000 - start.millitm) + finish.millitm;
-        ROS_INFO(PRINTF_YELLOW "Time Spent in Global Path Calculation: %f ms", milliseconds + seconds*1000);
+        ROS_INFO(PRINTF_YELLOW "Time Spent in Global Path Calculation: %f ms", milliseconds + seconds * 1000);
 
         if (number_of_points > 0)
         {
@@ -222,17 +257,21 @@ bool GlobalPlanner::calculatePath()
             publishTrajectory();
             ret = true;
             countImpossible = 0;
-            if(flg_replan_status.data){
+            if (flg_replan_status.data)
+            {
                 flg_replan_status.data = false;
                 replan_status_pub.publish(flg_replan_status);
             }
-        }else{
+        }
+        else
+        {
             countImpossible++;
-            if(countImpossible == 3){
+            if (countImpossible == 3)
+            {
                 std_srvs::Trigger trg;
                 recovery_rot_srv_client.call(trg);
-                sleep(10);//TODO: Improve, search for elegant solution
-                countImpossible=0;
+                sleep(10); //TODO: Improve, search for elegant solution
+                countImpossible = 0;
             }
         }
     }

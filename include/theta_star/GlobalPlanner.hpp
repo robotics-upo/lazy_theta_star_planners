@@ -36,6 +36,8 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <costmap_2d/costmap_2d.h>
 #include <costmap_2d/costmap_2d_ros.h>
 
+#include <theta_star_2d/GoalCmd.h>
+
 struct ReportElement
 {
     trajectory_msgs::MultiDOFJointTrajectory trajectory;
@@ -101,6 +103,8 @@ private:
     @brief: goal topic callback 
     */
     void goalCb(const geometry_msgs::PoseStamped::ConstPtr &goalMsg);
+    
+    bool makePlanSrvCb(theta_star_2d::GoalCmdRequest &req, theta_star_2d::GoalCmdResponse &resp);
     /*
     @brief: Service servers callback for replanning, it takes the same goal and launch the planner again with the more recent costmap
     */
@@ -160,7 +164,7 @@ private:
     ros::Subscriber goal_sub, global_costmap_sub;
     
     //Services servers
-    ros::ServiceServer global_replanning_service, reset_global_costmap_service;
+    ros::ServiceServer global_replanning_service, reset_global_costmap_service, plan_request_service;
     ros::ServiceClient recovery_rot_srv_client;
     //ThetaStar object
     ThetaStar gbPlanner;
