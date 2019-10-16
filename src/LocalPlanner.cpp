@@ -85,58 +85,89 @@ void LocalPlanner::configServices()
 
     stop_planning_srv = nh_.advertiseService("/local_planner_node/stop_planning_srv", &LocalPlanner::stopPlanningSrvCb, this);
     pause_planning_srv = nh_.advertiseService("/local_planner_node/pause_planning_srv", &LocalPlanner::pausePlanningSrvCb, this);
+
+    arrived_to_goal_srv = nh_.serviceClient<std_srvs::Empty>("/trajectory_tracker/arrived_to_goal", &LocalPlanner::arrivedToGoalSrvCb);
+
+    plan_server_ptr.reset(new ActionServer(nh_, "Execute_Plan", false));
+    plan_server_ptr->registerGoalCallback(boost::bind(&LocalPlanner::actionGoalServerCB,this));
+    plan_server_ptr->registerPreemptCallback(boost::bind(&LocalPlanner::actionPreemptCB,this));
+    plan_server_ptr->start();
+}
+ void LocalPlanner::actionPreemptCB()
+  {
+    ROS_INFO("Goal Preempted");
+    // set the action state to preempted
+    plan_server_ptr->setPreempted();
+  }
+void LocalPlanner::actionGoalServerCB()  // Note: "Action" is not appended to exe here
+{
+    ROS_INFO_COND(debug,"Local Planner Goal received in action server mode");
+    theta_star_2d::ExecutePathGoalConstPtr path_shared_ptr; 
+    path_shared_ptr = plan_server_ptr->acceptNewGoal();
+    
+    globalTrajReceived = true;
+    doPlan = true;
+    startIter = 1;
+    
+    std_srvs::Trigger trg;
+    costmap_clean_srv.call(trg);
+    usleep(5e5);
+    
+    start_time = ros::Time::now();
+    trajectory_msgs::MultiDOFJointTrajectory trj;
+    trajectory_msgs::MultiDOFJointTrajectoryPoint pt;
+    geometry_msgs::Transform trf;
+    
+    trj.header.frame_id = world_frame;
+    trj.header.stamp = ros::Time::now();
+    
+    for(auto it=path_shared_ptr->path.begin(); it!=path_shared_ptr->path.end(); it++){
+    
+        trf.translation.x = it->position.x;
+        trf.translation.y = it->position.y;
+        trf.translation.z = it->position.z;
+        trf.rotation = it->orientation;
+        pt.transforms.push_back(trf);
+        trj.points.push_back(pt);
+    }
+    globalTrajectory = trj;
+        
 }
 void LocalPlanner::configTheta()
 {
     string node_name = "local_planner_node";
     lcPlanner.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, &nh_);
-    lcPlanner.setTimeOut(20);
+    lcPlanner.setTimeOut(1);
     lcPlanner.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Theta Star Configured");
 }
 void LocalPlanner::configTopics()
 {
+    local_map_sub = nh_.subscribe<nav_msgs::OccupancyGrid>("/custom_costmap_node/costmap/costmap", 1, &LocalPlanner::localCostMapCb, this);
 
-    string topicPath;
-    //First Subscribers
-    nh_.param("/local_planner_node/local_costmap_topic", topicPath, (string) "/custom_costmap_node/costmap/costmap");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Local Costmap Topic: %s", topicPath.c_str());
-    local_map_sub = nh_.subscribe<nav_msgs::OccupancyGrid>(topicPath, 1, &LocalPlanner::localCostMapCb, this);
+    global_trj_sub = nh_.subscribe<trajectory_msgs::MultiDOFJointTrajectory>("/trajectory_tracker/input_trajectory", 1, &LocalPlanner::globalTrjCb, this);
+    
+    dist2goal_sub = nh_.subscribe<std_msgs::Float32>("/dist2goal", 1, &LocalPlanner::dist2GoalCb, this);
+    trajectory_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>("/trajectory_tracker/local_input_trajectory", 0);
+    vis_marker_traj_pub = nh_.advertise<visualization_msgs::MarkerArray>("/local_planner_node/visualization_marker_trajectory", 0);
 
-    nh_.param("/local_planner_node/global_traj_topic", topicPath, (string) "/trajectory_tracker/input_trajectory");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Global Trajectory Topic: %s", topicPath.c_str());
-    global_trj_sub = nh_.subscribe<trajectory_msgs::MultiDOFJointTrajectory>(topicPath, 1, &LocalPlanner::globalTrjCb, this);
-    //Now publishers
+    local_planning_time = nh_.advertise<std_msgs::Int32>("/local_planning_time", 0);
 
-    nh_.param("/local_planner_node/local_trajectory_ouput_topic", topicPath, (string) "/trajectory_tracker/local_input_trajectory");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Trajectory output topic: %s", topicPath.c_str());
-    trajectory_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>(topicPath, 0);
+    inf_costmap_pub = nh_.advertise<nav_msgs::OccupancyGrid>("/local_costmap_inflated", 0);
 
-    nh_.param("/local_planner_node/local_trajectory_markers_topic", topicPath, (string) "/local_planner_node/visualization_marker_trajectory");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Visualization marker traj. output topic: %s", topicPath.c_str());
-    vis_marker_traj_pub = nh_.advertise<visualization_msgs::MarkerArray>(topicPath, 0);
+    running_state_pub = nh_.advertise<std_msgs::Bool>("/local_planner_node/running", 0);
+    occ_goal_pub = nh_.advertise<std_msgs::Bool>("/trajectory_tracker/local_goal_occupied", 0);
+    impossible_to_find_sol_pub = nh_.advertise<std_msgs::Bool>("/trajectory_tracker/impossible_to_find", 0);
+}
 
-    nh_.param("/local_planner_node/local_planning_time_topic", topicPath, (string) "/local_planning_time");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Local Planning time output topic: %s", topicPath.c_str());
-    local_planning_time = nh_.advertise<std_msgs::Int32>(topicPath, 0);
+bool LocalPlanner::arrivedToGoalSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &resp){
 
-    nh_.param("/local_planner_node/local_costmap_inflated_topic", topicPath, (string) "/local_costmap_inflated");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Local Costmap Inflated Borders output topic: %s", topicPath.c_str());
-    inf_costmap_pub = nh_.advertise<nav_msgs::OccupancyGrid>(topicPath, 0);
-
-    //Flags publishers
-
-    nh_.param("/local_planner_node/running_flag_topic", topicPath, (string) "/local_planner_node/running");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Running state output topic: %s", topicPath.c_str());
-    running_state_pub = nh_.advertise<std_msgs::Bool>(topicPath, 0);
-
-    nh_.param("/local_planner_node/occupied_goal_flag_topic", topicPath, (string) "/trajectory_tracker/local_goal_occupied");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Local goal occupied output topic: %s", topicPath.c_str());
-    occ_goal_pub = nh_.advertise<std_msgs::Bool>(topicPath, 0);
-
-    nh_.param("/local_planner_node/impossible_to_find_solution_topic_flag", topicPath, (string) "/trajectory_tracker/impossible_to_find");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Local Planner: Impossible to find solution output topic: %s", topicPath.c_str());
-    impossible_to_find_sol_pub = nh_.advertise<std_msgs::Bool>(topicPath, 0);
+    //If the path tracker call this service it means that the robot has arrived
+    action_result.arrived = true;
+    plan_server_ptr->setSucceeded();    
+}
+void LocalPlanner::dist2GoalCb(const std_msgs::Float32ConstPtr &dist){
+    d2goal = *dist;
 }
 bool LocalPlanner::stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
 {
@@ -218,6 +249,15 @@ void LocalPlanner::plan()
 
     running_state_pub.publish(is_running);
     number_of_points = 0; //Reset variable
+    
+    if(!plan_server_ptr->isActive())
+        return;
+
+    //Fill the feedback in each iteration
+    action_feedback.distance_to_goal = d2goal;
+    ros::Duration time_spent = (ros::Time::now() - start_time);
+    action_feedback.travel_time.data = time_spent.toSec();
+    plan_server_ptr->publishFeedback(action_feedback);
 
     ftime(&startT);
     if (globalTrajReceived && localCostMapReceived && doPlan)
