@@ -41,26 +41,9 @@ void GlobalPlanner::configTheta()
 }
 void GlobalPlanner::configTopics()
 {
-    //The topic where the trajectory message will be published
-    string topicPath;
-    nh_.param("/global_planner_node/traj_topic", topicPath, (string) "trajectory_tracker/input_trajectory");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Trajectory output topic: %s", topicPath.c_str());
-    trj_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>(topicPath, 0);
-    //Visualization topic for RViz marker
-    nh_.param("/global_planner_node/vis_marker_traj_topic", topicPath, (string) "global_planner_node/visualization_marker_trajectory");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Visualization marker trajectory output topic: %s", topicPath.c_str());
-    vis_trj_pub = nh_.advertise<visualization_msgs::MarkerArray>(topicPath, 0);
-
-    nh_.param("/global_planner_node/replan_status_topic", topicPath, (string) "global_planner_node/replanning_status");
-    ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Replanning status topic: %s", topicPath.c_str());
-    replan_status_pub = nh_.advertise<std_msgs::Bool>(topicPath, 0);
-    //goal input topic
-    //nh_.param("/global_planner_node/goal_topic", topicPath, (string) "/move_base_simple/goal");
-    //ROS_INFO_COND(showConfig, PRINTF_CYAN "\t Global Planner: Goal input topic: %s", topicPath.c_str());
-    bool use_goal_srv;
-    nh_.param("/global_planner_node/use_goal_srvs", use_goal_srv, (bool)1);
-    if (!use_goal_srv)
-        goal_sub = nh_.subscribe<geometry_msgs::PoseStamped>(topicPath, 1, &GlobalPlanner::goalCb, this);
+    trj_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>( "trajectory_tracker/input_trajectory", 0);
+    vis_trj_pub = nh_.advertise<visualization_msgs::MarkerArray>("global_planner_node/visualization_marker_trajectory", 0);
+    replan_status_pub = nh_.advertise<std_msgs::Bool>("global_planner_node/replanning_status", 0);  
 }
 void GlobalPlanner::configServices()
 {
@@ -71,6 +54,11 @@ void GlobalPlanner::configServices()
     plan_request_service = nh_.advertiseService("/global_planner_node/plan", &GlobalPlanner::makePlanSrvCb, this);
 
     recovery_rot_srv_client = nh_.serviceClient<std_srvs::Trigger>("/nav_node/rotate_server");
+
+    action_client_ptr.reset(new ActionClient("Execute_Plan", true));
+    //action_client_ptr->waitForServer();
+    ROS_INFO_COND(debug, "Action client from global planner ready");
+
 }
 //This function gets parameter from param server at startup if they exists, if not it passes default values
 void GlobalPlanner::configParams()
@@ -135,11 +123,17 @@ bool GlobalPlanner::makePlanSrvCb(theta_star_2d::GoalCmdRequest &req, theta_star
     goal.vector.y = req.pose.pose.position.y;
     goal.header = req.header;
 
+    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
+    gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
+    lock.unlock();
+    ROS_INFO_COND(debug, "Called make plan srv");
     resp.success = calculatePath();
 
     if (resp.success)
     {
+        ROS_INFO_COND(debug, "Succesfully calculated path");
         geometry_msgs::Pose pose_temp;
+        std::vector<geometry_msgs::Pose> path;
         for (auto it = trajectory.points.begin(); it != trajectory.points.end(); ++it)
         {
             pose_temp.position.x = it->transforms[0].translation.x;
@@ -147,15 +141,27 @@ bool GlobalPlanner::makePlanSrvCb(theta_star_2d::GoalCmdRequest &req, theta_star
             pose_temp.position.z = it->transforms[0].translation.z;
             pose_temp.orientation = it->transforms[0].rotation;
             resp.path.push_back(pose_temp);
+            path.push_back(pose_temp);
+
         }
+        sendPathToLocalPlannerServer(path);
+       
     }
+     globalGoalReceived = false;
     return resp.success;
+}
+void GlobalPlanner::sendPathToLocalPlannerServer(std::vector<geometry_msgs::Pose> path_){
+    //Take the calculated path, insert it into an action, in the goal (ExecutePath.action)
+    theta_star_2d::ExecutePathGoal goal_action;     
+    goal_action.path = path_;
+    action_client_ptr->sendGoal(goal_action);
+    
 }
 bool GlobalPlanner::replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
 {
     //Load the more recent map and calculate a new path
     resetGlobalCostmap();
-    usleep(1e6);
+    usleep(5e5);
 
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
