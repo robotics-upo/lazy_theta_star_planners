@@ -1,0 +1,10 @@
+# Define the goal
+geometry_msgs/Pose[] path  # Specify which dishwasher we want to use
+---
+# Define the result
+bool arrived
+---
+# Define a feedback message
+std_msgs/Float32 distance_to_goal
+std_msgs/UInt8 global_waypoint 
+std_msgs/Float64 travel_time
