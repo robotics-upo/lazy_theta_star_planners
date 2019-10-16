@@ -36,11 +36,16 @@
 #include <dynamic_reconfigure/server.h>
 #include <theta_star_2d/LocalPlannerConfig.h>
 
+
+#include <actionlib/server/simple_action_server.h>
+#include <theta_star_2d/ExecutePathAction.h>
+#include <std_srvs/Empty.h>
+#include <std_msgs/Float32.h>
 namespace PathPlanners
 {
 class LocalPlanner : public ThetaStar
 {
-
+typedef actionlib::SimpleActionServer<theta_star_2d::ExecutePathAction> ActionServer;
 public:
     /*
         Default constructor    
@@ -63,7 +68,12 @@ public:
     void dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t level);
     bool stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep);
     bool pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep);
+  
 
+    bool arrivedToGoalSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &resp);
+    void actionGoalServerCB();
+    void actionPreemptCB();
+    void dist2GoalCb(const std_msgs::Float32ConstPtr &dist);
 private:
     //These functions gets parameters from param server at startup if they exists, if not it passes default values
     void configParams();
@@ -90,9 +100,9 @@ private:
 
     //Variables
     ros::NodeHandle nh_;
-    ros::ServiceClient replanning_client_srv, costmap_clean_srv, stop_nav_client_srv;
+    ros::ServiceClient replanning_client_srv, costmap_clean_srv, stop_nav_client_srv,arrived_to_goal_srv;
     ros::ServiceServer stop_planning_srv,pause_planning_srv;
-    ros::Subscriber local_map_sub, goal_reached_sub, global_goal_sub, global_trj_sub;
+    ros::Subscriber local_map_sub, goal_reached_sub, global_goal_sub, global_trj_sub, dist2goal_sub;
     //TODO: Replace global goal publisher used to request a new global trajectory by a Service call
     //Not much sense that local planner publishes global goals
     ros::Publisher trajectory_pub, vis_marker_traj_pub, global_goal_pub, local_planning_time,inf_costmap_pub;
@@ -155,7 +165,13 @@ private:
     bool startOk;
     bool debug;
     float seconds, milliseconds;
+    //action server stufff
+    std::unique_ptr<actionlib::SimpleActionServer<theta_star_2d::ExecutePathAction>> plan_server_ptr;
+    theta_star_2d::ExecutePathFeedback action_feedback;
+    theta_star_2d::ExecutePathResult action_result;
 
+    ros::Time start_time;
+    std_msgs::Float32 d2goal;
 };
 
 } // namespace PathPlanners
