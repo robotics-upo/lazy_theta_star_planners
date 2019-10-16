@@ -165,6 +165,7 @@ bool LocalPlanner::arrivedToGoalSrvCb(std_srvs::EmptyRequest &req, std_srvs::Emp
     //If the path tracker call this service it means that the robot has arrived
     action_result.arrived = true;
     plan_server_ptr->setSucceeded();    
+    
 }
 void LocalPlanner::dist2GoalCb(const std_msgs::Float32ConstPtr &dist){
     d2goal = *dist;
@@ -175,7 +176,7 @@ bool LocalPlanner::stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::Tr
     globalTrajReceived = false;
     rep.message = "Waiting for a new global trajectory";
     rep.success = true;
-
+    plan_server_ptr->setAborted();
     return true;
 }
 bool LocalPlanner::pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
@@ -188,7 +189,7 @@ bool LocalPlanner::pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::T
         rep.message = "Planning paused";
 
     doPlan = !doPlan;
-
+    plan_server_ptr->setPreempted();
     return true;
 }
 //Calbacks and publication functions
@@ -259,6 +260,7 @@ void LocalPlanner::plan()
     ros::Duration time_spent = (ros::Time::now() - start_time);
     action_feedback.travel_time.data = time_spent.toSec();
     plan_server_ptr->publishFeedback(action_feedback);
+
 
     ftime(&startT);
     if (globalTrajReceived && localCostMapReceived && doPlan)
