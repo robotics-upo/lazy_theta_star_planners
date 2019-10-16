@@ -86,7 +86,7 @@ void LocalPlanner::configServices()
     stop_planning_srv = nh_.advertiseService("/local_planner_node/stop_planning_srv", &LocalPlanner::stopPlanningSrvCb, this);
     pause_planning_srv = nh_.advertiseService("/local_planner_node/pause_planning_srv", &LocalPlanner::pausePlanningSrvCb, this);
 
-    arrived_to_goal_srv = nh_.serviceClient<std_srvs::Empty>("/trajectory_tracker/arrived_to_goal", &LocalPlanner::arrivedToGoalSrvCb);
+    arrived_to_goal_srv = nh_.advertiseService("/local_plaanner_node/arrived_to_goal", &LocalPlanner::arrivedToGoalSrvCb, this);
 
     plan_server_ptr.reset(new ActionServer(nh_, "Execute_Plan", false));
     plan_server_ptr->registerGoalCallback(boost::bind(&LocalPlanner::actionGoalServerCB,this));
@@ -255,6 +255,7 @@ void LocalPlanner::plan()
 
     //Fill the feedback in each iteration
     action_feedback.distance_to_goal = d2goal;
+    action_feedback.global_waypoint.data = startIter;
     ros::Duration time_spent = (ros::Time::now() - start_time);
     action_feedback.travel_time.data = time_spent.toSec();
     plan_server_ptr->publishFeedback(action_feedback);
