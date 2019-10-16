@@ -100,8 +100,8 @@ private:
 
     //Variables
     ros::NodeHandle nh_;
-    ros::ServiceClient replanning_client_srv, costmap_clean_srv, stop_nav_client_srv,arrived_to_goal_srv;
-    ros::ServiceServer stop_planning_srv,pause_planning_srv;
+    ros::ServiceClient replanning_client_srv, costmap_clean_srv, stop_nav_client_srv;
+    ros::ServiceServer stop_planning_srv,pause_planning_srv, arrived_to_goal_srv;
     ros::Subscriber local_map_sub, goal_reached_sub, global_goal_sub, global_trj_sub, dist2goal_sub;
     //TODO: Replace global goal publisher used to request a new global trajectory by a Service call
     //Not much sense that local planner publishes global goals
