@@ -17,11 +17,3 @@ local_planner_node:
   world_frame: map
   robot_base_frame: base_link
 
-  #subscribing topics
-  global_traj_topic: /trajectory_tracker/input_trajectory
-  global_goal_topic: /move_base_simple/goal
-  local_costmap_topic: /custom_costmap_node/costmap/costmap
-  goal_reached_topic: /trajectory_tracker/local_goal_reached
-  #publishing topics
-  local_trajectory_output_topic: /trajectory_tracker/local_input_trajectory
-  local_trajectory_markers_topic: /local_planner_node/visualization_marker_trajectory
