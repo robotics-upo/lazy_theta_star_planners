@@ -38,6 +38,9 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 
 #include <theta_star_2d/GoalCmd.h>
 
+#include <actionlib/client/simple_action_client.h>
+#include <theta_star_2d/ExecutePathAction.h>
+
 struct ReportElement
 {
     trajectory_msgs::MultiDOFJointTrajectory trajectory;
@@ -79,7 +82,7 @@ namespace PathPlanners
 {
 class GlobalPlanner : public ThetaStar
 {
-
+typedef actionlib::SimpleActionClient<theta_star_2d::ExecutePathAction> ActionClient;
 public:
     //Default constructor
     GlobalPlanner(tf2_ros::Buffer *tfBuffer_, string node_name);
@@ -97,6 +100,7 @@ public:
     @brief: Dynamic reconfiguration server callback declaration
     */
     void dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level);
+    void sendPathToLocalPlannerServer(std::vector<geometry_msgs::Pose> path_);
 
 private:
     /*
@@ -208,6 +212,9 @@ private:
     bool showConfig, debug;
 
     int countImpossible = 0;
+
+    //Action client stuff
+    std::unique_ptr<ActionClient> action_client_ptr;
 
 }; //class GlobalPlanner
 
