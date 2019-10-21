@@ -43,6 +43,7 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 
 #include <upo_actions/ExecutePathAction.h>
 #include <upo_actions/MakePlanAction.h>
+#include <upo_actions/RotationInPlaceAction.h>
 
 struct ReportElement
 {
@@ -88,6 +89,7 @@ class GlobalPlanner : public ThetaStar
 
     typedef actionlib::SimpleActionClient<upo_actions::ExecutePathAction> ExecutePathClient;
     typedef actionlib::SimpleActionServer<upo_actions::MakePlanAction> MakePlanServer;
+    typedef actionlib::SimpleActionClient<upo_actions::RotationInPlaceAction> RotationInPlaceClient;
 
 public:
     //Default constructor
@@ -106,23 +108,17 @@ public:
     @brief: Dynamic reconfiguration server callback declaration
     */
     void dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level);
+   
+private:
+
     void sendPathToLocalPlannerServer(trajectory_msgs::MultiDOFJointTrajectory path_);
 
     //Action server
     void makePlanPreemptCB();
     void makePlanGoalCB();
 
-private:
     bool replan();
-    /*
-    @brief: goal topic callback 
-    */
-    void goalCb(const geometry_msgs::PoseStamped::ConstPtr &goalMsg);
 
-    /*
-    @brief: Service servers callback for replanning, it takes the same goal and launch the planner again with the more recent costmap
-    */
-    bool replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep);
     /*
     @brief: Calls the resetLayers() costmap_2d member function in order to clean old obstacles 
     */
@@ -213,6 +209,8 @@ private:
 
     //Output variables
     int number_of_points;
+    int nbrRotationsExec;
+    int seq;
     Trajectory trajectory;
 
     //Control flags
@@ -229,6 +227,16 @@ private:
     std::unique_ptr<MakePlanServer> make_plan_server_ptr;
     upo_actions::MakePlanFeedback make_plan_fb;
     upo_actions::MakePlanResult make_plan_res;
+
+    //
+    std::unique_ptr<RotationInPlaceClient> rot_in_place_client_ptr;
+    upo_actions::RotationInPlaceGoal rot_in_place_goal;
+
+    //
+    struct timeb start, finish;
+    float seconds, milliseconds;
+
+    ros::Time start_time;
 
 }; //class GlobalPlanner
 
