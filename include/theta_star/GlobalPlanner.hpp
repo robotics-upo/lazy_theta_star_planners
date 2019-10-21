@@ -36,8 +36,6 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <costmap_2d/costmap_2d.h>
 #include <costmap_2d/costmap_2d_ros.h>
 
-#include <theta_star_2d/GoalCmd.h>
-
 #include <actionlib/client/simple_action_client.h>
 #include <actionlib/server/simple_action_server.h>
 
