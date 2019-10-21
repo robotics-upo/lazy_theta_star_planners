@@ -1,16 +1,31 @@
 #include <ros/ros.h>
 #include <string>
 #include <geometry_msgs/PoseStamped.h>
-#include <theta_star_2d/GoalCmd.h>
+#include <upo_actions/MakePlanAction.h>
+#include <actionlib/client/simple_action_client.h>
 
+upo_actions::MakePlanActionGoal actionGoal;
 
-theta_star_2d::GoalCmd goal_cmd;
-std::unique_ptr<ros::ServiceClient> srv_client_ptr;
-bool goalRec;
-void goalCb(const geometry_msgs::PoseStampedConstPtr &goal){
-    goal_cmd.request.pose.pose = goal->pose;
+bool goalRec = false;
+bool goalRunning = false;
+int n = 0;
+
+void goalCb(const geometry_msgs::PoseStampedConstPtr &goal)
+{
+    ROS_INFO("Goal Interface: Sending action goal");
+    actionGoal.goal.global_goal = *goal;
+    actionGoal.goal_id.id = n++;
+    actionGoal.goal_id.stamp = ros::Time::now();
+
+    actionGoal.header.frame_id = "map";
+    actionGoal.header.seq = rand();
+    actionGoal.header.stamp = ros::Time::now();
+
     goalRec = true;
+    goalRunning = true;
+    
 }
+
 int main(int argc, char **argv)
 {
     /* 
@@ -18,26 +33,42 @@ int main(int argc, char **argv)
     *   It's useful to use when working with rviz for example if you want to test some features sending goals manually 
     */
 
-	std::string node_name = "action_goal_interface_node";
-	ros::init(argc, argv, node_name);
+    std::string node_name = "action_goal_interface_node";
+    ros::init(argc, argv, node_name);
     ros::NodeHandle n;
-    goalRec = false;
-    ros::Subscriber goal_sub = n.subscribe("/move_base_simple/goal", 1,goalCb);
-    ros::ServiceClient goal_srv = n.serviceClient<theta_star_2d::GoalCmd>("/global_planner_node/plan");
-    
-    goal_srv.waitForExistence();
-    
 
+    actionlib::SimpleActionClient<upo_actions::MakePlanAction> makePlanClient("Make_Plan", false);
+
+    ros::Subscriber goal_sub = n.subscribe("/move_base_simple/goal", 1, goalCb);
+    
     ros::Rate sleep_rate(10);
-    while(ros::ok()){
+    while (ros::ok())
+    {
         ros::spinOnce();
-        if(goalRec){
-            goal_srv.call(goal_cmd);
+        if (goalRec)
+        {
+            makePlanClient.sendGoal(actionGoal.goal);
             goalRec = false;
         }
+
+        
+        if (goalRunning)
+        {
+            ROS_INFO_THROTTLE(1, "Status: %s", makePlanClient.getState().toString().c_str());
+            if (makePlanClient.getState().isDone()){
+                goalRunning = false;
+                ROS_INFO("Done! :)");
+            }
+                
+        }
+        //if (!makePlanClient.isServerConnected())
+        //{
+        //    ROS_INFO("Server disconnected! :(, Waiting again for the server...");
+        //    makePlanClient.waitForServer();
+        //}
+
         sleep_rate.sleep();
     }
-    
 
     return 0;
 }
