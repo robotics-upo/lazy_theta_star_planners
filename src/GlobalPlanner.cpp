@@ -19,13 +19,11 @@ GlobalPlanner::GlobalPlanner(tf2_ros::Buffer *tfBuffer_, string node_name_)
     //Pase parameters from configParams to thetastar object
     configTheta();
 }
-
 bool GlobalPlanner::resetCostmapSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &rep)
 {
     resetGlobalCostmap();
     return true;
 }
-
 void GlobalPlanner::resetGlobalCostmap()
 {
     //Lock costmap so others threads cannot modify it
@@ -47,16 +45,14 @@ void GlobalPlanner::configTopics()
 }
 void GlobalPlanner::configServices()
 {
-    //global_replanning_service = nh_.advertiseService("/global_planner_node/global_replanning_service", &GlobalPlanner::replanningSrvCb, this);
-
     reset_global_costmap_service = nh_.advertiseService("/global_planner_node/reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
 
-    //plan_request_service = nh_.advertiseService("/global_planner_node/plan", &GlobalPlanner::makePlanSrvCb, this);
-
-    recovery_rot_srv_client = nh_.serviceClient<std_srvs::Trigger>("/nav_node/rotate_server");
-
+    rot_in_place_client_ptr.reset(new RotationInPlaceClient("Recovery_Rotation", true));
     execute_path_client_ptr.reset(new ExecutePathClient("Execute_Plan", true));
-    //action_client_ptr->waitForServer();
+    
+    //TODO: Removed the comments 
+    //execute_path_client_ptr->waitForServer();
+    //rot_in_place_client_ptr->waitForServer();
     ROS_INFO_COND(debug, "Action client from global planner ready");
 
     //MakePlan MAIN Server
@@ -66,48 +62,24 @@ void GlobalPlanner::configServices()
     make_plan_server_ptr->registerPreemptCallback(boost::bind(&GlobalPlanner::makePlanPreemptCB, this));
     make_plan_server_ptr->start();
 }
-void GlobalPlanner::makePlanGoalCB()
+void GlobalPlanner::dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level)
 {
-    goalRunning = true;
-    globalGoalReceived = true;
-    upo_actions::MakePlanGoalConstPtr goal_ptr = make_plan_server_ptr->acceptNewGoal();
+    this->cost_weight = config.cost_weight;
+    this->lof_distance = config.lof_distance;
+    this->goal_weight = config.goal_weight;
+    this->occ_threshold = config.occ_threshold;
 
-    goalPoseStamped = goal_ptr->global_goal;
-
-    goal.vector.x = goalPoseStamped.pose.position.x;
-    goal.vector.y = goalPoseStamped.pose.position.y;
-    goal.header = goalPoseStamped.header;
-
-    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
-    gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
-    lock.unlock();
-
-    ROS_INFO_COND(debug, "Called make plan srv");
-
-    //resp.success = calculatePath();
-
-    if (calculatePath())
-    {
-        ROS_INFO_COND(debug, "Succesfully calculated path");
-        sendPathToLocalPlannerServer(trajectory);
-    }
-    else
-    { // What if it isnt possible to calculate path?
-
-        make_plan_res.not_possible = true;
-        make_plan_server_ptr->setAborted(make_plan_res, "Impossible to calculate a solution");
-    }
-    globalGoalReceived = false;
-}
-void GlobalPlanner::makePlanPreemptCB()
-{
+    gbPlanner.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Dynamic reconfigure requested");
 }
 //This function gets parameter from param server at startup if they exists, if not it passes default values
 void GlobalPlanner::configParams()
 {
     //At startup, no goal and no costmap received yet
-    globalGoalReceived = false;
+    //globalGoalReceived = false;
     goalRunning = false;
+    nbrRotationsExec = 0;
+    seq = 0;
     //Get params from param server. If they dont exist give variables default values
     nh_.param("/global_planner_node/show_config", showConfig, (bool)0);
     nh_.param("/global_planner_node/debug", debug, (bool)0);
@@ -155,7 +127,6 @@ void GlobalPlanner::configParams()
 
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: ws_x_max,ws_y_max, map_resolution: [%.2f, %.2f, %.2f]", ws_x_max, ws_y_max, map_resolution);
     gbPlanner.loadMapParams(ws_x_max, ws_y_max, map_resolution);
-    //gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
 }
 void GlobalPlanner::sendPathToLocalPlannerServer(trajectory_msgs::MultiDOFJointTrajectory path_)
 {
@@ -164,26 +135,41 @@ void GlobalPlanner::sendPathToLocalPlannerServer(trajectory_msgs::MultiDOFJointT
     goal_action.path = path_;
     execute_path_client_ptr->sendGoal(goal_action);
 }
-bool GlobalPlanner::replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
+void GlobalPlanner::makePlanGoalCB()
 {
-    //Load the more recent map and calculate a new path
-    resetGlobalCostmap();
-    usleep(5e5);
+    goalRunning = true;
+    nbrRotationsExec = 0;
+    start_time = ros::Time::now();
+    upo_actions::MakePlanGoalConstPtr goal_ptr = make_plan_server_ptr->acceptNewGoal();
+
+    goalPoseStamped = goal_ptr->global_goal;
+
+    goal.vector.x = goalPoseStamped.pose.position.x;
+    goal.vector.y = goalPoseStamped.pose.position.y;
+    goal.header = goalPoseStamped.header;
 
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
     lock.unlock();
 
-    rep.success = calculatePath();
-    rep.message = "New Global Path Calculated";
+    ROS_INFO_COND(debug, "Called make plan srv");
 
-    flg_replan_status.data = true;
-    replan_status_pub.publish(flg_replan_status);
+    if (calculatePath())
+    {
+        ROS_INFO_COND(debug, "Succesfully calculated path");
+        sendPathToLocalPlannerServer(trajectory);
+    }
+    else
+    { // What if it isnt possible to calculate path?
 
-    if (!rep.success)
-        rep.message = "New Global Path not Possible";
-
-    return rep.success;
+        make_plan_res.not_possible = true;
+        make_plan_res.finished = false;
+        make_plan_server_ptr->setAborted(make_plan_res, "Impossible to calculate a solution");
+    }
+    //globalGoalReceived = false;
+}
+void GlobalPlanner::makePlanPreemptCB()
+{
 }
 bool GlobalPlanner::replan()
 {
@@ -193,126 +179,108 @@ bool GlobalPlanner::replan()
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
     lock.unlock();
+ 
+    //For the world to know the planner is replanning
+    flg_replan_status.data = true;
+    replan_status_pub.publish(flg_replan_status);
+
     if (calculatePath())
     {
         ROS_INFO_COND(debug, "Succesfully calculated path");
         sendPathToLocalPlannerServer(trajectory);
         return true;
+
+    }else{
+
+        upo_actions::MakePlanResult result;
+        make_plan_res.finished = false;
+        make_plan_res.not_possible = true;
+        make_plan_server_ptr->setAborted(make_plan_res,"Tried to replan and aborted after replanning and rotation in place");
+        return false;
     }
 }
-void GlobalPlanner::dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level)
-{
-    this->cost_weight = config.cost_weight;
-    this->lof_distance = config.lof_distance;
-    this->goal_weight = config.goal_weight;
-    this->occ_threshold = config.occ_threshold;
 
-    gbPlanner.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Dynamic reconfigure requested");
-}
-void GlobalPlanner::goalCb(const geometry_msgs::PoseStamped::ConstPtr &goalMsg)
-{
-    //We neeed the stamped goal with the rotation to put it in the trajectory message
-    goalPoseStamped = *goalMsg;
-    //We need a vector3 because ThetaStar wants a Vector3 data type
-    goal.vector.x = goalMsg->pose.position.x;
-    goal.vector.y = goalMsg->pose.position.y;
-    goal.header = goalMsg->header;
 
-    globalGoalReceived = true;
-    resetGlobalCostmap();
-    usleep(5e5);
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Goal received");
-}
+/**
+ * This is the main function executed in loop
+ * 
+ **/
 void GlobalPlanner::plan()
 {
 
     if (goalRunning && execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED) //!It means that local planner couldn t find a local solution
-    {
         replan();
-
-    }
-    //TODO: Control maps timeout when using non static maps, like global cosmtap with dynamics obstacles refreshing at low rate
-    if (globalGoalReceived)
-    {
-        boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
-        gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
-        lock.unlock();
-
-        bool path = calculatePath();
-        ROS_INFO_COND(path, PRINTF_MAGENTA "Path calculated");
-        //Reset flag and wait for a new goal
-        if (path)
-        {
-            globalGoalReceived = false;
-            ROS_INFO("global goal received to false: succesfully calculated trajectory");
-        }
-        else
-        {
-            ROS_INFO("Trying again to calcualte global path");
-        }
-    }
+    
+    if(goalRunning && execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED){
+        goalRunning = false;
+        make_plan_res.finished = true;
+        make_plan_res.not_possible = false;
+        make_plan_res.time_spent.data = (ros::Time::now() - start_time);
+        make_plan_server_ptr->setSucceeded(make_plan_res);
+    }  
 }
 bool GlobalPlanner::calculatePath()
 {
     //It seems that you can get a goal and no map and try to get a path but setGoal and setStart will check if the points are valid
     //so if there is no map received it won't calculate a path
     bool ret = false;
-    bool startOk = false;
-    if (!setStart())
-    {
-        ROS_INFO(PRINTF_MAGENTA "Global Planner: Searching around initial position a free one");
-        if (gbPlanner.searchInitialPosition2d(0.3))
-        {
-            startOk = true;
-            ROS_INFO(PRINTF_MAGENTA "Global Planner: Found a free initial position");
-        }
-    }
-    else
-    {
-        startOk = true;
-    }
-    if (setGoal() && startOk)
+   
+    while(1){//TODO: This is dangerous, I know, think about another solution
+    if (setGoal() && setStart())
     {
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal and start successfull set");
         // Path calculation
-        struct timeb start, finish;
+        
         ftime(&start);
         number_of_points = gbPlanner.computePath();
         ftime(&finish);
-        float seconds, milliseconds;
+
         seconds = finish.time - start.time - 1;
         milliseconds = (1000 - start.millitm) + finish.millitm;
+       
         ROS_INFO(PRINTF_YELLOW "Time Spent in Global Path Calculation: %f ms", milliseconds + seconds * 1000);
+        ROS_INFO(PRINTF_YELLOW "Number of points: %d", number_of_points);
 
         if (number_of_points > 0)
         {
             ROS_INFO_COND(debug, PRINTF_MAGENTA "Publishing trajectory, %d", number_of_points);
             publishTrajectory();
-            ret = true;
+            
+            //Reset the counter of the number of times the planner tried to calculate a path without success
             countImpossible = 0;
+            //If it was replanning before, reset flag
             if (flg_replan_status.data)
             {
                 flg_replan_status.data = false;
                 replan_status_pub.publish(flg_replan_status);
             }
+
+            ret = true;
+            break;
         }
         else
-        { //TODO Introduce here a rotation in place action
-            //TODO If after the rotation in place it still doesnt find solution, wait and try every fixed amount of time
-
-            /*
+        { 
             
-            */
             countImpossible++;
-            if (countImpossible == 3)
+            //TODO: Decide what to do when the planner have tried to calculate the path and rotate over himself and didn't succed
+            if(nbrRotationsExec){
+                break;
+            }
+            if (countImpossible == 3 && nbrRotationsExec < 1)
             {
-                std_srvs::Trigger trg;
-                recovery_rot_srv_client.call(trg);
-                sleep(10); //TODO: Improve, search for elegant solution
+                //std_srvs::Trigger trg;
+                //recovery_rot_srv_client.call(trg);
+                //sleep(10); //TODO: Improve, search for elegant solution
                 countImpossible = 0;
+                rot_in_place_goal.execute_rotation = true;
+                rot_in_place_client_ptr->sendGoal(rot_in_place_goal);
+                rot_in_place_client_ptr->waitForResult(ros::Duration(15));
+                nbrRotationsExec++;
             }
         }
+    }else{
+        break;
+    }
     }
     return ret;
 }
@@ -336,7 +304,7 @@ void GlobalPlanner::publishTrajectory()
     trajectory.joint_names.push_back(world_frame);
     trajectory.header.stamp = ros::Time::now();
     trajectory.header.frame_id = world_frame;
-
+    trajectory.header.seq = ++seq;
     trajectory.points.clear();
     trajectory.header.stamp = ros::Time::now();
 
@@ -414,10 +382,13 @@ bool GlobalPlanner::setStart()
     if (gbPlanner.setValidInitialPosition(start.vector))
     {
         ret = true;
+    }else if(gbPlanner.searchInitialPosition2d(0.25)){
+         ROS_INFO(PRINTF_MAGENTA "Global Planner: Found a free initial position");
+         ret = true;
     }
-    else
+    else 
     {
-        ROS_ERROR("Global Planner: Failed to set initial global position: [%.2f, %.2f]", start.vector.x, start.vector.y);
+        ROS_ERROR("Global Planner: Failed to set initial global position(after search around): [%.2f, %.2f]", start.vector.x, start.vector.y);
     }
     return ret;
 }
