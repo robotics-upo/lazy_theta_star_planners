@@ -18,12 +18,12 @@ generate_dynamic_reconfigure_options(
   cfg/sim.cfg
 )
 
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-  geometry_msgs
-  trajectory_msgs
-)
+#generate_messages(
+#  DEPENDENCIES
+#  std_msgs
+#  geometry_msgs
+#  trajectory_msgs
+#)
 catkin_package(
   INCLUDE_DIRS include
   CATKIN_DEPENDS roscpp 
