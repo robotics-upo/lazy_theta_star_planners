@@ -96,7 +96,6 @@ void LocalPlanner::configParams()
     is_running.data = true;
     impossible_calculate.data = false;
     startOk = false;
-    navActionSent = false;
 
     impossibleCnt = 0;
     occGoalCnt = 0;
@@ -130,7 +129,7 @@ void LocalPlanner::executePathGoalServerCB()  // Note: "Action" is not appended 
 
     doPlan = true;
     startIter = 1;
-    
+
     std_srvs::Trigger trg;
     costmap_clean_srv.call(trg);
     usleep(5e5);
