@@ -6,42 +6,27 @@ set(CMAKE_CXX_STANDARD 14)
 find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
   roscpp
-  tf
   costmap_2d
-  message_generation
   geometry_msgs
   trajectory_msgs
-  actionlib
-  genmsg
-  actionlib_msgs
 )
 find_package(Boost REQUIRED COMPONENTS system)
 
-add_action_files(
-  DIRECTORY action
-  FILES ExecutePath.action
-)
 generate_dynamic_reconfigure_options(
   cfg/LocalPlanner.cfg
   cfg/GlobalPlanner.cfg
   cfg/sim.cfg
 )
 
-add_service_files(
-  FILES
-  GoalCmd.srv
-)
 generate_messages(
   DEPENDENCIES
   std_msgs
   geometry_msgs
   trajectory_msgs
-  actionlib_msgs
-
 )
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS roscpp message_runtime actionlib_msgs
+  CATKIN_DEPENDS roscpp 
 )
 ###########
 ## Build ##

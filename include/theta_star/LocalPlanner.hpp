@@ -38,14 +38,22 @@
 
 
 #include <actionlib/server/simple_action_server.h>
-#include <theta_star_2d/ExecutePathAction.h>
+#include <actionlib/client/simple_action_client.h>
+
+#include <upo_actions/ExecutePathAction.h>
+#include <upo_actions/NavigateAction.h>
+
 #include <std_srvs/Empty.h>
 #include <std_msgs/Float32.h>
+#include <std_msgs/String.h>
+
 namespace PathPlanners
 {
 class LocalPlanner : public ThetaStar
 {
-typedef actionlib::SimpleActionServer<theta_star_2d::ExecutePathAction> ActionServer;
+typedef actionlib::SimpleActionServer<upo_actions::ExecutePathAction> ExecutePathServer;
+typedef actionlib::SimpleActionClient<upo_actions::NavigateAction> NavigateClient;
+
 public:
     /*
         Default constructor    
@@ -71,8 +79,8 @@ public:
   
 
     bool arrivedToGoalSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &resp);
-    void actionGoalServerCB();
-    void actionPreemptCB();
+    void executePathGoalServerCB();
+    void executePathPreemptCB();
     void dist2GoalCb(const std_msgs::Float32ConstPtr &dist);
 private:
     //These functions gets parameters from param server at startup if they exists, if not it passes default values
@@ -166,12 +174,19 @@ private:
     bool debug;
     float seconds, milliseconds;
     //action server stufff
-    std::unique_ptr<actionlib::SimpleActionServer<theta_star_2d::ExecutePathAction>> plan_server_ptr;
-    theta_star_2d::ExecutePathFeedback action_feedback;
-    theta_star_2d::ExecutePathResult action_result;
+    std::unique_ptr<ExecutePathServer> execute_path_srv_ptr;
+
+
+    upo_actions::ExecutePathFeedback action_feedback;
+    upo_actions::ExecutePathResult action_result;
 
     ros::Time start_time;
     std_msgs::Float32 d2goal;
+    //action client to navigate 
+    std::unique_ptr<NavigateClient> navigate_client_ptr;
+    upo_actions::NavigateActionGoal navigate_goal;
+
+
 };
 
 } // namespace PathPlanners

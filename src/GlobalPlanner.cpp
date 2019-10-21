@@ -41,31 +41,73 @@ void GlobalPlanner::configTheta()
 }
 void GlobalPlanner::configTopics()
 {
-    trj_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>( "trajectory_tracker/input_trajectory", 0);
+    trj_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>("trajectory_tracker/input_trajectory", 0);
     vis_trj_pub = nh_.advertise<visualization_msgs::MarkerArray>("global_planner_node/visualization_marker_trajectory", 0);
-    replan_status_pub = nh_.advertise<std_msgs::Bool>("global_planner_node/replanning_status", 0);  
+    replan_status_pub = nh_.advertise<std_msgs::Bool>("global_planner_node/replanning_status", 0);
 }
 void GlobalPlanner::configServices()
 {
-    global_replanning_service = nh_.advertiseService("/global_planner_node/global_replanning_service", &GlobalPlanner::replanningSrvCb, this);
+    //global_replanning_service = nh_.advertiseService("/global_planner_node/global_replanning_service", &GlobalPlanner::replanningSrvCb, this);
 
     reset_global_costmap_service = nh_.advertiseService("/global_planner_node/reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
 
-    plan_request_service = nh_.advertiseService("/global_planner_node/plan", &GlobalPlanner::makePlanSrvCb, this);
+    //plan_request_service = nh_.advertiseService("/global_planner_node/plan", &GlobalPlanner::makePlanSrvCb, this);
 
     recovery_rot_srv_client = nh_.serviceClient<std_srvs::Trigger>("/nav_node/rotate_server");
 
-    action_client_ptr.reset(new ActionClient("Execute_Plan", true));
+    execute_path_client_ptr.reset(new ExecutePathClient("Execute_Plan", true));
     //action_client_ptr->waitForServer();
     ROS_INFO_COND(debug, "Action client from global planner ready");
 
+    //MakePlan MAIN Server
+
+    make_plan_server_ptr.reset(new MakePlanServer(nh_, "Make_Plan", false));
+    make_plan_server_ptr->registerGoalCallback(boost::bind(&GlobalPlanner::makePlanGoalCB, this));
+    make_plan_server_ptr->registerPreemptCallback(boost::bind(&GlobalPlanner::makePlanPreemptCB, this));
+    make_plan_server_ptr->start();
+}
+void GlobalPlanner::makePlanGoalCB()
+{
+    goalRunning = true;
+    globalGoalReceived = true;
+    upo_actions::MakePlanGoalConstPtr goal_ptr = make_plan_server_ptr->acceptNewGoal();
+
+    goalPoseStamped = goal_ptr->global_goal;
+
+    goal.vector.x = goalPoseStamped.pose.position.x;
+    goal.vector.y = goalPoseStamped.pose.position.y;
+    goal.header = goalPoseStamped.header;
+
+    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
+    gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
+    lock.unlock();
+
+    ROS_INFO_COND(debug, "Called make plan srv");
+
+    //resp.success = calculatePath();
+
+    if (calculatePath())
+    {
+        ROS_INFO_COND(debug, "Succesfully calculated path");
+        sendPathToLocalPlannerServer(trajectory);
+    }
+    else
+    { // What if it isnt possible to calculate path?
+
+        make_plan_res.not_possible = true;
+        make_plan_server_ptr->setAborted(make_plan_res, "Impossible to calculate a solution");
+    }
+    globalGoalReceived = false;
+}
+void GlobalPlanner::makePlanPreemptCB()
+{
 }
 //This function gets parameter from param server at startup if they exists, if not it passes default values
 void GlobalPlanner::configParams()
 {
     //At startup, no goal and no costmap received yet
     globalGoalReceived = false;
-
+    goalRunning = false;
     //Get params from param server. If they dont exist give variables default values
     nh_.param("/global_planner_node/show_config", showConfig, (bool)0);
     nh_.param("/global_planner_node/debug", debug, (bool)0);
@@ -115,47 +157,12 @@ void GlobalPlanner::configParams()
     gbPlanner.loadMapParams(ws_x_max, ws_y_max, map_resolution);
     //gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
 }
-bool GlobalPlanner::makePlanSrvCb(theta_star_2d::GoalCmdRequest &req, theta_star_2d::GoalCmdResponse &resp)
+void GlobalPlanner::sendPathToLocalPlannerServer(trajectory_msgs::MultiDOFJointTrajectory path_)
 {
-    globalGoalReceived = true;
-    goalPoseStamped = req.pose;
-    goal.vector.x = req.pose.pose.position.x;
-    goal.vector.y = req.pose.pose.position.y;
-    goal.header = req.header;
-
-    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
-    gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
-    lock.unlock();
-    ROS_INFO_COND(debug, "Called make plan srv");
-    resp.success = calculatePath();
-
-    if (resp.success)
-    {
-        ROS_INFO_COND(debug, "Succesfully calculated path");
-        geometry_msgs::Pose pose_temp;
-        std::vector<geometry_msgs::Pose> path;
-        for (auto it = trajectory.points.begin(); it != trajectory.points.end(); ++it)
-        {
-            pose_temp.position.x = it->transforms[0].translation.x;
-            pose_temp.position.y = it->transforms[0].translation.y;
-            pose_temp.position.z = it->transforms[0].translation.z;
-            pose_temp.orientation = it->transforms[0].rotation;
-            resp.path.push_back(pose_temp);
-            path.push_back(pose_temp);
-
-        }
-        sendPathToLocalPlannerServer(path);
-       
-    }
-     globalGoalReceived = false;
-    return resp.success;
-}
-void GlobalPlanner::sendPathToLocalPlannerServer(std::vector<geometry_msgs::Pose> path_){
     //Take the calculated path, insert it into an action, in the goal (ExecutePath.action)
-    theta_star_2d::ExecutePathGoal goal_action;     
+    upo_actions::ExecutePathGoal goal_action;
     goal_action.path = path_;
-    action_client_ptr->sendGoal(goal_action);
-    
+    execute_path_client_ptr->sendGoal(goal_action);
 }
 bool GlobalPlanner::replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
 {
@@ -177,6 +184,21 @@ bool GlobalPlanner::replanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::Tri
         rep.message = "New Global Path not Possible";
 
     return rep.success;
+}
+bool GlobalPlanner::replan()
+{
+    resetGlobalCostmap();
+    usleep(5e5);
+
+    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
+    gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
+    lock.unlock();
+    if (calculatePath())
+    {
+        ROS_INFO_COND(debug, "Succesfully calculated path");
+        sendPathToLocalPlannerServer(trajectory);
+        return true;
+    }
 }
 void GlobalPlanner::dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level)
 {
@@ -204,6 +226,12 @@ void GlobalPlanner::goalCb(const geometry_msgs::PoseStamped::ConstPtr &goalMsg)
 }
 void GlobalPlanner::plan()
 {
+
+    if (goalRunning && execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED) //!It means that local planner couldn t find a local solution
+    {
+        replan();
+
+    }
     //TODO: Control maps timeout when using non static maps, like global cosmtap with dynamics obstacles refreshing at low rate
     if (globalGoalReceived)
     {
@@ -212,7 +240,7 @@ void GlobalPlanner::plan()
         lock.unlock();
 
         bool path = calculatePath();
-        ROS_INFO_COND(path, PRINTF_MAGENTA "Patch calculated");
+        ROS_INFO_COND(path, PRINTF_MAGENTA "Path calculated");
         //Reset flag and wait for a new goal
         if (path)
         {
@@ -270,7 +298,12 @@ bool GlobalPlanner::calculatePath()
             }
         }
         else
-        {
+        { //TODO Introduce here a rotation in place action
+            //TODO If after the rotation in place it still doesnt find solution, wait and try every fixed amount of time
+
+            /*
+            
+            */
             countImpossible++;
             if (countImpossible == 3)
             {

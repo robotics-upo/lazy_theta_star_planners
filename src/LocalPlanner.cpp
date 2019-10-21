@@ -88,22 +88,22 @@ void LocalPlanner::configServices()
 
     arrived_to_goal_srv = nh_.advertiseService("/local_plaanner_node/arrived_to_goal", &LocalPlanner::arrivedToGoalSrvCb, this);
 
-    plan_server_ptr.reset(new ActionServer(nh_, "Execute_Plan", false));
-    plan_server_ptr->registerGoalCallback(boost::bind(&LocalPlanner::actionGoalServerCB,this));
-    plan_server_ptr->registerPreemptCallback(boost::bind(&LocalPlanner::actionPreemptCB,this));
-    plan_server_ptr->start();
+    execute_path_srv_ptr.reset(new ExecutePathServer(nh_, "Execute_Plan", false));
+    execute_path_srv_ptr->registerGoalCallback(boost::bind(&LocalPlanner::executePathGoalServerCB,this));
+    execute_path_srv_ptr->registerPreemptCallback(boost::bind(&LocalPlanner::executePathPreemptCB,this));
+    execute_path_srv_ptr->start();
 }
- void LocalPlanner::actionPreemptCB()
+ void LocalPlanner::executePathPreemptCB()
   {
     ROS_INFO("Goal Preempted");
     // set the action state to preempted
-    plan_server_ptr->setPreempted();
+    execute_path_srv_ptr->setPreempted();
   }
-void LocalPlanner::actionGoalServerCB()  // Note: "Action" is not appended to exe here
+void LocalPlanner::executePathGoalServerCB()  // Note: "Action" is not appended to exe here
 {
     ROS_INFO_COND(debug,"Local Planner Goal received in action server mode");
-    theta_star_2d::ExecutePathGoalConstPtr path_shared_ptr; 
-    path_shared_ptr = plan_server_ptr->acceptNewGoal();
+    upo_actions::ExecutePathGoalConstPtr path_shared_ptr; 
+    path_shared_ptr = execute_path_srv_ptr->acceptNewGoal();
     
     globalTrajReceived = true;
     doPlan = true;
@@ -112,25 +112,9 @@ void LocalPlanner::actionGoalServerCB()  // Note: "Action" is not appended to ex
     std_srvs::Trigger trg;
     costmap_clean_srv.call(trg);
     usleep(5e5);
-    
+    globalTrajectory = path_shared_ptr->path;
     start_time = ros::Time::now();
-    trajectory_msgs::MultiDOFJointTrajectory trj;
-    trajectory_msgs::MultiDOFJointTrajectoryPoint pt;
-    geometry_msgs::Transform trf;
     
-    trj.header.frame_id = world_frame;
-    trj.header.stamp = ros::Time::now();
-    
-    for(auto it=path_shared_ptr->path.begin(); it!=path_shared_ptr->path.end(); it++){
-    
-        trf.translation.x = it->position.x;
-        trf.translation.y = it->position.y;
-        trf.translation.z = it->position.z;
-        trf.rotation = it->orientation;
-        pt.transforms.push_back(trf);
-        trj.points.push_back(pt);
-    }
-    globalTrajectory = trj;
         
 }
 void LocalPlanner::configTheta()
@@ -145,7 +129,7 @@ void LocalPlanner::configTopics()
 {
     local_map_sub = nh_.subscribe<nav_msgs::OccupancyGrid>("/custom_costmap_node/costmap/costmap", 1, &LocalPlanner::localCostMapCb, this);
 
-    global_trj_sub = nh_.subscribe<trajectory_msgs::MultiDOFJointTrajectory>("/trajectory_tracker/input_trajectory", 1, &LocalPlanner::globalTrjCb, this);
+    //global_trj_sub = nh_.subscribe<trajectory_msgs::MultiDOFJointTrajectory>("/trajectory_tracker/input_trajectory", 1, &LocalPlanner::globalTrjCb, this);
     
     dist2goal_sub = nh_.subscribe<std_msgs::Float32>("/dist2goal", 1, &LocalPlanner::dist2GoalCb, this);
     trajectory_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>("/trajectory_tracker/local_input_trajectory", 0);
@@ -164,7 +148,7 @@ bool LocalPlanner::arrivedToGoalSrvCb(std_srvs::EmptyRequest &req, std_srvs::Emp
 
     //If the path tracker call this service it means that the robot has arrived
     action_result.arrived = true;
-    plan_server_ptr->setSucceeded();    
+    execute_path_srv_ptr->setSucceeded();    
     
 }
 void LocalPlanner::dist2GoalCb(const std_msgs::Float32ConstPtr &dist){
@@ -176,7 +160,7 @@ bool LocalPlanner::stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::Tr
     globalTrajReceived = false;
     rep.message = "Waiting for a new global trajectory";
     rep.success = true;
-    plan_server_ptr->setAborted();
+    execute_path_srv_ptr->setAborted();
     return true;
 }
 bool LocalPlanner::pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
@@ -185,11 +169,12 @@ bool LocalPlanner::pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::T
     rep.success = true;
     rep.message = "Planning resumed";
 
-    if (doPlan)
+    if (doPlan){
         rep.message = "Planning paused";
-
+    }else{
+    }
     doPlan = !doPlan;
-    plan_server_ptr->setPreempted();
+    
     return true;
 }
 //Calbacks and publication functions
@@ -219,6 +204,8 @@ void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
     }
 }
 //Global Input trajectory
+//! Right now the subscirber is commented so it's not used.
+//TODO: Remove in the future when the action lib communication it's implemented and tested
 void LocalPlanner::globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr &traj)
 {
     globalTrajectory = *traj;
@@ -234,7 +221,6 @@ void LocalPlanner::globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::C
 
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received global trajectory");
 }
-
 void LocalPlanner::dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t level)
 {
     this->cost_weight = config.cost_weight;
@@ -251,15 +237,12 @@ void LocalPlanner::plan()
     running_state_pub.publish(is_running);
     number_of_points = 0; //Reset variable
     
-    if(!plan_server_ptr->isActive())
+    if(!execute_path_srv_ptr->isActive())
         return;
 
     //Fill the feedback in each iteration
-    action_feedback.distance_to_goal = d2goal;
     action_feedback.global_waypoint.data = startIter;
-    ros::Duration time_spent = (ros::Time::now() - start_time);
-    action_feedback.travel_time.data = time_spent.toSec();
-    plan_server_ptr->publishFeedback(action_feedback);
+    execute_path_srv_ptr->publishFeedback(action_feedback);
 
 
     ftime(&startT);
@@ -314,6 +297,10 @@ void LocalPlanner::plan()
                     //And pause planning, under construction
                     doPlan = false;
                     ROS_INFO_COND(debug, PRINTF_YELLOW "Pausing planning, final position busy");
+                    action_feedback.status.data = "Final Position Busy";
+                    action_feedback.planning_rate.data = 0;
+                    action_feedback.global_waypoint.data = globalTrajectory.points.size();
+                    execute_path_srv_ptr->publishFeedback(action_feedback);
                     //In order to resume planning, someone must call the pause/resume planning Service that will change the flag to true
                 }
                 else
@@ -331,15 +318,18 @@ void LocalPlanner::plan()
                 }
                 ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path(2)");
                 number_of_points = lcPlanner.computePath();
+                ROS_INFO("Number of points: %d, occ: %d", number_of_points, occ.data);
+
+
             }
 
             if (number_of_points > 0 && !occ.data)
             {
-                //ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Building and publishing local Path");
+                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Building and publishing local Path");
                 buildAndPubTrayectory();
-                //ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Local Path build and published");
+                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Local Path build and published");
                 publishTrajMarker();
-                //ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Published trajectory markers");
+                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Published trajectory markers");
                 startOk = false;
 
                 if (impossibleCnt > 0)
@@ -366,6 +356,8 @@ void LocalPlanner::plan()
                     std_srvs::Trigger srv,stop_nav;
                     replanning_client_srv.call(srv);
                     
+                    execute_path_srv_ptr->setAborted();
+                    globalTrajReceived = false;
                     if(impossibleCnt == 3)
                         stop_nav_client_srv.call(stop_nav);
                     
@@ -626,28 +618,28 @@ void LocalPlanner::freeLocalGoal()
     // ! i: Numero de fila
     // ! j: columna
     int st, end;
-    ROS_INFO_COND(debug, PRINTF_GREEN "1");
+    // ROS_INFO_COND(debug, PRINTF_GREEN "1");
     if (localGoal.y > localCostMapInflated.info.height * map_resolution - localCostMapInflationY)
     {
         //Esquina 1 o 3 o borde 2
         if (localGoal.x < localCostMapInflationX) //1
         {
-            ROS_INFO_COND(debug, PRINTF_GREEN "2");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "2");
             for (int i = localCostMapInflated.info.height - 2 * localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i++)
                 for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            ROS_INFO_COND(debug, PRINTF_GREEN "3");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "3");
             for (int i = localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height; i++)
                 for (int j = 0; j < 2 * localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
         }
         else if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX) //5
         {
-            ROS_INFO_COND(debug, PRINTF_GREEN "4");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "4");
             for (int i = localCostMapInflated.info.height - 2 * localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i++)
                 for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            ROS_INFO_COND(debug, PRINTF_GREEN "5");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "5");
             for (int i = localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height; i++)
                 for (int j = localCostMapInflated.info.width - 2 * localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
@@ -663,42 +655,42 @@ void LocalPlanner::freeLocalGoal()
             if (end > ws_x_max / map_resolution)
                 end = ws_x_max / map_resolution;
 
-            ROS_INFO_COND(debug, PRINTF_GREEN "6");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "6");
             for (int i = localCostMapInflated.info.height - localCostMapInflationY / map_resolution; i < localCostMapInflated.info.height; i++)
                 for (int j = st; j < end; j++)
                     localCostMapInflated.data[i * localCostMapInflated.info.width + j] = 0;
-            ROS_INFO_COND(debug, PRINTF_GREEN "7");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "7");
         }
     }
     else if (localGoal.y < localCostMapInflationY)
     {
-        ROS_INFO_COND(debug, PRINTF_GREEN "8");                                                      //Esquina 3 o 1 o borde 6
+        // ROS_INFO_COND(debug, PRINTF_GREEN "8");                                                      //Esquina 3 o 1 o borde 6
         if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX) //3
         {
-            ROS_INFO_COND(debug, PRINTF_GREEN "9");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "9");
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++)
                 for (int j = localCostMapInflated.info.width - 2 * localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            ROS_INFO_COND(debug, PRINTF_GREEN "10");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "10");
             for (int i = localCostMapInflationY / map_resolution; i < 2 * localCostMapInflationY / map_resolution; i++)
                 for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            ROS_INFO_COND(debug, PRINTF_GREEN "11");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "11");
         }
         else if (localGoal.x < localCostMapInflationX) //1
         {
-            ROS_INFO_COND(debug, PRINTF_GREEN "12");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "12");
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++) //Filas
                 for (int j = 0; j < 2 * localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-            ROS_INFO_COND(debug, PRINTF_GREEN "13");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "13");
             for (int i = localCostMapInflationY / map_resolution; i < 2 * localCostMapInflationY / map_resolution; i++)
                 for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                     localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
         }
         else //Borde 6
         {
-            ROS_INFO_COND(debug, PRINTF_GREEN "14");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "14");
 
             st = (localGoal.x - border_space) / map_resolution;
             if (st < 0)
@@ -711,13 +703,13 @@ void LocalPlanner::freeLocalGoal()
             for (int i = 0; i < localCostMapInflationY / map_resolution; i++)
                 for (int j = st; j < end; j++)
                     localCostMapInflated.data[i * localCostMapInflated.info.width + j] = 0;
-            ROS_INFO_COND(debug, PRINTF_GREEN "15");
+            // ROS_INFO_COND(debug, PRINTF_GREEN "15");
         }
     } //Si hemos llegado hasta aqui sabemos que la y esta dentro del costmap original
     else if (localGoal.x < localCostMapInflationX)
     { //Borde 8
         //Se recorren las filas desde la primera hasta la ultima y se ponen a 0 los N primeros valores de cada fila(numero de columnas infladas)
-        ROS_INFO_COND(debug, PRINTF_GREEN "16");
+        // ROS_INFO_COND(debug, PRINTF_GREEN "16");
 
         st = (localGoal.y - border_space) / map_resolution;
         if (st < 0)
@@ -730,12 +722,12 @@ void LocalPlanner::freeLocalGoal()
         for (int i = st; i < end; i++)
             for (int j = 0; j < localCostMapInflationX / map_resolution; j++)
                 localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
-        ROS_INFO_COND(debug, PRINTF_GREEN "17");
+        // ROS_INFO_COND(debug, PRINTF_GREEN "17");
     }
     else if (localGoal.x > localCostMapInflated.info.width * map_resolution - localCostMapInflationX)
     { //Borde 4
         //Se recorren las filas desde la primera hasta la ultima y se ponen a 0 los N ultimos valores de cada fila (numero de columnas infladas)
-        ROS_INFO_COND(debug, PRINTF_GREEN "18");
+        // ROS_INFO_COND(debug, PRINTF_GREEN "18");
         st = (localGoal.y - border_space) / map_resolution;
         end = (localGoal.y + border_space) / map_resolution;
         if (st < 0)
@@ -747,7 +739,7 @@ void LocalPlanner::freeLocalGoal()
             for (int j = localCostMapInflated.info.width - localCostMapInflationX / map_resolution; j < localCostMapInflated.info.width; j++)
                 localCostMapInflated.data[localCostMapInflated.info.width * i + j] = 0;
 
-        ROS_INFO_COND(debug, PRINTF_GREEN "19");
+        // ROS_INFO_COND(debug, PRINTF_GREEN "19");
     }
     else
     {

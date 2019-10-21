@@ -39,7 +39,10 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <theta_star_2d/GoalCmd.h>
 
 #include <actionlib/client/simple_action_client.h>
-#include <theta_star_2d/ExecutePathAction.h>
+#include <actionlib/server/simple_action_server.h>
+
+#include <upo_actions/ExecutePathAction.h>
+#include <upo_actions/MakePlanAction.h>
 
 struct ReportElement
 {
@@ -82,7 +85,10 @@ namespace PathPlanners
 {
 class GlobalPlanner : public ThetaStar
 {
-typedef actionlib::SimpleActionClient<theta_star_2d::ExecutePathAction> ActionClient;
+
+    typedef actionlib::SimpleActionClient<upo_actions::ExecutePathAction> ExecutePathClient;
+    typedef actionlib::SimpleActionServer<upo_actions::MakePlanAction> MakePlanServer;
+
 public:
     //Default constructor
     GlobalPlanner(tf2_ros::Buffer *tfBuffer_, string node_name);
@@ -100,15 +106,19 @@ public:
     @brief: Dynamic reconfiguration server callback declaration
     */
     void dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level);
-    void sendPathToLocalPlannerServer(std::vector<geometry_msgs::Pose> path_);
+    void sendPathToLocalPlannerServer(trajectory_msgs::MultiDOFJointTrajectory path_);
+
+    //Action server
+    void makePlanPreemptCB();
+    void makePlanGoalCB();
 
 private:
+    bool replan();
     /*
     @brief: goal topic callback 
     */
     void goalCb(const geometry_msgs::PoseStamped::ConstPtr &goalMsg);
-    
-    bool makePlanSrvCb(theta_star_2d::GoalCmdRequest &req, theta_star_2d::GoalCmdResponse &resp);
+
     /*
     @brief: Service servers callback for replanning, it takes the same goal and launch the planner again with the more recent costmap
     */
@@ -146,7 +156,7 @@ private:
     void publishTrajectory();
 
     bool calculatePath();
-    
+
     /*
     @brief: These functions tries to pass the start and goal positions to the thetastar object
             They return true if the points are not occupied
@@ -159,27 +169,27 @@ private:
 
     visualization_msgs::MarkerArray markerTraj;
     visualization_msgs::Marker marker;
-    
+
     geometry_msgs::PoseStamped goalPoseStamped;
     geometry_msgs::Vector3Stamped goal;
-    
+
     //Publishers and Subscribers
-    ros::Publisher trj_pub, vis_trj_pub,replan_status_pub;
+    ros::Publisher trj_pub, vis_trj_pub, replan_status_pub;
     ros::Subscriber goal_sub, global_costmap_sub;
-    
+
     //Services servers
     ros::ServiceServer global_replanning_service, reset_global_costmap_service, plan_request_service;
     ros::ServiceClient recovery_rot_srv_client;
     //ThetaStar object
     ThetaStar gbPlanner;
-    
+
     //tf buffer used to get the base_link position on the map(i.e. tf base_link-map)
     tf2_ros::Buffer *tfBuffer;
-    
+
     //Old tf1 used by the costmap wrapper
     // tf::TransformListener *tf_list_ptr;
     // costmap_2d::Costmap2DROS *global_costmap_ptr;
-    
+
     std::unique_ptr<tf::TransformListener> tf_list_ptr;
     std::unique_ptr<costmap_2d::Costmap2DROS> global_costmap_ptr;
 
@@ -204,17 +214,21 @@ private:
     //Output variables
     int number_of_points;
     Trajectory trajectory;
-    
+
     //Control flags
-    bool globalGoalReceived;
-    
+    bool globalGoalReceived,goalRunning;
+
     //These two flags can be configured as parameters
     bool showConfig, debug;
 
     int countImpossible = 0;
 
     //Action client stuff
-    std::unique_ptr<ActionClient> action_client_ptr;
+    std::unique_ptr<ExecutePathClient> execute_path_client_ptr;
+
+    std::unique_ptr<MakePlanServer> make_plan_server_ptr;
+    upo_actions::MakePlanFeedback make_plan_fb;
+    upo_actions::MakePlanResult make_plan_res;
 
 }; //class GlobalPlanner
 
