@@ -114,7 +114,8 @@ private:
     //Action server
     void makePlanPreemptCB();
     void makePlanGoalCB();
-
+    void publishMakePlanFeedback();
+    int getClosestWaypoint();
     bool replan();
 
     /*
@@ -157,12 +158,16 @@ private:
     */
     bool setGoal();
     bool setStart();
-
+    void calculatePathLength();
     /*              Class Variables                 */
     ros::NodeHandle nh_;
 
     visualization_msgs::MarkerArray markerTraj;
     visualization_msgs::Marker marker;
+
+    //!New Markers(Line strip + waypoints)
+    ros::Publisher visMarkersPublisher;
+    visualization_msgs::Marker lineMarker, waypointsMarker;
 
     geometry_msgs::PoseStamped goalPoseStamped;
     geometry_msgs::Vector3Stamped goal;
@@ -209,6 +214,7 @@ private:
     int number_of_points;
     int nbrRotationsExec;
     int seq;
+    float pathLength;
     Trajectory trajectory;
 
     //Control flags
@@ -231,6 +237,15 @@ private:
     upo_actions::RotationInPlaceGoal rot_in_place_goal;
 
     //
+    //Vairables to fill up the result MakePlan result field
+    std_msgs::UInt8 replanNbr, emergencyStopNbr;
+    std_msgs::Duration  time_spent;
+    //Variables to fill up the feedback 
+    std_msgs::Float32 dist2Goal;
+    std_msgs::Duration travel_time;
+    std_msgs::String percent_achieved, ETA;
+    std_msgs::UInt8 globalWaypoint;
+
     struct timeb start, finish;
     float seconds, milliseconds;
 
