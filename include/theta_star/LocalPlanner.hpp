@@ -90,6 +90,8 @@ private:
     void configTheta();
     void configServices();
 
+    void publishExecutePathFeedback();
+
     geometry_msgs::Vector3 calculateLocalGoal();
 
     geometry_msgs::TransformStamped getTfMapToRobot();
@@ -177,7 +179,11 @@ private:
     std::unique_ptr<ExecutePathServer> execute_path_srv_ptr;
 
 
-    upo_actions::ExecutePathFeedback action_feedback;
+    upo_actions::ExecutePathFeedback exec_path_fb;
+    std_msgs::Float32 planningRate;
+    std_msgs::UInt8 waypointGoingTo;
+    std_msgs::String planningStatus;
+
     upo_actions::ExecutePathResult action_result;
 
     ros::Time start_time;

@@ -259,8 +259,8 @@ void LocalPlanner::plan()
         return;
 
     //Fill the feedback in each iteration
-    action_feedback.global_waypoint.data = startIter;
-    execute_path_srv_ptr->publishFeedback(action_feedback);
+    exec_path_fb.global_waypoint.data = startIter;
+    execute_path_srv_ptr->publishFeedback(exec_path_fb);
 
     
     ftime(&startT);
@@ -312,7 +312,7 @@ void LocalPlanner::plan()
                 ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path(2)");
                 number_of_points = lcPlanner.computePath();
                 ROS_INFO("Number of points: %d, occ: %d", number_of_points, occ.data);
-
+                planningStatus.data="OK";
                 if (occ.data)//If the local goal was previously occupied, reset flag and publish new status
                 {
                     //ROS_INFO("Local: Local goal disocuupied");
@@ -326,6 +326,7 @@ void LocalPlanner::plan()
                 {
                     ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path after a free place next to goal found");
                     number_of_points = lcPlanner.computePath();
+                    planningStatus.data="OK: Path Calculated after search around goal";
                     occGoalCnt = 0;
                 }
                 else if (occGoalCnt > 3)
@@ -339,12 +340,7 @@ void LocalPlanner::plan()
                     //And pause planning, under construction
                     doPlan = false;
                     ROS_INFO_COND(debug, PRINTF_YELLOW "Pausing planning, final position busy");
-                    action_feedback.status.data = "Final Position Busy";
-                    action_feedback.planning_rate.data = 0;
-                    action_feedback.global_waypoint.data = globalTrajectory.points.size();
-                    
-                    execute_path_srv_ptr->publishFeedback(action_feedback);
-                    
+                    planningStatus.data = "Final position Busy, Cancelling goal";
                     //TODO What to tell to the path tracker
                     navigate_client_ptr->cancelGoal();
                     //In order to resume planning, someone must call the pause/resume planning Service that will change the flag to true
@@ -387,7 +383,7 @@ void LocalPlanner::plan()
                     impossible_calculate.data = true;
                     impossible_to_find_sol_pub.publish(impossible_calculate);
                     navigate_client_ptr->cancelGoal();
-
+                    planningStatus.data="Requesting new global path, navigation cancelled";
                     ROS_WARN("Requesting new global path to same global goal, %d", impossibleCnt);
                     //TODO These triggers will be removed
                     std_srvs::Trigger srv,stop_nav;
@@ -425,12 +421,28 @@ void LocalPlanner::plan()
     seconds = finishT.time - startT.time - 1;
     milliseconds = (1000 - startT.millitm) + finishT.millitm;
     time_spent_msg.data = (milliseconds + seconds * 1000);
+    publishExecutePathFeedback();
     //if (debug)
     //    showTime(PRINTF_YELLOW "Time spent", startT, finishT);
 
     local_planning_time.publish(time_spent_msg);
 }
+void LocalPlanner::publishExecutePathFeedback(){
+    // planningRate;
+    //waypointGoingTo;
+    // planningStatus;
+    if(planningStatus.data.find("OK") > 0){
+        planningRate.data = 1000/milliseconds;
+    }else{
+        planningRate.data = 0;
+    }
+    
+    exec_path_fb.global_waypoint = waypointGoingTo;
+    exec_path_fb.planning_rate = planningRate;
+    exec_path_fb.status = planningStatus;
+    execute_path_srv_ptr->publishFeedback(exec_path_fb);
 
+}
 geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
 {
 
