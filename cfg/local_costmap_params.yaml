@@ -36,7 +36,7 @@ costmap:
     footprint_clearing_enabled: true
     #obstacle_range: 6
     #raytrace_range: 31
-    observation_sources: laser_scan_sensor fused_cameras #laser_scan_sensor_back # front_camera right_camera left_camera  
+    observation_sources: laser_scan_sensor #fused_cameras #laser_scan_sensor_back # front_camera right_camera left_camera  
    
     laser_scan_sensor: {clearing: true, data_type: LaserScan, expected_update_rate: 0.1,observation_persistence: 0.0,
       marking: true, sensor_frame: base_link, topic: /scanMulti, raytrace_range: 31, obstacle_range: 6}
@@ -59,7 +59,7 @@ costmap:
   plugins:
   - {name: obstacle_layer, type: 'costmap_2d::ObstacleLayer'}
   - {name: inflation_layer, type: 'costmap_2d::InflationLayer'}
-  - {name: social_layer,    type: 'social_navigation_layers::ProxemicLayer'}
+  #- {name: social_layer,    type: 'social_navigation_layers::ProxemicLayer'}
   
   social_layer:
     cutoff: 100
