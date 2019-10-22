@@ -257,11 +257,6 @@ void LocalPlanner::plan()
     
     if(!execute_path_srv_ptr->isActive())
         return;
-
-    //Fill the feedback in each iteration
-    exec_path_fb.global_waypoint.data = startIter;
-    execute_path_srv_ptr->publishFeedback(exec_path_fb);
-
     
     ftime(&startT);
     if (globalTrajReceived && localCostMapReceived && doPlan && execute_path_srv_ptr->isActive())
