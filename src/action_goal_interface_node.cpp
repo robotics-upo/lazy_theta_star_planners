@@ -33,20 +33,22 @@ public:
 
     void processMissions()
     {
-        if (!makePlanClient->isServerConnected())
+        if (goals_by_file)
         {
-            ROS_WARN("Make Plan Server disconnected! :(, Waiting again for the server...");
-            bool connected = makePlanClient->waitForServer(ros::Duration(10));
-            if (connected)
+            if (!makePlanClient->isServerConnected())
             {
-                ROS_INFO("Make Plan Client and Server connected!");
+                ROS_WARN("Make Plan Server disconnected! :(, Waiting again for the server...");
+                bool connected = makePlanClient->waitForServer(ros::Duration(10));
+                if (connected)
+                {
+                    ROS_INFO("Make Plan Client and Server connected!");
+                }
+                else
+                {
+                    ROS_WARN("Timeout waiting for server...retrying");
+                }
             }
-            else
-            {
-                ROS_WARN("Timeout waiting for server...retrying");
-            }
-        }
-        /**
+            /**
          * La idea es que se le van pasando golitos empezando desde el primero de la cola y cuando se recibe que se ha conseguido, se esperan unos
          * ! segundos (O a que otro proceso tambien diga que palante, como por ejemplo algun nodo de inspeccion visual etc)
          * y se le manda el siguiente y asi hasta el ultimo
@@ -54,22 +56,28 @@ public:
          * TODO Que pasa si alguno se cancela por el global planner.............
          * 
         **/
-        if (!goals_queu.empty() && !goalRunning)
-        {
-            actionGoal.goal.global_goal = goals_queu.front();
-            goals_queu.pop();
+            if (!goals_queu.empty() && !goalRunning)
+            {
+                actionGoal.goal.global_goal = goals_queu.front();
+                goals_queu.pop();
+                makePlanClient->sendGoal(actionGoal.goal);
+                goalRunning = true;
+                ROS_INFO("Sending Goal: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
+                         actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
+                         actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
+            }
+
+            if (goals_queu.empty())
+            {
+                ROS_INFO_THROTTLE(0.5, "No goals in the queu");
+            }
+        }
+        else if (goalReceived && !goalRunning)
+        { //RViz goals case
             makePlanClient->sendGoal(actionGoal.goal);
             goalRunning = true;
-            ROS_INFO("Sending Goal: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
-                     actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
-                     actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
+            goalReceived = false;
         }
-
-        if (goals_queu.empty())
-        {
-            ROS_INFO_THROTTLE(0.5, "No goals in the queu");
-        }
-
         if (goalRunning)
         {
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ABORTED)
@@ -87,7 +95,7 @@ public:
             {
                 //!Do next goal?
                 ROS_INFO("Goal Preempted");
-                goalRunning=false;
+                goalRunning = false;
             }
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
             {
@@ -110,8 +118,8 @@ private:
         actionGoal.header.seq = rand();
         actionGoal.header.stamp = ros::Time::now();
 
-        // goalRec = true;
-        // goalRunning = true;
+        goalReceived = true;
+        goalRunning = false;
     }
 
     bool startMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp)
@@ -148,15 +156,18 @@ private:
     bool continueMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp)
     {
         resp.success = false;
-        if(!goals_queu.empty() && !goalRunning){//If there are goals in the queu and no one is running it means the client is waiting to send another one
-            resp.message="Sending next goal...";
+        if (!goals_queu.empty() && !goalRunning)
+        { //If there are goals in the queu and no one is running it means the client is waiting to send another one
+            resp.message = "Sending next goal...";
             resp.success = true;
         }
-        if(goals_queu.empty()){
+        if (goals_queu.empty())
+        {
             resp.message = "Can't continue, no goals in the queu";
-        }    
-        if(goalRunning){
-            resp.message= "The previous goal is still running, can't go to the next while previous goal running";
+        }
+        if (goalRunning)
+        {
+            resp.message = "The previous goal is still running, can't go to the next while previous goal running";
         }
 
         return true;
@@ -210,12 +221,14 @@ private:
     upo_actions::MakePlanActionGoal actionGoal;
 
     std::queue<geometry_msgs::PoseStamped> goals_queu;
-    std::unique_ptr<MakePlanActionClient> makePlanClient; // makePlanClient("Make_Plan", false);
+    std::unique_ptr<MakePlanActionClient> makePlanClient;
 
+    //These flags are used by the mission mode
     bool missionLoaded = false;
     bool doMission = false;
 
     bool goalRunning = false;
+    bool goalReceived = false; //This flag is only used when rviz goal mode is active
     bool goals_by_file;
 
     int goalsNbr; //Number of goals loaded
