@@ -38,7 +38,7 @@ public:
             if (!makePlanClient->isServerConnected())
             {
                 ROS_WARN("Make Plan Server disconnected! :(, Waiting again for the server...");
-                bool connected = makePlanClient->waitForServer(ros::Duration(10));
+                bool connected = makePlanClient->waitForServer(ros::Duration(2));
                 if (connected)
                 {
                     ROS_INFO("Make Plan Client and Server connected!");
@@ -56,7 +56,7 @@ public:
          * TODO Que pasa si alguno se cancela por el global planner.............
          * 
         **/
-            if (!goals_queu.empty() && !goalRunning)
+            if (!goals_queu.empty() && !goalRunning && doMission)
             {
                 actionGoal.goal.global_goal = goals_queu.front();
                 goals_queu.pop();
