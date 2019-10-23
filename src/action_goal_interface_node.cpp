@@ -21,6 +21,7 @@ public:
         {
             start_mission_server = nh.advertiseService("/start_mission", &MissionInterface::startMission, this);
             reload_mission_data = nh.advertiseService("/reload_mission_data", &MissionInterface::reloadMissionData, this);
+            continue_mission_server = nh.advertiseService("/continue_mission", &MissionInterface::continueMission, this);
             //TODO Load Here the file
             missionLoaded = loadMissionData();
         }
@@ -59,28 +60,38 @@ public:
             goals_queu.pop();
             makePlanClient->sendGoal(actionGoal.goal);
             goalRunning = true;
+            ROS_INFO("Sending Goal: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
+                     actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
+                     actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
         }
 
-        if(goals_queu.empty()){
-            ROS_INFO_THROTTLE(0.5,"No goals in the queu");
+        if (goals_queu.empty())
+        {
+            ROS_INFO_THROTTLE(0.5, "No goals in the queu");
         }
-        
+
         if (goalRunning)
         {
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ABORTED)
             {
                 //?It can mean the robot need an operator or something else
+                ROS_INFO("Goal aborted by the Global Planner");
             }
-            
+
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::LOST)
             {
                 //!Maybe resend goal?
+                ROS_INFO("Goal Lost :'(");
             }
-            if(makePlanClient->getState() == actionlib::SimpleClientGoalState::PREEMPTED){
+            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::PREEMPTED)
+            {
                 //!Do next goal?
+                ROS_INFO("Goal Preempted");
+                goalRunning=false;
             }
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
             {
+                ROS_INFO("Goal succeded");
                 goalRunning = false;
             }
         }
@@ -134,6 +145,22 @@ private:
 
         return true;
     }
+    bool continueMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp)
+    {
+        resp.success = false;
+        if(!goals_queu.empty() && !goalRunning){//If there are goals in the queu and no one is running it means the client is waiting to send another one
+            resp.message="Sending next goal...";
+            resp.success = true;
+        }
+        if(goals_queu.empty()){
+            resp.message = "Can't continue, no goals in the queu";
+        }    
+        if(goalRunning){
+            resp.message= "The previous goal is still running, can't go to the next while previous goal running";
+        }
+
+        return true;
+    }
 
     bool loadMissionData()
     {
@@ -176,19 +203,22 @@ private:
         return missionLoaded;
     }
 
+    ros::NodeHandle nh;
+    ros::ServiceServer start_mission_server, reload_mission_data, continue_mission_server;
+    ros::Subscriber goal_sub;
+
+    upo_actions::MakePlanActionGoal actionGoal;
+
+    std::queue<geometry_msgs::PoseStamped> goals_queu;
+    std::unique_ptr<MakePlanActionClient> makePlanClient; // makePlanClient("Make_Plan", false);
+
     bool missionLoaded = false;
     bool doMission = false;
 
     bool goalRunning = false;
     bool goals_by_file;
-    int goalsNbr; //Number of goals loaded
 
-    upo_actions::MakePlanActionGoal actionGoal;
-    ros::NodeHandle nh;
-    std::queue<geometry_msgs::PoseStamped> goals_queu;
-    std::unique_ptr<MakePlanActionClient> makePlanClient; // makePlanClient("Make_Plan", false);
-    ros::ServiceServer start_mission_server, reload_mission_data;
-    ros::Subscriber goal_sub;
+    int goalsNbr; //Number of goals loaded
 };
 
 int main(int argc, char **argv)
