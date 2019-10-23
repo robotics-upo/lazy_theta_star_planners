@@ -1,0 +1,6 @@
+<launch>
+    
+    <rosparam command="load" file="$(find theta_star_2d)/cfg/goals.yaml"/>
+    <node pkg="theta_star_2d" name="action_goal_interface_node" type="action_goal_interface_node" output="screen"/>
+
+</launch>
