@@ -15,7 +15,7 @@ global_planner_node:
       transform_tolerance: 1
       resolution: 0.05
 
-      robot_radius: 0.50 #0.4
+      robot_radius: 0.30 #0.4
       #footprint_padding: 0.25
       obstacle_layer:
          combination_method: 1

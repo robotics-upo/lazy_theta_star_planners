@@ -7,8 +7,8 @@ costmap:
   origin_y: -3
   
   footprint: '[[0.01,0.01],[-0.01,0.01],[-0.01,-0.01],[0.05,-0.01]]'
-  footprint_padding: 0.7 #0.55 es mas conservador 
-  robot_radius: 0.7
+  footprint_padding: 0.3 #0.55 es mas conservador 
+  robot_radius: 0.3
   publish_frequency: 40.0
   update_frequency: 40.0
   resolution: 0.05
