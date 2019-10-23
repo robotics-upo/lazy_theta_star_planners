@@ -107,7 +107,7 @@ public:
     void dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level);
    
 private:
-
+    void clearMarkers();
     void sendPathToLocalPlannerServer(trajectory_msgs::MultiDOFJointTrajectory path_);
 
     //Action server

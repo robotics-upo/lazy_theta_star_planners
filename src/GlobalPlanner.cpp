@@ -149,13 +149,6 @@ void GlobalPlanner::sendPathToLocalPlannerServer(trajectory_msgs::MultiDOFJointT
 }
 void GlobalPlanner::publishMakePlanFeedback()
 {
-
-    // dist2Goal
-    // travel_time
-    // percent_achieved
-    // ETA
-    // globalWaypoint.data
-    // make_plan_fb.distance_to_goal =
     float x, y;
     x = (getRobotPose().transform.translation.x - goal.vector.x );
     y = (getRobotPose().transform.translation.y - goal.vector.y );
@@ -299,7 +292,20 @@ bool GlobalPlanner::replan()
         return false;
     }
 }
-
+void GlobalPlanner::clearMarkers(){
+    
+    waypointsMarker.action = RVizMarker::DELETEALL;
+    lineMarker.action = RVizMarker::DELETEALL;
+    
+    visMarkersPublisher.publish(lineMarker);
+    visMarkersPublisher.publish(waypointsMarker);
+    
+    lineMarker.points.clear();
+    waypointsMarker.points.clear();
+    
+    lineMarker.action = RVizMarker::ADD;
+    waypointsMarker.action = RVizMarker::ADD;
+}
 /**
  * This is the main function executed in loop
  * 
@@ -315,6 +321,7 @@ void GlobalPlanner::plan()
 
     if (goalRunning && execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
     {
+        clearMarkers();
         goalRunning = false;
         make_plan_res.finished = true;
         make_plan_res.not_possible = false;

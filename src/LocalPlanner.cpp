@@ -16,9 +16,24 @@ LocalPlanner::LocalPlanner(tf2_ros::Buffer *tfBuffer_)
     configTheta();
     configServices();
 }
+void LocalPlanner::clearMarkers()
+{
+
+    waypointsMarker.action = RVizMarker::DELETEALL;
+    lineMarker.action = RVizMarker::DELETEALL;
+
+    visMarkersPublisher.publish(lineMarker);
+    visMarkersPublisher.publish(waypointsMarker);
+
+    lineMarker.points.clear();
+    waypointsMarker.points.clear();
+
+    lineMarker.action = RVizMarker::ADD;
+    waypointsMarker.action = RVizMarker::ADD;
+}
 void LocalPlanner::configServices()
 {
-    
+
     //replanning_client_srv = nh_.serviceClient<std_srvs::Trigger>("/global_planner_node/global_replanning_service");
     costmap_clean_srv = nh_.serviceClient<std_srvs::Trigger>("/custom_costmap_node/reset_costmap");
 
@@ -31,12 +46,12 @@ void LocalPlanner::configServices()
     arrived_to_goal_srv = nh_.advertiseService("/local_planner_node/arrived_to_goal", &LocalPlanner::arrivedToGoalSrvCb, this);
 
     execute_path_srv_ptr.reset(new ExecutePathServer(nh_, "Execute_Plan", false));
-    execute_path_srv_ptr->registerGoalCallback(boost::bind(&LocalPlanner::executePathGoalServerCB,this));
-    execute_path_srv_ptr->registerPreemptCallback(boost::bind(&LocalPlanner::executePathPreemptCB,this));
+    execute_path_srv_ptr->registerGoalCallback(boost::bind(&LocalPlanner::executePathGoalServerCB, this));
+    execute_path_srv_ptr->registerPreemptCallback(boost::bind(&LocalPlanner::executePathPreemptCB, this));
     execute_path_srv_ptr->start();
 
     navigate_client_ptr.reset(new NavigateClient("Navigation", true));
-    
+
     //navigate_client_ptr->waitForServer();
 }
 void LocalPlanner::configParams()
@@ -73,7 +88,6 @@ void LocalPlanner::configParams()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Free space around local goal inside borders = [%.2f]", border_space);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Robot base frame: %s, World frame: %s", robot_base_frame.c_str(), world_frame.c_str());
 
-
     //Line strip marker use member points, only scale.x is used to control linea width
     lineMarker.header.frame_id = world_frame;
     lineMarker.header.stamp = ros::Time::now();
@@ -82,7 +96,7 @@ void LocalPlanner::configParams()
     lineMarker.lifetime = ros::Duration(500);
     lineMarker.type = RVizMarker::LINE_STRIP;
     lineMarker.action = RVizMarker::ADD;
-    lineMarker.pose.orientation.w =1;
+    lineMarker.pose.orientation.w = 1;
     lineMarker.color.r = 1.0;
     lineMarker.color.g = 0.0;
     lineMarker.color.b = 0.0;
@@ -92,11 +106,11 @@ void LocalPlanner::configParams()
     waypointsMarker.header.frame_id = world_frame;
     waypointsMarker.header.stamp = ros::Time::now();
     waypointsMarker.ns = "local_path";
-    waypointsMarker.id = lineMarker.id+12;
+    waypointsMarker.id = lineMarker.id + 12;
     waypointsMarker.lifetime = ros::Duration(500);
     waypointsMarker.type = RVizMarker::POINTS;
     waypointsMarker.action = RVizMarker::ADD;
-    waypointsMarker.pose.orientation.w=1;
+    waypointsMarker.pose.orientation.w = 1;
     waypointsMarker.color.r = 0.0;
     waypointsMarker.color.g = 0.0;
     waypointsMarker.color.b = 1.0;
@@ -104,7 +118,6 @@ void LocalPlanner::configParams()
     waypointsMarker.scale.x = 0.15;
     waypointsMarker.scale.y = 0.15;
     waypointsMarker.scale.z = 0.4;
-
 
     occ.data = false;
     is_running.data = true;
@@ -126,18 +139,18 @@ void LocalPlanner::dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t 
     lcPlanner.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Dynamic reconfiguration required");
 }
- void LocalPlanner::executePathPreemptCB()
-  {
+void LocalPlanner::executePathPreemptCB()
+{
     ROS_INFO("Goal Preempted");
     // set the action state to preempted
     execute_path_srv_ptr->setPreempted();
-  }
-void LocalPlanner::executePathGoalServerCB()  // Note: "Action" is not appended to exe here
+}
+void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended to exe here
 {
-    ROS_INFO_COND(debug,"Local Planner Goal received in action server mode");
-    upo_actions::ExecutePathGoalConstPtr path_shared_ptr; 
+    ROS_INFO_COND(debug, "Local Planner Goal received in action server mode");
+    upo_actions::ExecutePathGoalConstPtr path_shared_ptr;
     path_shared_ptr = execute_path_srv_ptr->acceptNewGoal();
-    
+
     globalTrajReceived = true;
     globalTrajectory = path_shared_ptr->path;
 
@@ -152,9 +165,8 @@ void LocalPlanner::executePathGoalServerCB()  // Note: "Action" is not appended 
     upo_actions::NavigateGoal nav_goal;
     size_t siz = globalTrajectory.points.size();
     nav_goal.global_goal.position.x = globalTrajectory.points.at(--siz).transforms[0].translation.x;
-    nav_goal.global_goal.position.y =  globalTrajectory.points.at(--siz).transforms[0].translation.y;
+    nav_goal.global_goal.position.y = globalTrajectory.points.at(--siz).transforms[0].translation.y;
     navigate_client_ptr->sendGoal(nav_goal);
-                
 }
 void LocalPlanner::configTheta()
 {
@@ -169,15 +181,15 @@ void LocalPlanner::configTopics()
     local_map_sub = nh_.subscribe<nav_msgs::OccupancyGrid>("/custom_costmap_node/costmap/costmap", 1, &LocalPlanner::localCostMapCb, this);
 
     //global_trj_sub = nh_.subscribe<trajectory_msgs::MultiDOFJointTrajectory>("/trajectory_tracker/input_trajectory", 1, &LocalPlanner::globalTrjCb, this);
-    
+
     dist2goal_sub = nh_.subscribe<std_msgs::Float32>("/dist2goal", 1, &LocalPlanner::dist2GoalCb, this);
-    
+
     trajectory_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>("/trajectory_tracker/local_input_trajectory", 0);
     visMarkersPublisher = nh_.advertise<visualization_msgs::Marker>("/local_planner_node/markers", 30);
 
     local_planning_time = nh_.advertise<std_msgs::Int32>("/local_planning_time", 1);
 
-    if(debug)
+    if (debug)
         inf_costmap_pub = nh_.advertise<nav_msgs::OccupancyGrid>("/local_costmap_inflated", 0);
 
     running_state_pub = nh_.advertise<std_msgs::Bool>("/local_planner_node/running", 0);
@@ -185,14 +197,15 @@ void LocalPlanner::configTopics()
     impossible_to_find_sol_pub = nh_.advertise<std_msgs::Bool>("/trajectory_tracker/impossible_to_find", 0);
 }
 
-bool LocalPlanner::arrivedToGoalSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &resp){
+bool LocalPlanner::arrivedToGoalSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &resp)
+{
 
     //If the path tracker call this service it means that the robot has arrived
     action_result.arrived = true;
-    execute_path_srv_ptr->setSucceeded();    
-    
+    execute_path_srv_ptr->setSucceeded();
 }
-void LocalPlanner::dist2GoalCb(const std_msgs::Float32ConstPtr &dist){
+void LocalPlanner::dist2GoalCb(const std_msgs::Float32ConstPtr &dist)
+{
     d2goal = *dist;
 }
 bool LocalPlanner::stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
@@ -210,12 +223,15 @@ bool LocalPlanner::pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::T
     rep.success = true;
     rep.message = "Planning resumed";
 
-    if (doPlan){
+    if (doPlan)
+    {
         rep.message = "Planning paused";
-    }else{
+    }
+    else
+    {
     }
     doPlan = !doPlan;
-    
+
     return true;
 }
 //Calbacks and publication functions
@@ -250,18 +266,24 @@ void LocalPlanner::plan()
 
     running_state_pub.publish(is_running);
     number_of_points = 0; //Reset variable
-    
-    if(!execute_path_srv_ptr->isActive())
-        return;
-    
-    ftime(&startT);
-    if (globalTrajReceived && localCostMapReceived && doPlan && execute_path_srv_ptr->isActive())
+
+    if (!execute_path_srv_ptr->isActive())
     {
-        if(navigate_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED){
-            action_result.arrived = true;
-            execute_path_srv_ptr->setSucceeded();
-            ROS_INFO_COND(debug,"Goal Succed");
-        }   
+        return;
+    }
+    else if (navigate_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
+    {
+        clearMarkers();
+        action_result.arrived = true;
+        execute_path_srv_ptr->setSucceeded(action_result);
+        ROS_ERROR("LocalPlanner: Goal Succed");
+        return;
+    }
+
+    ftime(&startT);
+    if (globalTrajReceived && localCostMapReceived && doPlan )
+    {
+
         ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Global trj received and local costmap received");
         localCostMapReceived = false;
 
@@ -291,20 +313,20 @@ void LocalPlanner::plan()
             inflateCostMap();
             ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Freeing space around local goal in the border");
             freeLocalGoal();
-            
-            if(debug)
+
+            if (debug)
                 inf_costmap_pub.publish(localCostMapInflated); //Debug purposes
 
             lcPlanner.getMap(&localCostMapInflated);
 
             if (lcPlanner.setValidFinalPosition(localGoal))
             {
-                
+
                 ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path(2)");
                 number_of_points = lcPlanner.computePath();
                 ROS_INFO("Number of points: %d, occ: %d", number_of_points, occ.data);
-                planningStatus.data="OK";
-                if (occ.data)//If the local goal was previously occupied, reset flag and publish new status
+                planningStatus.data = "OK";
+                if (occ.data) //If the local goal was previously occupied, reset flag and publish new status
                 {
                     //ROS_INFO("Local: Local goal disocuupied");
                     occ.data = false;
@@ -317,17 +339,18 @@ void LocalPlanner::plan()
                 {
                     ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path after a free place next to goal found");
                     number_of_points = lcPlanner.computePath();
-                    planningStatus.data="OK: Path Calculated after search around goal";
+                    planningStatus.data = "OK: Path Calculated after search around goal";
                     occGoalCnt = 0;
                 }
                 else if (occGoalCnt > 3)
                 { //If it cant find a free position near local goal, it means that there is something there.
                     //Send message to tracker to stop
-                    if(!occ.data){
+                    if (!occ.data)
+                    {
                         occ.data = true;
                         occ_goal_pub.publish(occ);
                     }
-                    
+
                     //And pause planning, under construction
                     doPlan = false;
                     ROS_INFO_COND(debug, PRINTF_YELLOW "Pausing planning, final position busy");
@@ -351,7 +374,6 @@ void LocalPlanner::plan()
                 ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Published trajectory markers");
                 startOk = false;
 
-               
                 if (impossibleCnt > 0) //If previously the local planner couldn t find solution, reset
                 {
                     //ROS_INFO("Local: Impossible reseted");
@@ -374,23 +396,23 @@ void LocalPlanner::plan()
                     impossible_calculate.data = true;
                     impossible_to_find_sol_pub.publish(impossible_calculate);
                     navigate_client_ptr->cancelGoal();
-                    planningStatus.data="Requesting new global path, navigation cancelled";
+                    planningStatus.data = "Requesting new global path, navigation cancelled";
                     ROS_WARN("Requesting new global path to same global goal, %d", impossibleCnt);
                     //TODO These triggers will be removed
-                    std_srvs::Trigger srv,stop_nav;
+                    std_srvs::Trigger srv, stop_nav;
 
                     //replanning_client_srv.call(srv);
-                    
+
                     execute_path_srv_ptr->setAborted();
                     globalTrajReceived = false;
                     //execute_path_srv_ptr->
                     //TODO: Change this to the action command
-                    if(impossibleCnt == 3){
+                    if (impossibleCnt == 3)
+                    {
                         stop_nav_client_srv.call(stop_nav);
-                        
                     }
 
-                    //TODO 
+                    //TODO
                     //if(execute_path_srv_ptr->isNewGoalAvailable())
 
                     //TODO This is the global planner responding, think about how to get new status
@@ -412,27 +434,31 @@ void LocalPlanner::plan()
     seconds = finishT.time - startT.time - 1;
     milliseconds = (1000 - startT.millitm) + finishT.millitm;
     time_spent_msg.data = (milliseconds + seconds * 1000);
-    publishExecutePathFeedback();
+    if (execute_path_srv_ptr->isActive())
+        publishExecutePathFeedback();
     //if (debug)
     //    showTime(PRINTF_YELLOW "Time spent", startT, finishT);
 
     local_planning_time.publish(time_spent_msg);
 }
-void LocalPlanner::publishExecutePathFeedback(){
+void LocalPlanner::publishExecutePathFeedback()
+{
     // planningRate;
     //waypointGoingTo;
     // planningStatus;
-    if(planningStatus.data.find("OK") > 0){
-        planningRate.data = 1000/milliseconds;
-    }else{
+    if (planningStatus.data.find("OK") > 0)
+    {
+        planningRate.data = 1000 / milliseconds;
+    }
+    else
+    {
         planningRate.data = 0;
     }
-    
+
     exec_path_fb.global_waypoint = waypointGoingTo;
     exec_path_fb.planning_rate = planningRate;
     exec_path_fb.status = planningStatus;
     execute_path_srv_ptr->publishFeedback(exec_path_fb);
-
 }
 geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
 {
@@ -524,31 +550,30 @@ void LocalPlanner::publishTrajMarker()
     //!This is done to clear out the previous markers
     waypointsMarker.action = RVizMarker::DELETEALL;
     lineMarker.action = RVizMarker::DELETEALL;
-    
+
     visMarkersPublisher.publish(lineMarker);
     visMarkersPublisher.publish(waypointsMarker);
-    
+
     lineMarker.points.clear();
     waypointsMarker.points.clear();
-    
+
     lineMarker.action = RVizMarker::ADD;
     waypointsMarker.action = RVizMarker::ADD;
 
     lineMarker.header.stamp = ros::Time::now();
     waypointsMarker.header.stamp = ros::Time::now();
-    
 
     geometry_msgs::Point p;
-    
+
     for (int i = 0; i < localTrajectory.points.size(); i++)
     {
         p.x = localTrajectory.points[i].transforms[0].translation.x;
         p.y = localTrajectory.points[i].transforms[0].translation.y;
-        
+
         lineMarker.points.push_back(p);
         waypointsMarker.points.push_back(p);
     }
-   
+
     visMarkersPublisher.publish(lineMarker);
     visMarkersPublisher.publish(waypointsMarker);
 }

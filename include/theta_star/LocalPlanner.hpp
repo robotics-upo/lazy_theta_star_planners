@@ -35,7 +35,6 @@
 #include <dynamic_reconfigure/server.h>
 #include <theta_star_2d/LocalPlannerConfig.h>
 
-
 #include <actionlib/server/simple_action_server.h>
 #include <actionlib/client/simple_action_client.h>
 
@@ -50,8 +49,8 @@ namespace PathPlanners
 {
 class LocalPlanner : public ThetaStar
 {
-typedef actionlib::SimpleActionServer<upo_actions::ExecutePathAction> ExecutePathServer;
-typedef actionlib::SimpleActionClient<upo_actions::NavigateAction> NavigateClient;
+    typedef actionlib::SimpleActionServer<upo_actions::ExecutePathAction> ExecutePathServer;
+    typedef actionlib::SimpleActionClient<upo_actions::NavigateAction> NavigateClient;
 
 public:
     /*
@@ -68,20 +67,21 @@ public:
     void localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp);
     //Global Input trajectory
     void globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr &traj);
-    
+
     //Used to know when to stop calculating local trajectories
     void goalReachedCb(const std_msgs::Bool::ConstPtr &data);
 
     void dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t level);
     bool stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep);
     bool pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep);
-  
 
     bool arrivedToGoalSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &resp);
     void executePathGoalServerCB();
     void executePathPreemptCB();
     void dist2GoalCb(const std_msgs::Float32ConstPtr &dist);
+
 private:
+    void clearMarkers();
     //These functions gets parameters from param server at startup if they exists, if not it passes default values
     void configParams();
     void configTopics();
@@ -110,11 +110,11 @@ private:
     //Variables
     ros::NodeHandle nh_;
     ros::ServiceClient replanning_client_srv, costmap_clean_srv, stop_nav_client_srv;
-    ros::ServiceServer stop_planning_srv,pause_planning_srv, arrived_to_goal_srv;
+    ros::ServiceServer stop_planning_srv, pause_planning_srv, arrived_to_goal_srv;
     ros::Subscriber local_map_sub, goal_reached_sub, global_goal_sub, global_trj_sub, dist2goal_sub;
     //TODO: Replace global goal publisher used to request a new global trajectory by a Service call
     //Not much sense that local planner publishes global goals
-    ros::Publisher trajectory_pub, global_goal_pub, local_planning_time,inf_costmap_pub;
+    ros::Publisher trajectory_pub, global_goal_pub, local_planning_time, inf_costmap_pub;
 
     //Flags publishers
     ros::Publisher running_state_pub, occ_goal_pub, impossible_to_find_sol_pub;
@@ -156,29 +156,27 @@ private:
     nav_msgs::OccupancyGrid localCostMap, localCostMapInflated;
 
     trajectory_msgs::MultiDOFJointTrajectory globalTrajectory, localTrajectory;
-    
 
     //!
     visualization_msgs::Marker lineMarker, waypointsMarker;
     ros::Publisher visMarkersPublisher;
-    
+
     geometry_msgs::Vector3 local_costmap_center, localGoal;
-   
+
     ThetaStar lcPlanner;
 
     tf2_ros::Buffer *tfBuffer;
 
     std_msgs::Bool is_running, occ, impossible_calculate;
     std_msgs::Int32 time_spent_msg;
-    
-    int impossibleCnt,occGoalCnt;
+
+    int impossibleCnt, occGoalCnt;
     int number_of_points;
     bool startOk;
     bool debug;
     float seconds, milliseconds;
     //action server stufff
     std::unique_ptr<ExecutePathServer> execute_path_srv_ptr;
-
 
     upo_actions::ExecutePathFeedback exec_path_fb;
     std_msgs::Float32 planningRate;
@@ -189,11 +187,9 @@ private:
 
     ros::Time start_time;
     std_msgs::Float32 d2goal;
-    //action client to navigate 
+    //action client to navigate
     std::unique_ptr<NavigateClient> navigate_client_ptr;
     upo_actions::NavigateActionGoal navigate_goal;
-
-
 };
 
 } // namespace PathPlanners
