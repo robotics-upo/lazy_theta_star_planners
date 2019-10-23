@@ -17,7 +17,6 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <std_srvs/Trigger.h>
 #include <std_srvs/Empty.h>
 #include <visualization_msgs/Marker.h>
-#include <visualization_msgs/MarkerArray.h>
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Transform.h>
@@ -162,18 +161,14 @@ private:
     /*              Class Variables                 */
     ros::NodeHandle nh_;
 
-    visualization_msgs::MarkerArray markerTraj;
-    visualization_msgs::Marker marker;
-
     //!New Markers(Line strip + waypoints)
-    ros::Publisher visMarkersPublisher;
     visualization_msgs::Marker lineMarker, waypointsMarker;
 
     geometry_msgs::PoseStamped goalPoseStamped;
     geometry_msgs::Vector3Stamped goal;
 
     //Publishers and Subscribers
-    ros::Publisher trj_pub, vis_trj_pub, replan_status_pub;
+    ros::Publisher trj_pub, replan_status_pub,visMarkersPublisher;
     ros::Subscriber goal_sub, global_costmap_sub;
 
     //Services servers
