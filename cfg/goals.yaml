@@ -1,0 +1,37 @@
+mission:
+    goal1:
+        pose:
+            x: 1
+            y: 20
+        orientation:
+            x: 0
+            y: 0
+            z: 0
+            w: 1
+    goal2:
+        pose:
+            x: 10
+            y: 2
+        orientation:
+            x: 0
+            y: 1
+            z: 0
+            w: 1
+    goal3:
+        pose:
+            x: 1
+            y: 2
+        orientation:
+            x: 0
+            y: 20
+            z: 2
+            w: 1
+    goal4:
+        pose:
+            x: 1
+            y: 2
+        orientation:
+            x: 2
+            y: 30
+            z: 0
+            w: 1
