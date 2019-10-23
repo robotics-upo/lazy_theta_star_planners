@@ -29,8 +29,7 @@
 
 #include <theta_star/ThetaStar.hpp>
 
-#include <visualization_msgs/MarkerArray.h>
-
+#include <visualization_msgs/Marker.h>
 #include <trajectory_msgs/MultiDOFJointTrajectory.h>
 
 #include <dynamic_reconfigure/server.h>
@@ -115,7 +114,7 @@ private:
     ros::Subscriber local_map_sub, goal_reached_sub, global_goal_sub, global_trj_sub, dist2goal_sub;
     //TODO: Replace global goal publisher used to request a new global trajectory by a Service call
     //Not much sense that local planner publishes global goals
-    ros::Publisher trajectory_pub, vis_marker_traj_pub, global_goal_pub, local_planning_time,inf_costmap_pub;
+    ros::Publisher trajectory_pub, global_goal_pub, local_planning_time,inf_costmap_pub;
 
     //Flags publishers
     ros::Publisher running_state_pub, occ_goal_pub, impossible_to_find_sol_pub;
@@ -158,8 +157,10 @@ private:
 
     trajectory_msgs::MultiDOFJointTrajectory globalTrajectory, localTrajectory;
     
-    visualization_msgs::Marker marker;
-    visualization_msgs::MarkerArray markerTraj;
+
+    //!
+    visualization_msgs::Marker lineMarker, waypointsMarker;
+    ros::Publisher visMarkersPublisher;
     
     geometry_msgs::Vector3 local_costmap_center, localGoal;
    

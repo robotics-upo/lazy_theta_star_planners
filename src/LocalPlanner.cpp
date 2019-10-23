@@ -35,10 +35,7 @@ void LocalPlanner::configServices()
     execute_path_srv_ptr->registerPreemptCallback(boost::bind(&LocalPlanner::executePathPreemptCB,this));
     execute_path_srv_ptr->start();
 
-
     navigate_client_ptr.reset(new NavigateClient("Navigation", true));
-
-
     
     //navigate_client_ptr->waitForServer();
 }
@@ -76,21 +73,38 @@ void LocalPlanner::configParams()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Free space around local goal inside borders = [%.2f]", border_space);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Robot base frame: %s, World frame: %s", robot_base_frame.c_str(), world_frame.c_str());
 
-    marker.header.frame_id = world_frame;
-    marker.header.stamp = ros::Time::now();
-    marker.ns = "local_path";
-    marker.id = rand();
-    marker.type = RVizMarker::ARROW;
-    marker.action = RVizMarker::ADD;
-    marker.lifetime = ros::Duration(2);
-    marker.scale.x = 0.4;
-    marker.scale.y = 0.1;
-    marker.scale.z = 0.1;
-    marker.pose.position.z = 0.5;
-    marker.color.a = 1.0;
-    marker.color.r = 1.0;
-    marker.color.g = 0.0;
-    marker.color.b = 0.0;
+
+    //Line strip marker use member points, only scale.x is used to control linea width
+    lineMarker.header.frame_id = world_frame;
+    lineMarker.header.stamp = ros::Time::now();
+    lineMarker.id = rand();
+    lineMarker.ns = "local_path";
+    lineMarker.lifetime = ros::Duration(500);
+    lineMarker.type = RVizMarker::LINE_STRIP;
+    lineMarker.action = RVizMarker::ADD;
+    lineMarker.pose.orientation.w =1;
+    lineMarker.color.r = 1.0;
+    lineMarker.color.g = 0.0;
+    lineMarker.color.b = 0.0;
+    lineMarker.color.a = 1.0;
+    lineMarker.scale.x = 0.1;
+
+    waypointsMarker.header.frame_id = world_frame;
+    waypointsMarker.header.stamp = ros::Time::now();
+    waypointsMarker.ns = "local_path";
+    waypointsMarker.id = lineMarker.id+12;
+    waypointsMarker.lifetime = ros::Duration(500);
+    waypointsMarker.type = RVizMarker::POINTS;
+    waypointsMarker.action = RVizMarker::ADD;
+    waypointsMarker.pose.orientation.w=1;
+    waypointsMarker.color.r = 0.0;
+    waypointsMarker.color.g = 0.0;
+    waypointsMarker.color.b = 1.0;
+    waypointsMarker.color.a = 1.0;
+    waypointsMarker.scale.x = 0.15;
+    waypointsMarker.scale.y = 0.15;
+    waypointsMarker.scale.z = 0.4;
+
 
     occ.data = false;
     is_running.data = true;
@@ -159,9 +173,9 @@ void LocalPlanner::configTopics()
     dist2goal_sub = nh_.subscribe<std_msgs::Float32>("/dist2goal", 1, &LocalPlanner::dist2GoalCb, this);
     
     trajectory_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>("/trajectory_tracker/local_input_trajectory", 0);
-    vis_marker_traj_pub = nh_.advertise<visualization_msgs::MarkerArray>("/local_planner_node/visualization_marker_trajectory", 0);
+    visMarkersPublisher = nh_.advertise<visualization_msgs::Marker>("/local_planner_node/markers", 30);
 
-    local_planning_time = nh_.advertise<std_msgs::Int32>("/local_planning_time", 0);
+    local_planning_time = nh_.advertise<std_msgs::Int32>("/local_planning_time", 1);
 
     if(debug)
         inf_costmap_pub = nh_.advertise<nav_msgs::OccupancyGrid>("/local_costmap_inflated", 0);
@@ -230,25 +244,7 @@ void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
         ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map: resol.= [%.2f]", map_resolution);
     }
 }
-//Global Input trajectory
-//! Right now the subscirber is commented so it's not used.
-//TODO: Remove in the future when the action lib communication it's implemented and tested
-/*void LocalPlanner::globalTrjCb(const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr &traj)
-{
-    globalTrajectory = *traj;
 
-    startIter = 1;
-    globalTrajReceived = true;
-    doPlan = true; //Restore the doPlan flag because we get a new trajectory do a new goal
-
-    //Also clean the local costmap 
-    std_srvs::Trigger trg;
-    costmap_clean_srv.call(trg);
-    usleep(5e5);
-
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received global trajectory");
-}
-*/
 void LocalPlanner::plan()
 {
 
@@ -524,26 +520,37 @@ geometry_msgs::TransformStamped LocalPlanner::getTfMapToRobot()
 
 void LocalPlanner::publishTrajMarker()
 {
-    markerTraj.markers.clear();
 
-    marker.action = RVizMarker::DELETEALL;
+    //!This is done to clear out the previous markers
+    waypointsMarker.action = RVizMarker::DELETEALL;
+    lineMarker.action = RVizMarker::DELETEALL;
+    
+    visMarkersPublisher.publish(lineMarker);
+    visMarkersPublisher.publish(waypointsMarker);
+    
+    lineMarker.points.clear();
+    waypointsMarker.points.clear();
+    
+    lineMarker.action = RVizMarker::ADD;
+    waypointsMarker.action = RVizMarker::ADD;
 
-    markerTraj.markers.push_back(marker);
-    vis_marker_traj_pub.publish(markerTraj);
-    marker.action = RVizMarker::ADD;
+    lineMarker.header.stamp = ros::Time::now();
+    waypointsMarker.header.stamp = ros::Time::now();
+    
 
-    markerTraj.markers.clear();
-    marker.header.stamp = ros::Time::now();
-
-    for (size_t i = 0; i < localTrajectory.points.size(); i++)
+    geometry_msgs::Point p;
+    
+    for (int i = 0; i < localTrajectory.points.size(); i++)
     {
-        marker.pose.position.x = localTrajectory.points[i].transforms[0].translation.x;
-        marker.pose.position.y = localTrajectory.points[i].transforms[0].translation.y;
-        marker.pose.orientation = localTrajectory.points[i].transforms[0].rotation;
-        marker.id = rand();
-        markerTraj.markers.push_back(marker);
+        p.x = localTrajectory.points[i].transforms[0].translation.x;
+        p.y = localTrajectory.points[i].transforms[0].translation.y;
+        
+        lineMarker.points.push_back(p);
+        waypointsMarker.points.push_back(p);
     }
-    vis_marker_traj_pub.publish(markerTraj);
+   
+    visMarkersPublisher.publish(lineMarker);
+    visMarkersPublisher.publish(waypointsMarker);
 }
 
 void LocalPlanner::buildAndPubTrayectory()
