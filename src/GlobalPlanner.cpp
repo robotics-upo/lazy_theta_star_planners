@@ -40,9 +40,8 @@ void GlobalPlanner::configTheta()
 void GlobalPlanner::configTopics()
 {
     trj_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>("trajectory_tracker/input_trajectory", 1);
-    vis_trj_pub = nh_.advertise<visualization_msgs::MarkerArray>("global_planner_node/visualization_marker_trajectory", 1);
     replan_status_pub = nh_.advertise<std_msgs::Bool>("global_planner_node/replanning_status", 1);
-    visMarkersPublisher = nh_.advertise<visualization_msgs::Marker>("global_planner_node/markers", 1);
+    visMarkersPublisher = nh_.advertise<visualization_msgs::Marker>("global_planner_node/markers", 2);
 }
 void GlobalPlanner::configServices()
 {
@@ -103,29 +102,15 @@ void GlobalPlanner::configParams()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Line of sight restriction = [%.2f]", lof_distance);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t World frame: %s, Robot base frame: %s", world_frame.c_str(), robot_base_frame.c_str());
 
-    //Configure markers
-    marker.header.frame_id = world_frame;
-    marker.header.stamp = ros::Time::now();
-    marker.ns = "global_path";
-    marker.lifetime = ros::Duration(200);
-    marker.type = RVizMarker::ARROW;
-    marker.action = RVizMarker::DELETEALL;
-    marker.pose.position.z = 0.1;
-    marker.color.r = 0.0;
-    marker.color.g = 1.0;
-    marker.color.b = 0.0;
-    marker.color.a = 1.0;
-    marker.scale.x = 0.4;
-    marker.scale.y = 0.1;
-    marker.scale.z = 0.1;
-
     //Line strip marker use member points, only scale.x is used to control linea width
     lineMarker.header.frame_id = world_frame;
     lineMarker.header.stamp = ros::Time::now();
+    lineMarker.id = rand();
     lineMarker.ns = "global_path";
     lineMarker.lifetime = ros::Duration(500);
     lineMarker.type = RVizMarker::LINE_STRIP;
-    lineMarker.action = RVizMarker::DELETEALL;
+    lineMarker.action = RVizMarker::ADD;
+    lineMarker.pose.orientation.w =1;
     lineMarker.color.r = 0.0;
     lineMarker.color.g = 1.0;
     lineMarker.color.b = 0.0;
@@ -135,9 +120,11 @@ void GlobalPlanner::configParams()
     waypointsMarker.header.frame_id = world_frame;
     waypointsMarker.header.stamp = ros::Time::now();
     waypointsMarker.ns = "global_path";
+    waypointsMarker.id = lineMarker.id+1;
     waypointsMarker.lifetime = ros::Duration(500);
-    waypointsMarker.type = RVizMarker::CYLINDER;
-    waypointsMarker.action = RVizMarker::DELETEALL;
+    waypointsMarker.type = RVizMarker::POINTS;
+    waypointsMarker.action = RVizMarker::ADD;
+    waypointsMarker.pose.orientation.w=1;
     waypointsMarker.color.r = 1.0;
     waypointsMarker.color.g = 1.0;
     waypointsMarker.color.b = 0.0;
@@ -473,48 +460,34 @@ void GlobalPlanner::publishTrajectory()
 
     //!Calculate path length:
     calculatePathLength();
-    //
-
-    marker.action = RVizMarker::DELETEALL;
-    //First send a message with a DELETE marker to remove previous markers
-    markerTraj.markers.empty();
-    markerTraj.markers.push_back(marker);
-    vis_trj_pub.publish(markerTraj);
-    markerTraj.markers.empty();
-    //Now change action to ADD (normal work)
-    marker.action = RVizMarker::ADD;
-    marker.header.stamp = ros::Time::now();
-
-    geometry_msgs::Point p;
 
     //!This is done to clear out the previous markers
+    waypointsMarker.action = RVizMarker::DELETEALL;
     lineMarker.action = RVizMarker::DELETEALL;
-    lineMarker.points.clear();
-    lineMarker.points.push_back(p);
-
+    
     visMarkersPublisher.publish(lineMarker);
-
+    visMarkersPublisher.publish(waypointsMarker);
+    
     lineMarker.points.clear();
-    lineMarker.action = RVizMarker::ADD;
-    lineMarker.header.stamp = ros::Time::now();
-
     waypointsMarker.points.clear();
+    
+    lineMarker.action = RVizMarker::ADD;
+    waypointsMarker.action = RVizMarker::ADD;
+
+    lineMarker.header.stamp = ros::Time::now();
     waypointsMarker.header.stamp = ros::Time::now();
 
+    geometry_msgs::Point p;
+    
     for (int i = 0; i < trajectory.points.size(); i++)
     {
-        marker.pose.position.x = trajectory.points[i].transforms[0].translation.x;
-        marker.pose.position.y = trajectory.points[i].transforms[0].translation.y;
-        marker.pose.orientation = trajectory.points[i].transforms[0].rotation;
-        marker.id = rand();
-        markerTraj.markers.push_back(marker);
-
         p.x = trajectory.points[i].transforms[0].translation.x;
         p.y = trajectory.points[i].transforms[0].translation.y;
+        
         lineMarker.points.push_back(p);
         waypointsMarker.points.push_back(p);
     }
-    vis_trj_pub.publish(markerTraj);
+   
     visMarkersPublisher.publish(lineMarker);
     visMarkersPublisher.publish(waypointsMarker);
 }
