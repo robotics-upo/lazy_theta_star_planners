@@ -56,7 +56,7 @@ public:
          * TODO Que pasa si alguno se cancela por el global planner.............
          * 
         **/
-            if (!goals_queu.empty() && !goalRunning && doMission && goNext)
+            if (!goals_queu.empty() && !goalRunning && doMission && goNext)//!Lots of flags :(
             {
                 actionGoal.goal.global_goal = goals_queu.front();
                 goals_queu.pop();
