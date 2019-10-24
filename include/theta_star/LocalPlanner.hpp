@@ -91,7 +91,7 @@ private:
 
     void publishExecutePathFeedback();
 
-    geometry_msgs::Vector3 calculateLocalGoal();
+    void calculateLocalGoal();
 
     geometry_msgs::TransformStamped getTfMapToRobot();
 
@@ -109,22 +109,17 @@ private:
 
     //Variables
     ros::NodeHandle nh_;
-    ros::ServiceClient replanning_client_srv, costmap_clean_srv, stop_nav_client_srv;
-    ros::ServiceServer stop_planning_srv, pause_planning_srv, arrived_to_goal_srv;
-    ros::Subscriber local_map_sub, goal_reached_sub, global_goal_sub, global_trj_sub, dist2goal_sub;
-    //TODO: Replace global goal publisher used to request a new global trajectory by a Service call
-    //Not much sense that local planner publishes global goals
-    ros::Publisher trajectory_pub, global_goal_pub, local_planning_time, inf_costmap_pub;
+    ros::ServiceClient costmap_clean_srv;
+    ros::Subscriber local_map_sub;
+    ros::Publisher trajectory_pub, running_state_pub,visMarkersPublisher;
 
     //Flags publishers
-    ros::Publisher running_state_pub, occ_goal_pub, impossible_to_find_sol_pub;
 
     bool showConfig;
     bool mapGeometryConfigured;
     bool doPlan;
     //Flow control flags
     bool localCostMapReceived;
-    bool globalTrajReceived;
     //To calculate planning time
     struct timeb startT, finishT;
 
@@ -150,31 +145,23 @@ private:
     //
 
     unsigned int startIter;
-
-    string robot_base_frame, world_frame;
-
-    nav_msgs::OccupancyGrid localCostMap, localCostMapInflated;
-
-    trajectory_msgs::MultiDOFJointTrajectory globalTrajectory, localTrajectory;
-
-    //!
-    visualization_msgs::Marker lineMarker, waypointsMarker;
-    ros::Publisher visMarkersPublisher;
-
-    geometry_msgs::Vector3 local_costmap_center, localGoal;
-
-    ThetaStar lcPlanner;
-
-    tf2_ros::Buffer *tfBuffer;
-
-    std_msgs::Bool is_running, occ, impossible_calculate;
-    std_msgs::Int32 time_spent_msg;
-
     int impossibleCnt, occGoalCnt;
     int number_of_points;
-    bool startOk;
     bool debug;
     float seconds, milliseconds;
+
+    string robot_base_frame, world_frame;
+    nav_msgs::OccupancyGrid localCostMap, localCostMapInflated;
+    trajectory_msgs::MultiDOFJointTrajectory globalTrajectory, localTrajectory;
+    //Markers
+    visualization_msgs::Marker lineMarker, waypointsMarker;
+
+    geometry_msgs::Vector3 local_costmap_center, localGoal;
+    ThetaStar lcPlanner;
+    tf2_ros::Buffer *tfBuffer;
+
+    std_msgs::Bool is_running;
+
     //action server stufff
     std::unique_ptr<ExecutePathServer> execute_path_srv_ptr;
 

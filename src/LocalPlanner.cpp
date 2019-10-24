@@ -18,7 +18,6 @@ LocalPlanner::LocalPlanner(tf2_ros::Buffer *tfBuffer_)
 }
 void LocalPlanner::clearMarkers()
 {
-
     waypointsMarker.action = RVizMarker::DELETEALL;
     lineMarker.action = RVizMarker::DELETEALL;
 
@@ -33,18 +32,8 @@ void LocalPlanner::clearMarkers()
 }
 void LocalPlanner::configServices()
 {
-
-    //replanning_client_srv = nh_.serviceClient<std_srvs::Trigger>("/global_planner_node/global_replanning_service");
     costmap_clean_srv = nh_.serviceClient<std_srvs::Trigger>("/custom_costmap_node/reset_costmap");
-
-    //TODO: Remove, the stop navigatin action should be infered from the executePath action state, arrived to goal also
-    stop_nav_client_srv = nh_.serviceClient<std_srvs::Trigger>("/nav_node/pause_navigation_srv");
-
-    stop_planning_srv = nh_.advertiseService("/local_planner_node/stop_planning_srv", &LocalPlanner::stopPlanningSrvCb, this);
-    pause_planning_srv = nh_.advertiseService("/local_planner_node/pause_planning_srv", &LocalPlanner::pausePlanningSrvCb, this);
-
-    arrived_to_goal_srv = nh_.advertiseService("/local_planner_node/arrived_to_goal", &LocalPlanner::arrivedToGoalSrvCb, this);
-
+    
     execute_path_srv_ptr.reset(new ExecutePathServer(nh_, "Execute_Plan", false));
     execute_path_srv_ptr->registerGoalCallback(boost::bind(&LocalPlanner::executePathGoalServerCB, this));
     execute_path_srv_ptr->registerPreemptCallback(boost::bind(&LocalPlanner::executePathPreemptCB, this));
@@ -52,13 +41,12 @@ void LocalPlanner::configServices()
 
     navigate_client_ptr.reset(new NavigateClient("Navigation", true));
 
-    //navigate_client_ptr->waitForServer();
+    //?navigate_client_ptr->waitForServer();
 }
 void LocalPlanner::configParams()
 {
     //Flags for flow control
     localCostMapReceived = false;
-    globalTrajReceived = false;
     mapGeometryConfigured = false;
     doPlan = true;
     nh_.param("/local_planner_node/goal_weight", goal_weight, (float)1.5);
@@ -119,14 +107,10 @@ void LocalPlanner::configParams()
     waypointsMarker.scale.y = 0.15;
     waypointsMarker.scale.z = 0.4;
 
-    occ.data = false;
     is_running.data = true;
-    impossible_calculate.data = false;
-    startOk = false;
 
     impossibleCnt = 0;
     occGoalCnt = 0;
-    number_of_points = 0;
     startIter = 1;
 }
 void LocalPlanner::dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t level)
@@ -151,7 +135,6 @@ void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended t
     upo_actions::ExecutePathGoalConstPtr path_shared_ptr;
     path_shared_ptr = execute_path_srv_ptr->acceptNewGoal();
 
-    globalTrajReceived = true;
     globalTrajectory = path_shared_ptr->path;
 
     doPlan = true;
@@ -174,65 +157,14 @@ void LocalPlanner::configTheta()
     lcPlanner.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, &nh_);
     lcPlanner.setTimeOut(1);
     lcPlanner.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Theta Star Configured");
+    //ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Theta Star Configured");
 }
 void LocalPlanner::configTopics()
 {
     local_map_sub = nh_.subscribe<nav_msgs::OccupancyGrid>("/custom_costmap_node/costmap/costmap", 1, &LocalPlanner::localCostMapCb, this);
-
-    //global_trj_sub = nh_.subscribe<trajectory_msgs::MultiDOFJointTrajectory>("/trajectory_tracker/input_trajectory", 1, &LocalPlanner::globalTrjCb, this);
-
-    dist2goal_sub = nh_.subscribe<std_msgs::Float32>("/dist2goal", 1, &LocalPlanner::dist2GoalCb, this);
-
     trajectory_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>("/trajectory_tracker/local_input_trajectory", 0);
     visMarkersPublisher = nh_.advertise<visualization_msgs::Marker>("/local_planner_node/markers", 30);
-
-    local_planning_time = nh_.advertise<std_msgs::Int32>("/local_planning_time", 1);
-
-    if (debug)
-        inf_costmap_pub = nh_.advertise<nav_msgs::OccupancyGrid>("/local_costmap_inflated", 0);
-
     running_state_pub = nh_.advertise<std_msgs::Bool>("/local_planner_node/running", 0);
-    occ_goal_pub = nh_.advertise<std_msgs::Bool>("/trajectory_tracker/local_goal_occupied", 0);
-    impossible_to_find_sol_pub = nh_.advertise<std_msgs::Bool>("/trajectory_tracker/impossible_to_find", 0);
-}
-
-bool LocalPlanner::arrivedToGoalSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &resp)
-{
-
-    //If the path tracker call this service it means that the robot has arrived
-    action_result.arrived = true;
-    execute_path_srv_ptr->setSucceeded();
-}
-void LocalPlanner::dist2GoalCb(const std_msgs::Float32ConstPtr &dist)
-{
-    d2goal = *dist;
-}
-bool LocalPlanner::stopPlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
-{
-
-    globalTrajReceived = false;
-    rep.message = "Waiting for a new global trajectory";
-    rep.success = true;
-    execute_path_srv_ptr->setAborted();
-    return true;
-}
-bool LocalPlanner::pausePlanningSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
-{
-
-    rep.success = true;
-    rep.message = "Planning resumed";
-
-    if (doPlan)
-    {
-        rep.message = "Planning paused";
-    }
-    else
-    {
-    }
-    doPlan = !doPlan;
-
-    return true;
 }
 //Calbacks and publication functions
 void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
@@ -240,7 +172,6 @@ void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
     localCostMap = *lcp;
     localCostMapReceived = true;
 
-    //ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Received local costmap");
     //First time the map is received, configure the geometric params
     if (!mapGeometryConfigured)
     {
@@ -260,15 +191,14 @@ void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
         ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map: resol.= [%.2f]", map_resolution);
     }
 }
-
 void LocalPlanner::plan()
 {
-
     running_state_pub.publish(is_running);
     number_of_points = 0; //Reset variable
 
     if (!execute_path_srv_ptr->isActive())
     {
+        clearMarkers();
         return;
     }
     else if (navigate_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
@@ -281,171 +211,76 @@ void LocalPlanner::plan()
     }
 
     ftime(&startT);
-    if (globalTrajReceived && localCostMapReceived && doPlan )
+    if (localCostMapReceived && doPlan)
     {
-
         ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Global trj received and local costmap received");
         localCostMapReceived = false;
+        lcPlanner.getMap(&localCostMapInflated);
 
-        if (!lcPlanner.setValidInitialPosition(local_costmap_center))
+        if (lcPlanner.setValidInitialPosition(local_costmap_center) || lcPlanner.searchInitialPosition2d(0.3))
         {
-            if (lcPlanner.searchInitialPosition2d(0.3))
+            calculateLocalGoal();
+            inflateCostMap();
+
+            if (lcPlanner.setValidFinalPosition(localGoal) || lcPlanner.searchFinalPosition2d(0.3))
             {
-                startOk = true;
+                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path(2)");
+                number_of_points = lcPlanner.computePath();
+                occGoalCnt = 0;
+                
+                if (number_of_points > 0)
+                {
+                    buildAndPubTrayectory();
+                    planningStatus.data = "OK";
+                    if (impossibleCnt > 0) //If previously the local planner couldn t find solution, reset
+                        impossibleCnt = 0;
+                }
+                else if (number_of_points == 0)//!Esto es lo que devuelve el algoritmo cuando NO HAY SOLUCION
+                {
+                    impossibleCnt++;
+                    //ROS_INFO("Local: +1 impossible");
+                    if (impossibleCnt > 2)
+                    {
+                        navigate_client_ptr->cancelGoal();
+                        planningStatus.data = "Requesting new global path, navigation cancelled";
+                        execute_path_srv_ptr->setAborted();
+                    }
+                }
+            }
+            else if (occGoalCnt > 2) //!Caso GOAL OCUPADO
+            {//If it cant find a free position near local goal, it means that there is something there.
+
+                ROS_INFO_COND(debug, PRINTF_YELLOW "Pausing planning, final position busy");
+                planningStatus.data = "Final position Busy, Cancelling goal";
+                //TODO What to tell to the path tracker
+                navigate_client_ptr->cancelGoal();
+                execute_path_srv_ptr->setAborted();
+                //In order to resume planning, someone must call the pause/resume planning Service that will change the flag to true
+                occGoalCnt = 0;
             }
             else
             {
-                ROS_INFO("Local:Couldn't find a free point near start point, trying to clean the local costmap");
-                std_srvs::Trigger trg;
-                costmap_clean_srv.call(trg);
+                occGoalCnt++;
             }
         }
         else
         {
-            startOk = true;
-        } //To get sure the next time it calculate a path it has refreshed the local costmap
-        if (startOk)
-        {
-            ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Calculating Local goal");
-            localGoal = calculateLocalGoal();
-            ROS_INFO_COND(debug, PRINTF_YELLOW "Local Goal: [%.2f, %.2f]", localGoal.x, localGoal.y);
-            ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Adding borders to local costmap");
-            inflateCostMap();
-            ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Freeing space around local goal in the border");
-            freeLocalGoal();
-
-            if (debug)
-                inf_costmap_pub.publish(localCostMapInflated); //Debug purposes
-
-            lcPlanner.getMap(&localCostMapInflated);
-
-            if (lcPlanner.setValidFinalPosition(localGoal))
-            {
-
-                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path(2)");
-                number_of_points = lcPlanner.computePath();
-                ROS_INFO("Number of points: %d, occ: %d", number_of_points, occ.data);
-                planningStatus.data = "OK";
-                if (occ.data) //If the local goal was previously occupied, reset flag and publish new status
-                {
-                    //ROS_INFO("Local: Local goal disocuupied");
-                    occ.data = false;
-                    occ_goal_pub.publish(occ);
-                }
-            }
-            else
-            {
-                if (lcPlanner.searchFinalPosition2d(0.3))
-                {
-                    ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Computing Local Path after a free place next to goal found");
-                    number_of_points = lcPlanner.computePath();
-                    planningStatus.data = "OK: Path Calculated after search around goal";
-                    occGoalCnt = 0;
-                }
-                else if (occGoalCnt > 3)
-                { //If it cant find a free position near local goal, it means that there is something there.
-                    //Send message to tracker to stop
-                    if (!occ.data)
-                    {
-                        occ.data = true;
-                        occ_goal_pub.publish(occ);
-                    }
-
-                    //And pause planning, under construction
-                    doPlan = false;
-                    ROS_INFO_COND(debug, PRINTF_YELLOW "Pausing planning, final position busy");
-                    planningStatus.data = "Final position Busy, Cancelling goal";
-                    //TODO What to tell to the path tracker
-                    navigate_client_ptr->cancelGoal();
-                    //In order to resume planning, someone must call the pause/resume planning Service that will change the flag to true
-                }
-                else
-                {
-                    occGoalCnt++;
-                }
-            }
-
-            if (number_of_points > 0 && !occ.data)
-            {
-                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Building and publishing local Path");
-                buildAndPubTrayectory();
-                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Local Path build and published");
-                publishTrajMarker();
-                ROS_INFO_COND(debug, PRINTF_YELLOW "Local Planner: Published trajectory markers");
-                startOk = false;
-
-                if (impossibleCnt > 0) //If previously the local planner couldn t find solution, reset
-                {
-                    //ROS_INFO("Local: Impossible reseted");
-                    impossible_calculate.data = false;
-                    impossible_to_find_sol_pub.publish(impossible_calculate);
-                    impossibleCnt = 0;
-
-                    //TODO: Change this to the action command
-                    std_srvs::Trigger trg;
-                    stop_nav_client_srv.call(trg);
-                }
-            }
-            else if (!occ.data)
-            {
-                impossibleCnt++;
-                //ROS_INFO("Local: +1 impossible");
-                if (impossibleCnt > 2)
-                {
-
-                    impossible_calculate.data = true;
-                    impossible_to_find_sol_pub.publish(impossible_calculate);
-                    navigate_client_ptr->cancelGoal();
-                    planningStatus.data = "Requesting new global path, navigation cancelled";
-                    ROS_WARN("Requesting new global path to same global goal, %d", impossibleCnt);
-                    //TODO These triggers will be removed
-                    std_srvs::Trigger srv, stop_nav;
-
-                    //replanning_client_srv.call(srv);
-
-                    execute_path_srv_ptr->setAborted();
-                    globalTrajReceived = false;
-                    //execute_path_srv_ptr->
-                    //TODO: Change this to the action command
-                    if (impossibleCnt == 3)
-                    {
-                        stop_nav_client_srv.call(stop_nav);
-                    }
-
-                    //TODO
-                    //if(execute_path_srv_ptr->isNewGoalAvailable())
-
-                    //TODO This is the global planner responding, think about how to get new status
-                    if (srv.response.success)
-                    {
-                        impossibleCnt = 0;
-                    }
-                    else
-                    {
-                        ROS_WARN("Local Planner: Failed to obstain new global path from global planner");
-                    }
-                    startOk = false;
-                }
-            }
+            ROS_INFO("Local:Couldn't find a free point near start point, trying to clean the local costmap");
+            std_srvs::Trigger trg;
+            costmap_clean_srv.call(trg);
         }
     }
     ftime(&finishT);
 
     seconds = finishT.time - startT.time - 1;
     milliseconds = (1000 - startT.millitm) + finishT.millitm;
-    time_spent_msg.data = (milliseconds + seconds * 1000);
+
     if (execute_path_srv_ptr->isActive())
         publishExecutePathFeedback();
-    //if (debug)
-    //    showTime(PRINTF_YELLOW "Time spent", startT, finishT);
-
-    local_planning_time.publish(time_spent_msg);
 }
 void LocalPlanner::publishExecutePathFeedback()
 {
-    // planningRate;
-    //waypointGoingTo;
-    // planningStatus;
+
     if (planningStatus.data.find("OK") > 0)
     {
         planningRate.data = 1000 / milliseconds;
@@ -460,7 +295,7 @@ void LocalPlanner::publishExecutePathFeedback()
     exec_path_fb.status = planningStatus;
     execute_path_srv_ptr->publishFeedback(exec_path_fb);
 }
-geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
+void LocalPlanner::calculateLocalGoal()
 {
 
     geometry_msgs::Vector3Stamped A, B, C;
@@ -525,7 +360,7 @@ geometry_msgs::Vector3 LocalPlanner::calculateLocalGoal()
 
     C.vector.y = floor(C.vector.y * 10 + 10 * map_resolution) / 10;
 
-    return C.vector;
+    localGoal = C.vector;
 }
 
 geometry_msgs::TransformStamped LocalPlanner::getTfMapToRobot()
@@ -546,7 +381,6 @@ geometry_msgs::TransformStamped LocalPlanner::getTfMapToRobot()
 
 void LocalPlanner::publishTrajMarker()
 {
-
     //!This is done to clear out the previous markers
     waypointsMarker.action = RVizMarker::DELETEALL;
     lineMarker.action = RVizMarker::DELETEALL;
@@ -609,6 +443,7 @@ void LocalPlanner::buildAndPubTrayectory()
 
     trajectory_pub.publish(localTrajectory);
     //ROS_WARN_THROTTLE(1, "Average dist 2 obstacles: %.2f", lcPlanner.getAvDist2Obs());
+    publishTrajMarker();
 }
 //Auxiliar functions
 void LocalPlanner::showTime(string message, struct timeb st, struct timeb ft)
@@ -662,6 +497,8 @@ void LocalPlanner::inflateCostMap()
     //Lower boder
     for (int i = 0; i < l; i++)
         localCostMapInflated.data.push_back(100);
+
+    freeLocalGoal();
 }
 //Set to 0 the positions near the local goal in the border
 void LocalPlanner::freeLocalGoal()
