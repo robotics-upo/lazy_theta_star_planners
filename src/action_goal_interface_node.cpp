@@ -56,12 +56,13 @@ public:
          * TODO Que pasa si alguno se cancela por el global planner.............
          * 
         **/
-            if (!goals_queu.empty() && !goalRunning && doMission)
+            if (!goals_queu.empty() && !goalRunning && doMission && goNext)
             {
                 actionGoal.goal.global_goal = goals_queu.front();
                 goals_queu.pop();
                 makePlanClient->sendGoal(actionGoal.goal);
                 goalRunning = true;
+                goNext = false;
                 ROS_INFO("Sending Goal: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
                          actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
                          actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
@@ -160,6 +161,7 @@ private:
         { //If there are goals in the queu and no one is running it means the client is waiting to send another one
             resp.message = "Sending next goal...";
             resp.success = true;
+            goNext = true;
         }
         if (goals_queu.empty())
         {
@@ -226,6 +228,7 @@ private:
     //These flags are used by the mission mode
     bool missionLoaded = false;
     bool doMission = false;
+    bool goNext=true;
 
     bool goalRunning = false;
     bool goalReceived = false; //This flag is only used when rviz goal mode is active
