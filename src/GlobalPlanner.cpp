@@ -225,6 +225,9 @@ int GlobalPlanner::getClosestWaypoint()
 }
 void GlobalPlanner::makePlanGoalCB()
 {
+    //Cancel previous executing plan
+    execute_path_client_ptr->cancelAllGoals();
+    clearMarkers();
     goalRunning = true;
     nbrRotationsExec = 0;
     start_time = ros::Time::now();
@@ -253,6 +256,8 @@ void GlobalPlanner::makePlanGoalCB()
         make_plan_res.not_possible = true;
         make_plan_res.finished = false;
         make_plan_server_ptr->setAborted(make_plan_res, "Impossible to calculate a solution");
+        execute_path_client_ptr->cancelAllGoals();
+
     }
 }
 void GlobalPlanner::makePlanPreemptCB()
@@ -284,16 +289,16 @@ bool GlobalPlanner::replan()
     }
     else
     {
-
         upo_actions::MakePlanResult result;
         make_plan_res.finished = false;
         make_plan_res.not_possible = true;
         make_plan_server_ptr->setAborted(make_plan_res, "Tried to replan and aborted after replanning and rotation in place");
+        execute_path_client_ptr->cancelAllGoals();
         return false;
     }
 }
 void GlobalPlanner::clearMarkers(){
-    
+
     waypointsMarker.action = RVizMarker::DELETEALL;
     lineMarker.action = RVizMarker::DELETEALL;
     
@@ -508,6 +513,7 @@ bool GlobalPlanner::setGoal()
     else
     {
         ROS_ERROR("Global Planner: Failed to set final global position: [%.2f, %.2f] ", goal.vector.x, goal.vector.y);
+        
     }
     return ret;
 }
