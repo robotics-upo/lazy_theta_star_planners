@@ -83,7 +83,7 @@ public:
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ABORTED)
             {
                 //?It can mean the robot need an operator or something else
-                ROS_INFO("Goal aborted by the Global Planner");
+                ROS_INFO_ONCE("Goal aborted by the Global Planner");
             }
 
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::LOST)
