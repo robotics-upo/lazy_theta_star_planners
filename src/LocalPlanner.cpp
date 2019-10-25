@@ -209,6 +209,11 @@ void LocalPlanner::plan()
         ROS_ERROR("LocalPlanner: Goal Succed");
         return;
     }
+    else if(navigate_client_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED){
+        ROS_INFO("Goal aborted by path tracker");
+    }else if(navigate_client_ptr->getState() == actionlib::SimpleClientGoalState::PREEMPTED){
+        ROS_INFO("Goal preempted by path tracker");
+    }
 
     ftime(&startT);
     if (localCostMapReceived && doPlan)
@@ -242,8 +247,10 @@ void LocalPlanner::plan()
                     if (impossibleCnt > 2)
                     {
                         navigate_client_ptr->cancelGoal();
+
                         planningStatus.data = "Requesting new global path, navigation cancelled";
                         execute_path_srv_ptr->setAborted();
+                        impossibleCnt=0;
                     }
                 }
             }
