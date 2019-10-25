@@ -230,6 +230,9 @@ void GlobalPlanner::makePlanGoalCB()
     clearMarkers();
     goalRunning = true;
     nbrRotationsExec = 0;
+    countImpossible = 0;
+    make_plan_res.replan_number.data=0;
+
     start_time = ros::Time::now();
     upo_actions::MakePlanGoalConstPtr goal_ptr = make_plan_server_ptr->acceptNewGoal();
 
@@ -256,8 +259,7 @@ void GlobalPlanner::makePlanGoalCB()
         make_plan_res.not_possible = true;
         make_plan_res.finished = false;
         make_plan_server_ptr->setAborted(make_plan_res, "Impossible to calculate a solution");
-        execute_path_client_ptr->cancelAllGoals();
-
+        //execute_path_client_ptr->cancelAllGoals();
     }
 }
 void GlobalPlanner::makePlanPreemptCB()
@@ -276,7 +278,8 @@ bool GlobalPlanner::replan()
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
     lock.unlock();
-
+    make_plan_res.replan_number.data++;
+    
     //For the world to know the planner is replanning
     flg_replan_status.data = true;
     replan_status_pub.publish(flg_replan_status);
@@ -318,6 +321,7 @@ void GlobalPlanner::clearMarkers(){
 void GlobalPlanner::plan()
 {
     //TODO Maybe I can change the goalRunning flag by check if is active any goal
+
     if (make_plan_server_ptr->isActive())
         publishMakePlanFeedback();
 
@@ -340,8 +344,8 @@ bool GlobalPlanner::calculatePath()
     //so if there is no map received it won't calculate a path
     bool ret = false;
 
-    while (1)
-    { //TODO: This is dangerous, I know, think about another solution
+    while (!ret)
+    {
         if (setGoal() && setStart())
         {
             ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal and start successfull set");
@@ -372,23 +376,16 @@ bool GlobalPlanner::calculatePath()
                 }
 
                 ret = true;
-                break;
             }
             else
             {
-
-                countImpossible++;
-                //TODO: Decide what to do when the planner have tried to calculate the path and rotate over himself and didn't succed
-                if (nbrRotationsExec)
-                {
+                if(nbrRotationsExec || flg_replan_status.data){
                     break;
                 }
+                
+                countImpossible++;
                 if (countImpossible == 3 && nbrRotationsExec < 1)
                 {
-                    //std_srvs::Trigger trg;
-                    //recovery_rot_srv_client.call(trg);
-                    //sleep(10); //TODO: Improve, search for elegant solution
-                    countImpossible = 0;
                     rot_in_place_goal.execute_rotation = true;
                     rot_in_place_client_ptr->sendGoal(rot_in_place_goal);
                     rot_in_place_client_ptr->waitForResult(ros::Duration(15));
@@ -436,7 +433,6 @@ void GlobalPlanner::publishTrajectory()
     trajectory.header.frame_id = world_frame;
     trajectory.header.seq = ++seq;
     trajectory.points.clear();
-    trajectory.header.stamp = ros::Time::now();
 
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Trajectory calculation...");
 
@@ -463,7 +459,6 @@ void GlobalPlanner::publishTrajectory()
     transform_goal.rotation = goalPoseStamped.pose.orientation;
     transform_goal.translation.x = goalPoseStamped.pose.position.x;
     transform_goal.translation.y = goalPoseStamped.pose.position.y;
-
     goal_multidof.transforms.resize(1, transform_goal);
 
     trajectory.points.push_back(goal_multidof);
@@ -473,25 +468,14 @@ void GlobalPlanner::publishTrajectory()
     //!Calculate path length:
     calculatePathLength();
 
-    //!This is done to clear out the previous markers
-    waypointsMarker.action = RVizMarker::DELETEALL;
-    lineMarker.action = RVizMarker::DELETEALL;
-    
-    visMarkersPublisher.publish(lineMarker);
-    visMarkersPublisher.publish(waypointsMarker);
-    
-    lineMarker.points.clear();
-    waypointsMarker.points.clear();
-    
-    lineMarker.action = RVizMarker::ADD;
-    waypointsMarker.action = RVizMarker::ADD;
+    clearMarkers();
 
     lineMarker.header.stamp = ros::Time::now();
     waypointsMarker.header.stamp = ros::Time::now();
 
     geometry_msgs::Point p;
     
-    for (int i = 0; i < trajectory.points.size(); i++)
+    for (size_t i = 0; i < trajectory.points.size(); i++)
     {
         p.x = trajectory.points[i].transforms[0].translation.x;
         p.y = trajectory.points[i].transforms[0].translation.y;
@@ -513,7 +497,6 @@ bool GlobalPlanner::setGoal()
     else
     {
         ROS_ERROR("Global Planner: Failed to set final global position: [%.2f, %.2f] ", goal.vector.x, goal.vector.y);
-        
     }
     return ret;
 }
