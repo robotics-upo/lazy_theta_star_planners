@@ -1,37 +1,38 @@
+mission_enabled: true
 mission:
     goal1:
         pose:
-            x: 1
-            y: 20
+            x: 21.8
+            y: 28.9
         orientation:
             x: 0
             y: 0
-            z: 0
-            w: 1
+            z: 0.57
+            w: 0.819
     goal2:
         pose:
-            x: 10
-            y: 2
+            x: 22.7
+            y: 31.7
         orientation:
             x: 0
-            y: 1
-            z: 0
-            w: 1
+            y: 0
+            z: 0.77
+            w: 0.629
     goal3:
         pose:
-            x: 1
-            y: 2
+            x: 22.6
+            y: 36
         orientation:
             x: 0
-            y: 20
-            z: 2
-            w: 1
+            y: 0
+            z: 0.189
+            w: 0.982
     goal4:
         pose:
-            x: 1
-            y: 2
+            x: 25.4
+            y: 36.4
         orientation:
-            x: 2
-            y: 30
-            z: 0
-            w: 1
+            x: 0
+            y: 0
+            z: -0.169
+            w: 0.986
