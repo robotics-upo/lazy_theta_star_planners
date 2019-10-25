@@ -1,6 +1,6 @@
 local_planner_node:
-  show_config: true
-  debug: true
+  show_config: false
+  debug: false
   
   #ws_x_max: 6
   #ws_y_max: 6
