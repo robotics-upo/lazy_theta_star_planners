@@ -24,10 +24,12 @@ public:
             continue_mission_server = nh.advertiseService("/continue_mission", &MissionInterface::continueMission, this);
             //TODO Load Here the file
             missionLoaded = loadMissionData();
+            ROS_INFO("Goal interface in Mission Mode");
         }
         else
         {
             goal_sub = nh.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &MissionInterface::goalCb, this);
+            ROS_INFO("Goal interface in manual mode");
         }
     }
 
@@ -35,6 +37,14 @@ public:
     {
         if (goals_by_file)
         {
+             /**
+         * La idea es que se le van pasando golitos empezando desde el primero de la cola y cuando se recibe que se ha conseguido, se esperan unos
+         * ! segundos (O a que otro proceso tambien diga que palante, como por ejemplo algun nodo de inspeccion visual etc)
+         * y se le manda el siguiente y asi hasta el ultimo
+         * ! al llegar al ultimo se vuelve al estado inicial
+         * TODO Que pasa si alguno se cancela por el global planner.............
+         * 
+        **/
             if (!makePlanClient->isServerConnected())
             {
                 ROS_WARN("Make Plan Server disconnected! :(, Waiting again for the server...");
@@ -47,16 +57,8 @@ public:
                 {
                     ROS_WARN("Timeout waiting for server...retrying");
                 }
-            }
-            /**
-         * La idea es que se le van pasando golitos empezando desde el primero de la cola y cuando se recibe que se ha conseguido, se esperan unos
-         * ! segundos (O a que otro proceso tambien diga que palante, como por ejemplo algun nodo de inspeccion visual etc)
-         * y se le manda el siguiente y asi hasta el ultimo
-         * ! al llegar al ultimo se vuelve al estado inicial
-         * TODO Que pasa si alguno se cancela por el global planner.............
-         * 
-        **/
-            if (!goals_queu.empty() && !goalRunning && doMission && goNext)//!Lots of flags :(
+
+            }else if (!goals_queu.empty() && !goalRunning && doMission && goNext)//!Lots of flags :(
             {
                 actionGoal.goal.global_goal = goals_queu.front();
                 goals_queu.pop();
@@ -66,11 +68,11 @@ public:
                 ROS_INFO("Sending Goal: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
                          actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
                          actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
-            }
-
-            if (goals_queu.empty())
+            }else if (goals_queu.empty() && doMission)
             {
-                ROS_INFO_THROTTLE(0.5, "No goals in the queu");
+                ROS_INFO_THROTTLE(0.5, "No goals in the queu, Mission finished");
+                doMission=false;
+                
             }
         }
         else if (goalReceived && !goalRunning)
@@ -125,6 +127,11 @@ private:
 
     bool startMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp)
     {
+        if(doMission){
+            resp.success = false;
+            resp.message= "Mission is already started my friend, don't try to trick me ;)";
+            return true;
+        }
         if (!missionLoaded)
         {
             resp.success = false;
@@ -190,7 +197,6 @@ private:
 
         while (nh.hasParam(base_path + std::to_string(i) + "/pose/x"))
         {
-
             nh.param(base_path + std::to_string(i) + "/pose/x", goal.pose.position.x, (double)0);
             nh.param(base_path + std::to_string(i) + "/pose/y", goal.pose.position.y, (double)0);
             nh.param(base_path + std::to_string(i) + "/orientation/x", goal.pose.orientation.x, (double)0);
