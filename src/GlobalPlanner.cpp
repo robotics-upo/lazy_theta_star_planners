@@ -10,8 +10,10 @@ GlobalPlanner::GlobalPlanner(tf2_ros::Buffer *tfBuffer_, string node_name_)
 {
     //The tf buffer is used to lookup the base link position(tf from world frame to robot base frame)
     tfBuffer = tfBuffer_;
+    nh.reset(new ros::NodeHandle("~"));
     tf_list_ptr.reset(new tf::TransformListener(ros::Duration(5)));
     global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", *tf_list_ptr)); //In ros kinetic the constructor uses tf instead of tf2 :(
+
     node_name = node_name_;
     configParams();
     configTopics();
@@ -33,19 +35,18 @@ void GlobalPlanner::resetGlobalCostmap()
 }
 void GlobalPlanner::configTheta()
 {
-    gbPlanner.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, &nh_);
+    gbPlanner.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, nh);
     gbPlanner.setTimeOut(10);
     gbPlanner.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
 }
 void GlobalPlanner::configTopics()
 {
-    trj_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>("trajectory_tracker/input_trajectory", 1);
-    replan_status_pub = nh_.advertise<std_msgs::Bool>("global_planner_node/replanning_status", 1);
-    visMarkersPublisher = nh_.advertise<visualization_msgs::Marker>("global_planner_node/markers", 2);
+    replan_status_pub = nh->advertise<std_msgs::Bool>("replanning_status", 1);
+    visMarkersPublisher = nh->advertise<visualization_msgs::Marker>("markers", 2);
 }
 void GlobalPlanner::configServices()
 {
-    reset_global_costmap_service = nh_.advertiseService("/global_planner_node/reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
+    reset_global_costmap_service = nh->advertiseService("reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
 
     rot_in_place_client_ptr.reset(new RotationInPlaceClient("Recovery_Rotation", true));
     execute_path_client_ptr.reset(new ExecutePathClient("Execute_Plan", true));
@@ -56,7 +57,7 @@ void GlobalPlanner::configServices()
     ROS_INFO_COND(debug, "Action client from global planner ready");
 
     //MakePlan MAIN Server Configuration
-    make_plan_server_ptr.reset(new MakePlanServer(nh_, "Make_Plan", false));
+    make_plan_server_ptr.reset(new MakePlanServer(*nh, "/Make_Plan", false));
     make_plan_server_ptr->registerGoalCallback(boost::bind(&GlobalPlanner::makePlanGoalCB, this));
     make_plan_server_ptr->registerPreemptCallback(boost::bind(&GlobalPlanner::makePlanPreemptCB, this));
     make_plan_server_ptr->start();
@@ -79,20 +80,20 @@ void GlobalPlanner::configParams()
     nbrRotationsExec = 0;
     seq = 0;
     //Get params from param server. If they dont exist give variables default values
-    nh_.param("/global_planner_node/show_config", showConfig, (bool)0);
-    nh_.param("/global_planner_node/debug", debug, (bool)0);
+    nh->param("show_config", showConfig, (bool)0);
+    nh->param("debug", debug, (bool)0);
 
-    nh_.param("/global_planner_node/goal_weight", goal_weight, (float)1.5);
-    nh_.param("/global_planner_node/cost_weight", cost_weight, (float)0.2);
-    nh_.param("/global_planner_node/lof_distance", lof_distance, (float)0.2);
-    nh_.param("/global_planner_node/occ_threshold", occ_threshold, (float)99);
+    nh->param("goal_weight", goal_weight, (float)1.5);
+    nh->param("cost_weight", cost_weight, (float)0.2);
+    nh->param("lof_distance", lof_distance, (float)0.2);
+    nh->param("occ_threshold", occ_threshold, (float)99);
 
-    nh_.param("/global_planner_node/traj_dxy_max", traj_dxy_max, (float)1);
-    nh_.param("/global_planner_node/traj_pos_tol", traj_pos_tol, (float)1);
-    nh_.param("/global_planner_node/traj_yaw_tol", traj_yaw_tol, (float)0.1);
+    nh->param("traj_dxy_max", traj_dxy_max, (float)1);
+    nh->param("traj_pos_tol", traj_pos_tol, (float)1);
+    nh->param("traj_yaw_tol", traj_yaw_tol, (float)0.1);
 
-    nh_.param("/global_planner_node/world_frame", world_frame, (string) "/map");
-    nh_.param("/global_planner_node/robot_base_frame", robot_base_frame, (string) "/base_link");
+    nh->param("world_frame", world_frame, (string) "/map");
+    nh->param("robot_base_frame", robot_base_frame, (string) "/base_link");
 
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Global Planner Node Configuration:");
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* with optim.: goal_weight = [%.2f]", goal_weight);
@@ -140,11 +141,11 @@ void GlobalPlanner::configParams()
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: ws_x_max,ws_y_max, map_resolution: [%.2f, %.2f, %.2f]", ws_x_max, ws_y_max, map_resolution);
     gbPlanner.loadMapParams(ws_x_max, ws_y_max, map_resolution);
 }
-void GlobalPlanner::sendPathToLocalPlannerServer(trajectory_msgs::MultiDOFJointTrajectory path_)
+void GlobalPlanner::sendPathToLocalPlannerServer()
 {
     //Take the calculated path, insert it into an action, in the goal (ExecutePath.action)
     upo_actions::ExecutePathGoal goal_action;
-    goal_action.path = path_;
+    goal_action.path = trajectory;
     execute_path_client_ptr->sendGoal(goal_action);
 }
 void GlobalPlanner::publishMakePlanFeedback()
@@ -167,7 +168,7 @@ void GlobalPlanner::publishMakePlanFeedback()
      *TODO: is blocked, the goal is occupied, there is a emergency stop, etc. -> Set estimation to infinty
     **/
     float speed;
-    nh_.param("/nav_node/linear_max_speed", speed, (float)0.4);
+    nh->param("/nav_node/linear_max_speed", speed, (float)0.4);
     float time = pathLength / speed;
     int m= 0;
     float s;
@@ -251,7 +252,7 @@ void GlobalPlanner::makePlanGoalCB()
     if (calculatePath())
     {
         ROS_INFO_COND(debug, "Succesfully calculated path");
-        sendPathToLocalPlannerServer(trajectory);
+        sendPathToLocalPlannerServer();
     }
     else
     { // What if it isnt possible to calculate path?
@@ -259,7 +260,6 @@ void GlobalPlanner::makePlanGoalCB()
         make_plan_res.not_possible = true;
         make_plan_res.finished = false;
         make_plan_server_ptr->setAborted(make_plan_res, "Impossible to calculate a solution");
-        //execute_path_client_ptr->cancelAllGoals();
     }
 }
 void GlobalPlanner::makePlanPreemptCB()
@@ -287,7 +287,7 @@ bool GlobalPlanner::replan()
     if (calculatePath())
     {
         ROS_INFO_COND(debug, "Succesfully calculated path");
-        sendPathToLocalPlannerServer(trajectory);
+        sendPathToLocalPlannerServer();
         return true;
     }
     else
@@ -462,8 +462,6 @@ void GlobalPlanner::publishTrajectory()
     goal_multidof.transforms.resize(1, transform_goal);
 
     trajectory.points.push_back(goal_multidof);
-
-    trj_pub.publish(trajectory);
 
     //!Calculate path length:
     calculatePathLength();

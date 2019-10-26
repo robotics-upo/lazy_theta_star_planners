@@ -108,7 +108,7 @@ public:
    
 private:
     void clearMarkers();
-    void sendPathToLocalPlannerServer(trajectory_msgs::MultiDOFJointTrajectory path_);
+    void sendPathToLocalPlannerServer();
 
     //Action server
     void makePlanPreemptCB();
@@ -159,7 +159,7 @@ private:
     bool setStart();
     void calculatePathLength();
     /*              Class Variables                 */
-    ros::NodeHandle nh_;
+    ros::NodeHandlePtr nh;
 
     //!New Markers(Line strip + waypoints)
     visualization_msgs::Marker lineMarker, waypointsMarker;
@@ -168,7 +168,7 @@ private:
     geometry_msgs::Vector3Stamped goal;
 
     //Publishers and Subscribers
-    ros::Publisher trj_pub, replan_status_pub,visMarkersPublisher;
+    ros::Publisher replan_status_pub,visMarkersPublisher;
     ros::Subscriber goal_sub, global_costmap_sub;
 
     //Services servers
