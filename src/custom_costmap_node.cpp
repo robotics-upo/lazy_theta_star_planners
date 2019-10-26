@@ -20,8 +20,8 @@ int main(int argc, char** argv){
     
     ros::init(argc,argv,"custom_costmap_node");
     
-    ros::NodeHandle n;
-    ros::ServiceServer reset_costmap_svr = n.advertiseService("/custom_costmap_node/reset_costmap", resetCostmapSrv);
+    ros::NodeHandle n("~");
+    ros::ServiceServer reset_costmap_svr = n.advertiseService("reset_costmap", resetCostmapSrv);
 
     tf::TransformListener tfListener(ros::Duration(5));
     costmap_2d::Costmap2DROS costmap("costmap", tfListener);
