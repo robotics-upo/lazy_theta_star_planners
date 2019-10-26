@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 14)
 
 find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
+  upo_actions
   roscpp
   costmap_2d
   geometry_msgs
@@ -20,7 +21,7 @@ generate_dynamic_reconfigure_options(
 
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS roscpp 
+  CATKIN_DEPENDS roscpp upo_actions
 )
 ###########
 ## Build ##
@@ -39,11 +40,11 @@ add_dependencies(sim_planner_node ${catkin_EXPORTED_TARGETS})
 
 add_executable(global_planner_node src/global_planner_node.cpp src/GlobalPlanner.cpp src/ThetaStar.cpp)
 target_link_libraries(global_planner_node ${catkin_LIBRARIES})
-add_dependencies(global_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${actionlib_tutorials_EXPORTED_TARGETS})
+add_dependencies(global_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 add_executable(local_planner_node src/local_planner_node.cpp src/LocalPlanner.cpp src/ThetaStar.cpp)
 target_link_libraries(local_planner_node ${catkin_LIBRARIES})
-add_dependencies(local_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${actionlib_tutorials_EXPORTED_TARGETS})
+add_dependencies(local_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} )
 
 add_executable(custom_costmap_node src/custom_costmap_node.cpp)
 target_link_libraries(custom_costmap_node ${catkin_LIBRARIES})
