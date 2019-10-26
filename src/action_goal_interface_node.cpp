@@ -11,25 +11,29 @@ class MissionInterface
     typedef actionlib::SimpleActionClient<upo_actions::MakePlanAction> MakePlanActionClient;
 
 public:
+
     MissionInterface()
     {
         makePlanClient.reset(new MakePlanActionClient("Make_Plan", false));
-
-        nh.param("/mission_enabled", goals_by_file, (bool)1);
+        
+        nh.reset(new ros::NodeHandle("~"));
+        nh->param("mission_enabled", goals_by_file, (bool)1);
 
         if (goals_by_file)
         {
-            start_mission_server = nh.advertiseService("/start_mission", &MissionInterface::startMission, this);
-            reload_mission_data = nh.advertiseService("/reload_mission_data", &MissionInterface::reloadMissionData, this);
-            continue_mission_server = nh.advertiseService("/continue_mission", &MissionInterface::continueMission, this);
+            ROS_DEBUG("Goal interface in Mission Mode");
+            start_mission_server = nh->advertiseService("start_mission", &MissionInterface::startMission, this);
+            reload_mission_data = nh->advertiseService("reload_mission_data", &MissionInterface::reloadMissionData, this);
+            continue_mission_server = nh->advertiseService("continue_mission", &MissionInterface::continueMission, this);
             //TODO Load Here the file
             missionLoaded = loadMissionData();
-            ROS_INFO("Goal interface in Mission Mode");
+            
+            
         }
         else
         {
-            goal_sub = nh.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &MissionInterface::goalCb, this);
-            ROS_INFO("Goal interface in manual mode");
+            ROS_DEBUG("Goal interface in manual mode");
+            goal_sub = nh->subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &MissionInterface::goalCb, this);
         }
     }
 
@@ -51,7 +55,7 @@ public:
                 bool connected = makePlanClient->waitForServer(ros::Duration(2));
                 if (connected)
                 {
-                    ROS_INFO("Make Plan Client and Server connected!");
+                    ROS_DEBUG("Make Plan Client and Server connected!");
                 }
                 else
                 {
@@ -65,12 +69,12 @@ public:
                 makePlanClient->sendGoal(actionGoal.goal);
                 goalRunning = true;
                 goNext = false;
-                ROS_INFO("Sending Goal: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
+                ROS_DEBUG("Sending Goal: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
                          actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
                          actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
             }else if (goals_queu.empty() && doMission)
             {
-                ROS_INFO_THROTTLE(0.5, "No goals in the queu, Mission finished");
+                ROS_DEBUG_ONCE("No goals in the queu, Mission finished");
                 doMission=false;
                 
             }
@@ -86,23 +90,23 @@ public:
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ABORTED)
             {
                 //?It can mean the robot need an operator or something else
-                ROS_INFO_ONCE("Goal aborted by the Global Planner");
+                ROS_DEBUG_ONCE("Goal aborted by the Global Planner");
             }
 
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::LOST)
             {
                 //!Maybe resend goal?
-                ROS_INFO("Goal Lost :'(");
+                ROS_DEBUG("Goal Lost :'(");
             }
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::PREEMPTED)
             {
                 //!Do next goal?
-                ROS_INFO("Goal Preempted");
+                ROS_DEBUG("Goal Preempted");
                 goalRunning = false;
             }
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
             {
-                ROS_INFO("Goal succeded");
+                ROS_DEBUG("Goal succeded");
                 goalRunning = false;
             }
         }
@@ -112,7 +116,7 @@ private:
     void goalCb(const geometry_msgs::PoseStampedConstPtr &goal)
     {
 
-        ROS_INFO("Goal Interface: Sending action goal");
+        ROS_DEBUG("Goal Interface: Sending action goal");
         actionGoal.goal.global_goal = *goal;
         actionGoal.goal_id.id += 1;
         actionGoal.goal_id.stamp = ros::Time::now();
@@ -187,7 +191,7 @@ private:
         goalsNbr = 0;
 
         bool ret = true;
-        std::string base_path = "/mission/goal";
+        std::string base_path = "mission/goal";
         geometry_msgs::PoseStamped goal;
 
         //TODO: Make frame id a parameter
@@ -195,16 +199,16 @@ private:
 
         int i = 1;
 
-        while (nh.hasParam(base_path + std::to_string(i) + "/pose/x"))
+        while (nh->hasParam(base_path + std::to_string(i) + "/pose/x"))
         {
-            nh.param(base_path + std::to_string(i) + "/pose/x", goal.pose.position.x, (double)0);
-            nh.param(base_path + std::to_string(i) + "/pose/y", goal.pose.position.y, (double)0);
-            nh.param(base_path + std::to_string(i) + "/orientation/x", goal.pose.orientation.x, (double)0);
-            nh.param(base_path + std::to_string(i) + "/orientation/y", goal.pose.orientation.y, (double)0);
-            nh.param(base_path + std::to_string(i) + "/orientation/z", goal.pose.orientation.z, (double)0);
-            nh.param(base_path + std::to_string(i) + "/orientation/w", goal.pose.orientation.w, (double)1);
+            nh->param(base_path + std::to_string(i) + "/pose/x", goal.pose.position.x, (double)0);
+            nh->param(base_path + std::to_string(i) + "/pose/y", goal.pose.position.y, (double)0);
+            nh->param(base_path + std::to_string(i) + "/orientation/x", goal.pose.orientation.x, (double)0);
+            nh->param(base_path + std::to_string(i) + "/orientation/y", goal.pose.orientation.y, (double)0);
+            nh->param(base_path + std::to_string(i) + "/orientation/z", goal.pose.orientation.z, (double)0);
+            nh->param(base_path + std::to_string(i) + "/orientation/w", goal.pose.orientation.w, (double)1);
             goal.header.seq = i;
-            ROS_INFO("Goal %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", i, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
+            ROS_DEBUG("Goal %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", i, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
             goals_queu.push(goal);
 
             ++goalsNbr;
@@ -214,17 +218,20 @@ private:
         if (i == 1)
         {
             missionLoaded = false;
+            ROS_DEBUG("Mission Not Loaded");
         }
         else
         {
             missionLoaded = true;
+            ROS_DEBUG("Mission Loaded");
         }
         return missionLoaded;
     }
 
-    ros::NodeHandle nh;
+    ros::NodeHandlePtr nh; 
     ros::ServiceServer start_mission_server, reload_mission_data, continue_mission_server;
     ros::Subscriber goal_sub;
+
 
     upo_actions::MakePlanActionGoal actionGoal;
 
@@ -251,6 +258,7 @@ int main(int argc, char **argv)
     */
 
     std::string node_name = "action_goal_interface_node";
+
     ros::init(argc, argv, node_name);
 
     MissionInterface iface;
