@@ -70,6 +70,23 @@ void ThetaStar::initAuto(string plannerName, string frame_id, float goal_weight_
     configureMarkers(plannerName, frame_id, step);
     //The geometric params will be passed to thetastar once the planners receive the first map
 }
+// Initialization: creates the occupancy matrix (discrete nodes) from the bounding box sizes, resolution, inflation and optimization arguments
+void ThetaStar::initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandlePtr n)
+{
+    nh = n.get();
+
+    goal_weight = goal_weight_;
+    cost_weight = cost_weight_;
+    lof_distance = lof_distance_;
+
+    //Configure ws_y_min and ws_x_min to zero by default
+    ws_x_min = 0;
+    ws_y_min = 0;
+
+    //Finally configure markers
+    configureMarkers(plannerName, frame_id, step);
+    //The geometric params will be passed to thetastar once the planners receive the first map
+}
 void ThetaStar::loadMapParams(float ws_x_max_, float ws_y_max_, float map_resolution_)
 {
     disc_initial = NULL;

@@ -173,6 +173,7 @@ class ThetaStar
 		 * 
 		**/
 		void initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandle *n);
+		void initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandlePtr n);
 		/**
 		 * 
 		**/
