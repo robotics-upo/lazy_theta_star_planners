@@ -32,9 +32,9 @@ void LocalPlanner::clearMarkers()
 }
 void LocalPlanner::configServices()
 {
-    costmap_clean_srv = nh_.serviceClient<std_srvs::Trigger>("/custom_costmap_node/reset_costmap");
+    costmap_clean_srv = nh->serviceClient<std_srvs::Trigger>("/custom_costmap_node/reset_costmap");
     
-    execute_path_srv_ptr.reset(new ExecutePathServer(nh_, "Execute_Plan", false));
+    execute_path_srv_ptr.reset(new ExecutePathServer(*nh, "/Execute_Plan", false));
     execute_path_srv_ptr->registerGoalCallback(boost::bind(&LocalPlanner::executePathGoalServerCB, this));
     execute_path_srv_ptr->registerPreemptCallback(boost::bind(&LocalPlanner::executePathPreemptCB, this));
     execute_path_srv_ptr->start();
@@ -49,23 +49,32 @@ void LocalPlanner::configParams()
     localCostMapReceived = false;
     mapGeometryConfigured = false;
     doPlan = true;
-    nh_.param("/local_planner_node/goal_weight", goal_weight, (float)1.5);
-    nh_.param("/local_planner_node/cost_weight", cost_weight, (float)0.2);
-    nh_.param("/local_planner_node/lof_distance", lof_distance, (float)1.5);
-    nh_.param("/local_planner_node/occ_threshold", occ_threshold, (float)99);
 
-    nh_.param("/local_planner_node/traj_dxy_max", traj_dxy_max, (float)1);
-    nh_.param("/local_planner_node/traj_pos_tol", traj_pos_tol, (float)1);
-    nh_.param("/local_planner_node/traj_yaw_tol", traj_yaw_tol, (float)0.1);
+    is_running.data = true;
 
-    nh_.param("/local_planner_node/world_frame", world_frame, (string) "/map");
-    nh_.param("/local_planner_node/robot_base_frame", robot_base_frame, (string) "/base_link");
-    nh_.param("/local_planner_node/local_costmap_infl_x", localCostMapInflationX, (float)1);
-    nh_.param("/local_planner_node/local_costmap_infl_y", localCostMapInflationY, (float)1);
-    nh_.param("/local_planner_node/border_space", border_space, (float)1);
+    impossibleCnt = 0;
+    occGoalCnt = 0;
+    startIter = 1;
 
-    nh_.param("/local_planner_node/debug", debug, (bool)0);
-    nh_.param("/local_planner_node/show_config", showConfig, (bool)0);
+    nh.reset(new ros::NodeHandle("~"));
+
+    nh->param("goal_weight", goal_weight, (float)1.5);
+    nh->param("cost_weight", cost_weight, (float)0.2);
+    nh->param("lof_distance", lof_distance, (float)1.5);
+    nh->param("occ_threshold", occ_threshold, (float)99);
+
+    nh->param("traj_dxy_max", traj_dxy_max, (float)1);
+    nh->param("traj_pos_tol", traj_pos_tol, (float)1);
+    nh->param("traj_yaw_tol", traj_yaw_tol, (float)0.1);
+
+    nh->param("world_frame", world_frame, (string) "/map");
+    nh->param("robot_base_frame", robot_base_frame, (string) "/base_link");
+    nh->param("local_costmap_infl_x", localCostMapInflationX, (float)1);
+    nh->param("local_costmap_infl_y", localCostMapInflationY, (float)1);
+    nh->param("border_space", border_space, (float)1);
+
+    nh->param("debug", debug, (bool)0);
+    nh->param("show_config", showConfig, (bool)0);
 
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Local Planner Node Configuration:\n");
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* with optim.: goal_weight = [%.2f]", goal_weight);
@@ -107,11 +116,6 @@ void LocalPlanner::configParams()
     waypointsMarker.scale.y = 0.15;
     waypointsMarker.scale.z = 0.4;
 
-    is_running.data = true;
-
-    impossibleCnt = 0;
-    occGoalCnt = 0;
-    startIter = 1;
 }
 void LocalPlanner::dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t level)
 {
@@ -154,17 +158,16 @@ void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended t
 void LocalPlanner::configTheta()
 {
     string node_name = "local_planner_node";
-    lcPlanner.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, &nh_);
+    lcPlanner.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, nh);
     lcPlanner.setTimeOut(1);
     lcPlanner.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
     //ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner: Theta Star Configured");
 }
 void LocalPlanner::configTopics()
 {
-    local_map_sub = nh_.subscribe<nav_msgs::OccupancyGrid>("/custom_costmap_node/costmap/costmap", 1, &LocalPlanner::localCostMapCb, this);
-    trajectory_pub = nh_.advertise<trajectory_msgs::MultiDOFJointTrajectory>("/trajectory_tracker/local_input_trajectory", 0);
-    visMarkersPublisher = nh_.advertise<visualization_msgs::Marker>("/local_planner_node/markers", 30);
-    running_state_pub = nh_.advertise<std_msgs::Bool>("/local_planner_node/running", 0);
+    local_map_sub = nh->subscribe<nav_msgs::OccupancyGrid>("/custom_costmap_node/costmap/costmap", 1, &LocalPlanner::localCostMapCb, this);
+    visMarkersPublisher = nh->advertise<visualization_msgs::Marker>("markers", 30);
+    running_state_pub = nh->advertise<std_msgs::Bool>("running", 1);
 }
 //Calbacks and publication functions
 void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
@@ -448,7 +451,6 @@ void LocalPlanner::buildAndPubTrayectory()
 
     localTrajectory.header.stamp = ros::Time::now();
 
-    trajectory_pub.publish(localTrajectory);
     //ROS_WARN_THROTTLE(1, "Average dist 2 obstacles: %.2f", lcPlanner.getAvDist2Obs());
     publishTrajMarker();
 }

@@ -108,10 +108,10 @@ private:
     void freeLocalGoal();
 
     //Variables
-    ros::NodeHandle nh_;
+    ros::NodeHandlePtr nh;
     ros::ServiceClient costmap_clean_srv;
     ros::Subscriber local_map_sub;
-    ros::Publisher trajectory_pub, running_state_pub,visMarkersPublisher;
+    ros::Publisher running_state_pub,visMarkersPublisher;
 
     //Flags publishers
 
