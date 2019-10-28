@@ -164,15 +164,15 @@ class ThetaStar
 		**/
 		ThetaStar(string plannerName, string frame_id, 
 		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
-		float step_, float goal_weight_,float cost_weight_,float lof_distance_, int occ_threshold_, ros::NodeHandle *n);
+		float step_, float goal_weight_,float cost_weight_,float lof_distance_, int occ_threshold_, ros::NodeHandlePtr n);
 		/**
 		 * Alternative constructor that calls initAuto function and automatically gets params from ros topics 
 		**/
-		ThetaStar(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandle *n);
+		ThetaStar(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandlePtr n);
 		/**
 		 * 
 		**/
-		void initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandle *n);
+		// void initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandle *n);
 		void initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandlePtr n);
 		/**
 		 * 
@@ -199,7 +199,7 @@ class ThetaStar
 		**/ 
 		void init(string plannerName, string frame_id, 
 		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
-		float step_, float goal_weight_,float cost_weight_,float lof_distance_,int occ_threshold_,ros::NodeHandle *n);
+		float step_, float goal_weight_,float cost_weight_,float lof_distance_,int occ_threshold_,ros::NodeHandlePtr n);
 
 		/**
 		  Default destructor
@@ -785,7 +785,7 @@ class ThetaStar
 		float lof_distance;
 		int occ_threshold;
 		// Debug Visualization markers and theirs topics
-		ros::NodeHandle *nh; // Pointer to the process NodeHandle to publish topics
+		ros::NodeHandlePtr nh; // Pointer to the process NodeHandle to publish topics
 		RVizMarker marker; // Explored nodes by ThetaStar
 		ros::Publisher marker_pub_;
 		RVizMarker marker_no_los; // Explored nodes with no lineOfSight 

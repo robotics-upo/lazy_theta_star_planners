@@ -34,13 +34,13 @@ ThetaStar::ThetaStar()
 // Constructor with arguments
 ThetaStar::ThetaStar(string plannerName, string frame_id,
                      float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_,
-                     float step_, float goal_weight_, float cost_weight_, float lof_distance_, int occ_threshold_, ros::NodeHandle *n)
+                     float step_, float goal_weight_, float cost_weight_, float lof_distance_, int occ_threshold_, ros::NodeHandlePtr n)
 {
     // Call to initialization
     //ROS_WARN("\t 2WorkSpace: X:[%.2f, %.2f], Y:[%.2f, %.2f] \n", ws_x_min_, ws_x_max_, ws_y_min_, ws_y_max_);
     init(plannerName, frame_id, ws_x_max_, ws_y_max_, ws_x_min_, ws_y_min_, step_, goal_weight_, cost_weight_, lof_distance_, occ_threshold_, n);
 }
-ThetaStar::ThetaStar(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandle *n)
+ThetaStar::ThetaStar(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandlePtr n)
 {
 
     mapParamsConfigured = false;
@@ -54,7 +54,7 @@ void ThetaStar::setDynParams(float goal_weight_, float cost_weight_, float lof_d
     occ_threshold = occ_threshold_;
 }
 // Initialization: creates the occupancy matrix (discrete nodes) from the bounding box sizes, resolution, inflation and optimization arguments
-void ThetaStar::initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandle *n)
+/*void ThetaStar::initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandle *n)
 {
     nh = n;
 
@@ -69,12 +69,12 @@ void ThetaStar::initAuto(string plannerName, string frame_id, float goal_weight_
     //Finally configure markers
     configureMarkers(plannerName, frame_id, step);
     //The geometric params will be passed to thetastar once the planners receive the first map
-}
+}*/
 // Initialization: creates the occupancy matrix (discrete nodes) from the bounding box sizes, resolution, inflation and optimization arguments
 void ThetaStar::initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandlePtr n)
 {
-    nh = n.get();
-
+    nh = n;
+    
     goal_weight = goal_weight_;
     cost_weight = cost_weight_;
     lof_distance = lof_distance_;
@@ -111,7 +111,7 @@ void ThetaStar::loadMapParams(float ws_x_max_, float ws_y_max_, float map_resolu
 }
 void ThetaStar::init(string plannerName, string frame_id,
                      float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_,
-                     float step_, float goal_weight_, float cost_weight_, float lof_distance_, int occ_threshold_, ros::NodeHandle *n)
+                     float step_, float goal_weight_, float cost_weight_, float lof_distance_, int occ_threshold_, ros::NodeHandlePtr n)
 {
     // Pointer to the nodeHandler
     nh = n;
