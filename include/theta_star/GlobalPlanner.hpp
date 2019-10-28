@@ -42,6 +42,7 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <upo_actions/MakePlanAction.h>
 #include <upo_actions/RotationInPlaceAction.h>
 
+//#define MELODIC
 struct ReportElement
 {
     trajectory_msgs::MultiDOFJointTrajectory trajectory;
@@ -90,7 +91,7 @@ class GlobalPlanner : public ThetaStar
 
 public:
     //Default constructor
-    GlobalPlanner(tf2_ros::Buffer *tfBuffer_, string node_name);
+    GlobalPlanner(string node_name);
     /**
 		Default destructor
 	**/
@@ -178,7 +179,8 @@ private:
     ThetaStar gbPlanner;
 
     //tf buffer used to get the base_link position on the map(i.e. tf base_link-map)
-    tf2_ros::Buffer *tfBuffer;
+    std::unique_ptr<tf2_ros::Buffer> tfBuffer;
+    std::unique_ptr<tf2_ros::TransformListener> tf2_list;
 
     //Old tf1 used by the costmap wrapper
     // tf::TransformListener *tf_list_ptr;
