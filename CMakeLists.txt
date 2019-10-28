@@ -33,10 +33,10 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
 )
 
-add_executable(sim_planner_node src/sim_planner_node.cpp src/ThetaStar.cpp)
-target_link_libraries(sim_planner_node ${catkin_LIBRARIES})
-add_dependencies(sim_planner_node ${PROJECT_NAME}_gencfg)
-add_dependencies(sim_planner_node ${catkin_EXPORTED_TARGETS})
+#add_executable(sim_planner_node src/sim_planner_node.cpp src/ThetaStar.cpp)
+#target_link_libraries(sim_planner_node ${catkin_LIBRARIES})
+#add_dependencies(sim_planner_node ${PROJECT_NAME}_gencfg)
+#add_dependencies(sim_planner_node ${catkin_EXPORTED_TARGETS})
 
 add_executable(global_planner_node src/global_planner_node.cpp src/GlobalPlanner.cpp src/ThetaStar.cpp)
 target_link_libraries(global_planner_node ${catkin_LIBRARIES})
