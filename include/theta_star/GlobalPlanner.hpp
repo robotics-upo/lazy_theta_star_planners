@@ -116,7 +116,7 @@ private:
     void publishMakePlanFeedback();
     int getClosestWaypoint();
     bool replan();
-
+    
     /*
     @brief: Calls the resetLayers() costmap_2d member function in order to clean old obstacles 
     */
@@ -233,14 +233,14 @@ private:
 
     //
     //Vairables to fill up the result MakePlan result field
-    std_msgs::UInt8 replanNbr, emergencyStopNbr;
+    std_msgs::UInt8 emergencyStopNbr;
     std_msgs::Duration  time_spent;
     //Variables to fill up the feedback 
     std_msgs::Float32 dist2Goal;
     std_msgs::Duration travel_time;
     std_msgs::String percent_achieved, ETA;
     std_msgs::UInt8 globalWaypoint;
-
+    int timesReplaned;
     struct timeb start, finish;
     float seconds, milliseconds;
 
