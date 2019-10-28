@@ -6,14 +6,23 @@
 
 namespace PathPlanners
 {
-GlobalPlanner::GlobalPlanner(tf2_ros::Buffer *tfBuffer_, string node_name_)
+GlobalPlanner::GlobalPlanner(string node_name_)
 {
     //The tf buffer is used to lookup the base link position(tf from world frame to robot base frame)
-    tfBuffer = tfBuffer_;
+    //tfBuffer = tfBuffer_;
+    
     nh.reset(new ros::NodeHandle("~"));
+    tfBuffer.reset(new tf2_ros::Buffer);
+    tf2_list.reset(new tf2_ros::TransformListener(*tfBuffer));
+    #ifdef MELODIC
+    global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", tfBuffer));
+    #endif
+
+    #ifndef MELODIC
     tf_list_ptr.reset(new tf::TransformListener(ros::Duration(5)));
     global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", *tf_list_ptr)); //In ros kinetic the constructor uses tf instead of tf2 :(
-
+    #endif
+    
     node_name = node_name_;
     configParams();
     configTopics();
