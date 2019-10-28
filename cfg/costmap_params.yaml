@@ -1,4 +1,4 @@
-costmap:
+global_costmap:
    global_frame: /map
    robot_base_frame: /base_link
    map_topic: /map
