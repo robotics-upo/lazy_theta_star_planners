@@ -15,7 +15,7 @@ GlobalPlanner::GlobalPlanner(string node_name_)
     tfBuffer.reset(new tf2_ros::Buffer);
     tf2_list.reset(new tf2_ros::TransformListener(*tfBuffer));
     #ifdef MELODIC
-    global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", tfBuffer));
+    global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", *tfBuffer.get()));
     #endif
 
     #ifndef MELODIC
@@ -283,7 +283,7 @@ void GlobalPlanner::makePlanPreemptCB()
 bool GlobalPlanner::replan()
 {
     resetGlobalCostmap();
-    usleep(5e5);
+    usleep(5e5);    
    
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());

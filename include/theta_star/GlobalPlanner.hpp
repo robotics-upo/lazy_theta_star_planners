@@ -179,7 +179,7 @@ private:
     ThetaStar gbPlanner;
 
     //tf buffer used to get the base_link position on the map(i.e. tf base_link-map)
-    std::unique_ptr<tf2_ros::Buffer> tfBuffer;
+    std::shared_ptr<tf2_ros::Buffer> tfBuffer;
     std::unique_ptr<tf2_ros::TransformListener> tf2_list;
 
     //Old tf1 used by the costmap wrapper
