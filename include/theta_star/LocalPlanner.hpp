@@ -81,6 +81,7 @@ public:
     void dist2GoalCb(const std_msgs::Float32ConstPtr &dist);
 
 private:
+    void resetFlags();
     void clearMarkers();
     //These functions gets parameters from param server at startup if they exists, if not it passes default values
     void configParams();
@@ -91,7 +92,7 @@ private:
 
     void publishExecutePathFeedback();
 
-    void calculateLocalGoal();
+    bool calculateLocalGoal();
 
     geometry_msgs::TransformStamped getTfMapToRobot();
 
@@ -111,7 +112,7 @@ private:
     ros::NodeHandlePtr nh;
     ros::ServiceClient costmap_clean_srv;
     ros::Subscriber local_map_sub;
-    ros::Publisher running_state_pub,visMarkersPublisher;
+    ros::Publisher running_state_pub,visMarkersPublisher, trajPub;
 
     //Flags publishers
 
@@ -145,7 +146,8 @@ private:
     //
 
     unsigned int startIter;
-    int impossibleCnt, occGoalCnt;
+    int impossibleCnt, occGoalCnt, timesCleaned, badGoal;
+    
     int number_of_points;
     bool debug;
     float seconds, milliseconds;
