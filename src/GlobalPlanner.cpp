@@ -52,8 +52,8 @@ void GlobalPlanner::configServices()
     execute_path_client_ptr.reset(new ExecutePathClient("Execute_Plan", true));
 
     //TODO: Removed the comments
-    //execute_path_client_ptr->waitForServer();
-    //rot_in_place_client_ptr->waitForServer();
+    execute_path_client_ptr->waitForServer();
+    rot_in_place_client_ptr->waitForServer();
     ROS_INFO_COND(debug, "Action client from global planner ready");
 
     //MakePlan MAIN Server Configuration
@@ -79,6 +79,7 @@ void GlobalPlanner::configParams()
     goalRunning = false;
     nbrRotationsExec = 0;
     seq = 0;
+    timesReplaned = 0;
     //Get params from param server. If they dont exist give variables default values
     nh->param("show_config", showConfig, (bool)0);
     nh->param("debug", debug, (bool)0);
@@ -200,7 +201,6 @@ void GlobalPlanner::publishMakePlanFeedback()
     float percent = (float)(currentWaypoint / totalWaypoints) * 100;
     data_ = to_string(percent) + string("%");
     make_plan_fb.percent_achieved.data = data_;
-
     make_plan_server_ptr->publishFeedback(make_plan_fb);
    
 }
@@ -232,6 +232,7 @@ void GlobalPlanner::makePlanGoalCB()
     goalRunning = true;
     nbrRotationsExec = 0;
     countImpossible = 0;
+    timesReplaned=0;
     make_plan_res.replan_number.data=0;
 
     start_time = ros::Time::now();
@@ -274,7 +275,7 @@ bool GlobalPlanner::replan()
 {
     resetGlobalCostmap();
     usleep(5e5);
-
+   
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
     lock.unlock();
@@ -286,6 +287,7 @@ bool GlobalPlanner::replan()
 
     if (calculatePath())
     {
+         ++timesReplaned;
         ROS_INFO_COND(debug, "Succesfully calculated path");
         sendPathToLocalPlannerServer();
         return true;
@@ -334,6 +336,7 @@ void GlobalPlanner::plan()
         goalRunning = false;
         make_plan_res.finished = true;
         make_plan_res.not_possible = false;
+        make_plan_res.replan_number.data = timesReplaned;
         make_plan_res.time_spent.data = (ros::Time::now() - start_time);
         make_plan_server_ptr->setSucceeded(make_plan_res);
     }
