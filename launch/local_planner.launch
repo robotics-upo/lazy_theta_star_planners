@@ -1,8 +1,5 @@
 <launch>
 
-
-
-
     <!-- Used to have map server services when playing back data from rosbag files in simulation -->
     <!-- <node pkg="map_server" type="map_server" name="map_server" args="$(find theta_star_2d)/launch/tintas.yaml" output="screen"/> -->
 
@@ -13,7 +10,7 @@
         <rosparam command="load" file="$(find theta_star_2d)/cfg/local_costmap_params.yaml"/>
     </node>
 
-    <node pkg="theta_star_2d" type="global_planner_node" name="global_planner_node" output="screen">
+    <node pkg="theta_star_2d" type="global_planner_node" name="global_planner_node">
         <rosparam command="load" file="$(find theta_star_2d)/cfg/costmap_params.yaml"/>
         <rosparam command="load" file="$(find theta_star_2d)/cfg/global_params.yaml"/>
     </node>
@@ -24,6 +21,6 @@
 
     <rosparam command="load" file="$(find arco_path_tracker)/cfg/navigation.yaml"/>
 
-    <node pkg="arco_path_tracker" type="nav_node" name="nav_node" />
+    <node pkg="arco_path_tracker" type="nav_node" name="nav_node" output="screen"/>
 
 </launch>

@@ -1,5 +1,5 @@
 show_config: false
-debug: false
+debug: true
 
 goal_weight: 1.2
 cost_weight: 0.25
