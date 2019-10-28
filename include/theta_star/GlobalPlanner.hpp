@@ -42,7 +42,6 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <upo_actions/MakePlanAction.h>
 #include <upo_actions/RotationInPlaceAction.h>
 
-//#define MELODIC
 struct ReportElement
 {
     trajectory_msgs::MultiDOFJointTrajectory trajectory;

@@ -8,8 +8,6 @@
 #include <tf/transform_listener.h>
 #include <tf2_ros/transform_listener.h>
 
-//#define MELODIC 
-
 std::unique_ptr<costmap_2d::Costmap2DROS> costmap_ptr;
 
 bool resetCostmapSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep){
