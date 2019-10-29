@@ -126,7 +126,7 @@ private:
         actionGoal.goal_id.id += 1;
         actionGoal.goal_id.stamp = ros::Time::now();
 
-        actionGoal.header.frame_id = "map";
+        actionGoal.header.frame_id = world_frame;
         actionGoal.header.seq = rand();
         actionGoal.header.stamp = ros::Time::now();
 
