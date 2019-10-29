@@ -18,6 +18,7 @@ public:
         
         nh.reset(new ros::NodeHandle("~"));
         nh->param("mission_enabled", goals_by_file, (bool)1);
+        nh->param("world_frame", world_frame, (std::string)"/map");
 
         if (goals_by_file)
         {
@@ -25,10 +26,10 @@ public:
             start_mission_server = nh->advertiseService("start_mission", &MissionInterface::startMission, this);
             reload_mission_data = nh->advertiseService("reload_mission_data", &MissionInterface::reloadMissionData, this);
             continue_mission_server = nh->advertiseService("continue_mission", &MissionInterface::continueMission, this);
+            restore_mission_server = nh->advertiseService("restore_mission", &MissionInterface::restoreMission, this);
+
             //TODO Load Here the file
             missionLoaded = loadMissionData();
-            
-            
         }
         else
         {
@@ -41,14 +42,6 @@ public:
     {
         if (goals_by_file)
         {
-             /**
-         * La idea es que se le van pasando golitos empezando desde el primero de la cola y cuando se recibe que se ha conseguido, se esperan unos
-         * ! segundos (O a que otro proceso tambien diga que palante, como por ejemplo algun nodo de inspeccion visual etc)
-         * y se le manda el siguiente y asi hasta el ultimo
-         * ! al llegar al ultimo se vuelve al estado inicial
-         * TODO Que pasa si alguno se cancela por el global planner.............
-         * 
-        **/
             if (!makePlanClient->isServerConnected())
             {
                 ROS_WARN("Make Plan Server disconnected! :(, Waiting again for the server...");
@@ -75,22 +68,36 @@ public:
             }else if (goals_queu.empty() && doMission)
             {
                 ROS_DEBUG_ONCE("No goals in the queu, Mission finished");
+                goNext = true;
                 doMission=false;
-                
+                goalRunning = false;
+                goalReceived = false;
+                missionLoaded = false;
             }
         }
-        else if (goalReceived && !goalRunning)
-        { //RViz goals case
+        else if (goalReceived && !goalRunning)  //RViz goals case
+        {
             makePlanClient->sendGoal(actionGoal.goal);
             goalRunning = true;
             goalReceived = false;
         }
+        
+        processState();
+    }
+
+private:
+
+    void processState(){
+
         if (goalRunning)
         {
-            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ABORTED)
+            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ABORTED && !lastGoalAborted)
             {
                 //?It can mean the robot need an operator or something else
                 ROS_DEBUG_ONCE("Goal aborted by the Global Planner");
+                lastGoalAborted=true;
+                ROS_DEBUG_ONCE("Holding on mission, waiting for manual intervention to clear the path");
+                ROS_DEBUG_ONCE("Call service /mission_interface/restore_mission to continue to last goal");
             }
 
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::LOST)
@@ -111,8 +118,6 @@ public:
             }
         }
     }
-
-private:
     void goalCb(const geometry_msgs::PoseStampedConstPtr &goal)
     {
 
@@ -128,7 +133,15 @@ private:
         goalReceived = true;
         goalRunning = false;
     }
-
+    bool restoreMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp){
+        if(lastGoalAborted){
+            makePlanClient->sendGoal(actionGoal.goal);
+            goalRunning = true;
+            goNext = false;
+            lastGoalAborted=false;
+        }
+        return true;
+    }
     bool startMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp)
     {
         if(doMission){
@@ -188,19 +201,20 @@ private:
 
     bool loadMissionData()
     {
-        goalsNbr = 0;
-
         bool ret = true;
         std::string base_path = "mission/goal";
         geometry_msgs::PoseStamped goal;
 
-        //TODO: Make frame id a parameter
-        goal.header.frame_id = "/map";
-
+        goal.header.frame_id = world_frame;
+        
         int i = 1;
 
         while (nh->hasParam(base_path + std::to_string(i) + "/pose/x"))
         {
+            if(i==1)
+                for(size_t j = 1; goals_queu.size(); ++j )
+                    goals_queu.pop();
+            
             nh->param(base_path + std::to_string(i) + "/pose/x", goal.pose.position.x, (double)0);
             nh->param(base_path + std::to_string(i) + "/pose/y", goal.pose.position.y, (double)0);
             nh->param(base_path + std::to_string(i) + "/orientation/x", goal.pose.orientation.x, (double)0);
@@ -211,7 +225,6 @@ private:
             ROS_DEBUG("Goal %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", i, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
             goals_queu.push(goal);
 
-            ++goalsNbr;
             ++i;
         }
 
@@ -229,14 +242,14 @@ private:
     }
 
     ros::NodeHandlePtr nh; 
-    ros::ServiceServer start_mission_server, reload_mission_data, continue_mission_server;
+    ros::ServiceServer start_mission_server, reload_mission_data, continue_mission_server,restore_mission_server;
     ros::Subscriber goal_sub;
-
 
     upo_actions::MakePlanActionGoal actionGoal;
 
     std::queue<geometry_msgs::PoseStamped> goals_queu;
     std::unique_ptr<MakePlanActionClient> makePlanClient;
+    std::string world_frame;
 
     //These flags are used by the mission mode
     bool missionLoaded = false;
@@ -246,8 +259,7 @@ private:
     bool goalRunning = false;
     bool goalReceived = false; //This flag is only used when rviz goal mode is active
     bool goals_by_file;
-
-    int goalsNbr; //Number of goals loaded
+    bool lastGoalAborted = false;
 };
 
 int main(int argc, char **argv)
