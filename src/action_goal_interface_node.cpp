@@ -55,7 +55,7 @@ public:
                     ROS_WARN("Timeout waiting for server...retrying");
                 }
 
-            }else if (!goals_queu.empty() && !goalRunning && doMission && goNext)//!Lots of flags :(
+            }else if (!goals_queu.empty()  && doMission && goNext)
             {
                 actionGoal.goal.global_goal = goals_queu.front();
                 goals_queu.pop();
@@ -75,7 +75,7 @@ public:
                 missionLoaded = false;
             }
         }
-        else if (goalReceived && !goalRunning)  //RViz goals case
+        else if (goalReceived && !isGoalActive() )//&& !goalRunning)  //RViz goals case
         {
             makePlanClient->sendGoal(actionGoal.goal);
             goalRunning = true;
@@ -87,9 +87,17 @@ public:
 
 private:
 
+    bool isGoalActive(){
+        if(makePlanClient->getState() == actionlib::SimpleClientGoalState::ACTIVE)
+        {
+            return true;
+        }else{
+            return false;
+        }   
+    }
     void processState(){
 
-        if (goalRunning)
+        if (doMission)
         {
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ABORTED && !lastGoalAborted)
             {
@@ -110,6 +118,7 @@ private:
                 //!Do next goal?
                 ROS_DEBUG("Goal Preempted");
                 goalRunning = false;
+
             }
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
             {
