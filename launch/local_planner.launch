@@ -20,8 +20,8 @@
     <node pkg="theta_star_2d" type="local_planner_node" name="local_planner_node">
         <rosparam command="load" file="$(find theta_star_2d)/cfg/local_params.yaml"/>
     </node>
-    <node pkg="arco_path_tracker" type="nav_node" name="nav_node" output="screen">
-        <rosparam command="load" file="$(find arco_path_tracker)/cfg/navigation.yaml"/>
-    </node>
 
-</launch>
+    <rosparam command="load" file="$(find arco_path_tracker)/cfg/navigation.yaml"/>
+    <node pkg="arco_path_tracker" type="nav_node" name="nav_node"/>
+
+    </launch>
