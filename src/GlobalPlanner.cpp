@@ -85,7 +85,6 @@ void GlobalPlanner::dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint
 void GlobalPlanner::configParams()
 {
     //At startup, no goal and no costmap received yet
-    goalRunning = false;
     nbrRotationsExec = 0;
     seq = 0;
     timesReplaned = 0;
@@ -238,7 +237,6 @@ void GlobalPlanner::makePlanGoalCB()
     //Cancel previous executing plan
     execute_path_client_ptr->cancelAllGoals();
     clearMarkers();
-    goalRunning = true;
     nbrRotationsExec = 0;
     countImpossible = 0;
     timesReplaned=0;
@@ -266,16 +264,15 @@ void GlobalPlanner::makePlanGoalCB()
     }
     else
     { // What if it isnt possible to calculate path?
-
         make_plan_res.not_possible = true;
         make_plan_res.finished = false;
-        make_plan_server_ptr->setAborted(make_plan_res, "Impossible to calculate a solution");
+        make_plan_server_ptr->setPreempted(make_plan_res, "Impossible to calculate a solution");
     }
 }
 void GlobalPlanner::makePlanPreemptCB()
 {
     make_plan_res.finished = false;
-    travel_time.data = ros::Time::now() - start_time;
+    travel_time.data = ros::Time::now() - start_time; 
     make_plan_res.time_spent = travel_time;
 
     make_plan_server_ptr->setPreempted(make_plan_res, "Goal Preempted by User");
@@ -288,6 +285,7 @@ bool GlobalPlanner::replan()
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
     lock.unlock();
+    
     make_plan_res.replan_number.data++;
     
     //For the world to know the planner is replanning
@@ -306,7 +304,7 @@ bool GlobalPlanner::replan()
         upo_actions::MakePlanResult result;
         make_plan_res.finished = false;
         make_plan_res.not_possible = true;
-        make_plan_server_ptr->setAborted(make_plan_res, "Tried to replan and aborted after replanning and rotation in place");
+        make_plan_server_ptr->setPreempted(make_plan_res, "Tried to replan and aborted after replanning and rotation in place");
         execute_path_client_ptr->cancelAllGoals();
         return false;
     }
@@ -333,22 +331,25 @@ void GlobalPlanner::plan()
 {
     //TODO Maybe I can change the goalRunning flag by check if is active any goal
 
-    if (make_plan_server_ptr->isActive())
-        publishMakePlanFeedback();
+    if (make_plan_server_ptr->isActive()){
+         publishMakePlanFeedback();
+    }else{
+        return;
+    }
 
-    if (goalRunning && execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED) //!It means that local planner couldn t find a local solution
-        replan();
-
-    if (goalRunning && execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
+    if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
     {
         clearMarkers();
-        goalRunning = false;
         make_plan_res.finished = true;
         make_plan_res.not_possible = false;
         make_plan_res.replan_number.data = timesReplaned;
         make_plan_res.time_spent.data = (ros::Time::now() - start_time);
         make_plan_server_ptr->setSucceeded(make_plan_res);
     }
+
+    if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED) //!It means that local planner couldn t find a local solution
+        replan();
+
 }
 bool GlobalPlanner::calculatePath()
 {
@@ -370,7 +371,7 @@ bool GlobalPlanner::calculatePath()
             seconds = finish.time - start.time - 1;
             milliseconds = (1000 - start.millitm) + finish.millitm;
 
-            ROS_INFO(PRINTF_YELLOW "Time Spent in Global Path Calculation: %f ms", milliseconds + seconds * 1000);
+            ROS_INFO(PRINTF_YELLOW "Time Spent in Global Path Calculation: %.1f ms", milliseconds + seconds * 1000);
             ROS_INFO(PRINTF_YELLOW "Number of points: %d", number_of_points);
 
             if (number_of_points > 0)
