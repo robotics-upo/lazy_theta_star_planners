@@ -213,9 +213,6 @@ private:
     float pathLength;
     Trajectory trajectory;
 
-    //Control flags
-    bool globalGoalReceived,goalRunning;
-
     //These two flags can be configured as parameters
     bool showConfig, debug;
 
