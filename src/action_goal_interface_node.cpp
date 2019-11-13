@@ -11,15 +11,14 @@ class MissionInterface
     typedef actionlib::SimpleActionClient<upo_actions::MakePlanAction> MakePlanActionClient;
 
 public:
-
     MissionInterface()
     {
         makePlanClient.reset(new MakePlanActionClient("Make_Plan", false));
-        
+
         nh.reset(new ros::NodeHandle("~"));
         nh->param("mission_enabled", goals_by_file, (bool)1);
-        nh->param("world_frame", world_frame, (std::string)"/map");
-
+        nh->param("world_frame", world_frame, (std::string) "/map");
+        nh->param("override_in_rviz_mode", override, (bool)true);
         if (goals_by_file)
         {
             ROS_DEBUG("Goal interface in Mission Mode");
@@ -28,7 +27,6 @@ public:
             continue_mission_server = nh->advertiseService("continue_mission", &MissionInterface::continueMission, this);
             restore_mission_server = nh->advertiseService("restore_mission", &MissionInterface::restoreMission, this);
 
-            //TODO Load Here the file
             missionLoaded = loadMissionData();
         }
         else
@@ -54,8 +52,8 @@ public:
                 {
                     ROS_WARN("Timeout waiting for server...retrying");
                 }
-
-            }else if (!goals_queu.empty()  && doMission && goNext)
+            }
+            else if (!goals_queu.empty() && doMission && goNext)
             {
                 actionGoal.goal.global_goal = goals_queu.front();
                 goals_queu.pop();
@@ -63,47 +61,52 @@ public:
                 goalRunning = true;
                 goNext = false;
                 ROS_DEBUG("Sending Goal: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
-                         actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
-                         actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
-            }else if (goals_queu.empty() && doMission)
+                          actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
+                          actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
+            }
+            else if (goals_queu.empty() && doMission)
             {
                 ROS_DEBUG_ONCE("No goals in the queu, Mission finished");
                 goNext = true;
-                doMission=false;
+                doMission = false;
                 goalRunning = false;
                 goalReceived = false;
                 missionLoaded = false;
             }
         }
-        else if (goalReceived && !isGoalActive() )//&& !goalRunning)  //RViz goals case
+        else if (goalReceived && (override || !isGoalActive()) )//&& !goalRunning)  //RViz goals case
         {
             makePlanClient->sendGoal(actionGoal.goal);
             goalRunning = true;
             goalReceived = false;
         }
         
+
         processState();
     }
 
 private:
-
-    bool isGoalActive(){
-        if(makePlanClient->getState() == actionlib::SimpleClientGoalState::ACTIVE)
+    bool isGoalActive()
+    {
+        if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ACTIVE)
         {
             return true;
-        }else{
+        }
+        else
+        {
             return false;
-        }   
+        }
     }
-    void processState(){
+    void processState()
+    {
 
-        if (doMission)
+        if (goalRunning)
         {
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ABORTED && !lastGoalAborted)
             {
                 //?It can mean the robot need an operator or something else
                 ROS_DEBUG_ONCE("Goal aborted by the Global Planner");
-                lastGoalAborted=true;
+                lastGoalAborted = true;
                 ROS_DEBUG_ONCE("Holding on mission, waiting for manual intervention to clear the path");
                 ROS_DEBUG_ONCE("Call service /mission_interface/restore_mission to continue to last goal");
             }
@@ -113,12 +116,15 @@ private:
                 //!Maybe resend goal?
                 ROS_DEBUG("Goal Lost :'(");
             }
+            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::REJECTED)
+            {
+                ROS_DEBUG("Goal Rejected :'(");
+            }
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::PREEMPTED)
             {
                 //!Do next goal?
                 ROS_DEBUG("Goal Preempted");
                 goalRunning = false;
-
             }
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
             {
@@ -142,20 +148,23 @@ private:
         goalReceived = true;
         goalRunning = false;
     }
-    bool restoreMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp){
-        if(lastGoalAborted){
+    bool restoreMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp)
+    {
+        if (lastGoalAborted)
+        {
             makePlanClient->sendGoal(actionGoal.goal);
             goalRunning = true;
             goNext = false;
-            lastGoalAborted=false;
+            lastGoalAborted = false;
         }
         return true;
     }
     bool startMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp)
     {
-        if(doMission){
+        if (doMission)
+        {
             resp.success = false;
-            resp.message= "Mission is already started my friend, don't try to trick me ;)";
+            resp.message = "Mission is already started my friend, don't try to trick me ;)";
             return true;
         }
         if (!missionLoaded)
@@ -199,10 +208,12 @@ private:
         if (goals_queu.empty())
         {
             resp.message = "Can't continue, no goals in the queu";
+            resp.success = false;
         }
         if (goalRunning)
         {
             resp.message = "The previous goal is still running, can't go to the next while previous goal running";
+            resp.success = false;
         }
 
         return true;
@@ -215,15 +226,15 @@ private:
         geometry_msgs::PoseStamped goal;
 
         goal.header.frame_id = world_frame;
-        
+
         int i = 1;
 
         while (nh->hasParam(base_path + std::to_string(i) + "/pose/x"))
         {
-            if(i==1)
-                for(size_t j = 1; goals_queu.size(); ++j )
+            if (i == 1)
+                for (size_t j = 1; goals_queu.size(); ++j)
                     goals_queu.pop();
-            
+
             nh->param(base_path + std::to_string(i) + "/pose/x", goal.pose.position.x, (double)0);
             nh->param(base_path + std::to_string(i) + "/pose/y", goal.pose.position.y, (double)0);
             nh->param(base_path + std::to_string(i) + "/orientation/x", goal.pose.orientation.x, (double)0);
@@ -250,8 +261,8 @@ private:
         return missionLoaded;
     }
 
-    ros::NodeHandlePtr nh; 
-    ros::ServiceServer start_mission_server, reload_mission_data, continue_mission_server,restore_mission_server;
+    ros::NodeHandlePtr nh;
+    ros::ServiceServer start_mission_server, reload_mission_data, continue_mission_server, restore_mission_server;
     ros::Subscriber goal_sub;
 
     upo_actions::MakePlanActionGoal actionGoal;
@@ -263,12 +274,14 @@ private:
     //These flags are used by the mission mode
     bool missionLoaded = false;
     bool doMission = false;
-    bool goNext=true;
+    bool goNext = true;
 
     bool goalRunning = false;
     bool goalReceived = false; //This flag is only used when rviz goal mode is active
     bool goals_by_file;
     bool lastGoalAborted = false;
+
+    bool override;
 };
 
 int main(int argc, char **argv)
