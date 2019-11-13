@@ -37,7 +37,7 @@ bool checkEnvSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep){
                 ++count;
 
     if(count > n_max){
-        rep.message="Too much obstacles: "+std::to_string(count);
+        rep.message="Too much obstacles: " + std::to_string(count);
         rep.success=false;
     }else{
         rep.message="Okey, only "+std::to_string(count)+" obstacles found";
