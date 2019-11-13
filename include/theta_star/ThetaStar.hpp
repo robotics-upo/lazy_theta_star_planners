@@ -240,6 +240,7 @@ class ThetaStar
 			@return map resolution
 		**/
 		float getMapResolution();
+		
 
 		/**
 		  Set timeout to calculate the solution
@@ -271,6 +272,7 @@ class ThetaStar
 		bool setFinalPosition(DiscretePosition p_);
 		bool setFinalPosition(Vector3 p); 
 
+		bool isSolution();
 		/**
 		  Set initial/final position of the path checking if 
 		  it's inside WS and if it'ts occupied (--> Valid)
@@ -808,6 +810,7 @@ class ThetaStar
 		float cost_path;
 		float average_dist_to_obst;
 		float csf,rob_rad;
+		bool noSolution;
 };
 
 } /* namespace PathPlanners */

@@ -153,7 +153,7 @@ void ThetaStar::init(string plannerName, string frame_id,
     cost_weight = cost_weight_;
     lof_distance = lof_distance_;
     occ_threshold = occ_threshold_;
-
+    noSolution=false;
     configureMarkers(plannerName, frame_id, step);
     /*
     // Visualitazion Markers
@@ -609,7 +609,7 @@ int ThetaStar::computePath(void)
 
     //Initialize loop
     ThetaStarNode *min_distance = disc_initial; // s : current node
-    bool noSolution = false;
+    noSolution = false;
     long iter = 0;
 
     if (isOccupied(*disc_final))
@@ -741,7 +741,9 @@ int ThetaStar::computePath(void)
     //ROS_WARN("Expanded Nodes: %d",expanded_nodes_number);
     return last_path.size();
 }
-
+bool ThetaStar::isSolution(){
+    return !noSolution;
+}
 vector<Vector3> ThetaStar::getCurrentPath()
 {
     return last_path;
