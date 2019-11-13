@@ -9,6 +9,8 @@
 #include <tf2_ros/transform_listener.h>
 
 std::unique_ptr<costmap_2d::Costmap2DROS> costmap_ptr;
+typedef unsigned int uint;
+double x_b,y_b,n_max;
 
 bool resetCostmapSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep){
 
@@ -16,12 +18,46 @@ bool resetCostmapSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &r
     costmap_ptr->resetLayers();
     return true;
 }
+bool checkEnvSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep){
+
+    static float res=costmap_ptr->getCostmap()->getResolution();
+    uint count=0;
+
+    static uint s_x=costmap_ptr->getCostmap()->getSizeInCellsX()/2;
+    static uint s_y=costmap_ptr->getCostmap()->getSizeInCellsY()/2;
+
+    static uint x1=static_cast<uint>(x_b/res);
+    static uint x2=static_cast<uint>(x_b/res);
+    static uint y1=static_cast<uint>(y_b/res);
+    static uint y2=static_cast<uint>(y_b/res);
+
+    for(uint i = (s_x-x1); i < (s_x+x2); ++i)
+        for(uint j = (s_y-y1); j < (s_y+y2); ++j)
+            if(costmap_ptr->getCostmap()->getCost(i,j) == costmap_2d::LETHAL_OBSTACLE)
+                ++count;
+
+    if(count > n_max){
+        rep.message="Too much obstacles: "+std::to_string(count);
+        rep.success=false;
+    }else{
+        rep.message="Okey, only "+std::to_string(count)+" obstacles found";
+        rep.success=true;
+    }
+
+    return true;
+}
 int main(int argc, char** argv){
 
     
     ros::init(argc,argv,"custom_costmap_node");
     ros::NodeHandle n("~");
+    
+    n.param("x_bound", x_b,(double)0.65);
+    n.param("y_bound", y_b,(double)0.4);
+    n.param("n_max", n_max, (double)20);
+
     ros::ServiceServer reset_costmap_svr = n.advertiseService("reset_costmap", resetCostmapSrv);
+    ros::ServiceServer check_env = n.advertiseService("check_env", &checkEnvSrv);
 
     #ifdef MELODIC
     tf2_ros::Buffer buffer(ros::Duration(5));
@@ -32,7 +68,6 @@ int main(int argc, char** argv){
     tf::TransformListener tfListener(ros::Duration(5));    
     costmap_ptr.reset(new costmap_2d::Costmap2DROS("costmap", tfListener));
     #endif
-
     ros::spin();
     
     return 0;
