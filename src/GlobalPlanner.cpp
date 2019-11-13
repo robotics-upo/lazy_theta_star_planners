@@ -10,19 +10,19 @@ GlobalPlanner::GlobalPlanner(string node_name_)
 {
     //The tf buffer is used to lookup the base link position(tf from world frame to robot base frame)
     //tfBuffer = tfBuffer_;
-    
+
     nh.reset(new ros::NodeHandle("~"));
     tfBuffer.reset(new tf2_ros::Buffer);
     tf2_list.reset(new tf2_ros::TransformListener(*tfBuffer));
-    #ifdef MELODIC
+#ifdef MELODIC
     global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", *tfBuffer.get()));
-    #endif
+#endif
 
-    #ifndef MELODIC
+#ifndef MELODIC
     tf_list_ptr.reset(new tf::TransformListener(ros::Duration(5)));
     global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", *tf_list_ptr)); //In ros kinetic the constructor uses tf instead of tf2 :(
-    #endif
-    
+#endif
+
     node_name = node_name_;
     configParams();
     configTopics();
@@ -120,7 +120,7 @@ void GlobalPlanner::configParams()
     lineMarker.lifetime = ros::Duration(500);
     lineMarker.type = RVizMarker::LINE_STRIP;
     lineMarker.action = RVizMarker::ADD;
-    lineMarker.pose.orientation.w =1;
+    lineMarker.pose.orientation.w = 1;
     lineMarker.color.r = 0.0;
     lineMarker.color.g = 1.0;
     lineMarker.color.b = 0.0;
@@ -130,11 +130,11 @@ void GlobalPlanner::configParams()
     waypointsMarker.header.frame_id = world_frame;
     waypointsMarker.header.stamp = ros::Time::now();
     waypointsMarker.ns = "global_path";
-    waypointsMarker.id = lineMarker.id+1;
+    waypointsMarker.id = lineMarker.id + 1;
     waypointsMarker.lifetime = ros::Duration(500);
     waypointsMarker.type = RVizMarker::POINTS;
     waypointsMarker.action = RVizMarker::ADD;
-    waypointsMarker.pose.orientation.w=1;
+    waypointsMarker.pose.orientation.w = 1;
     waypointsMarker.color.r = 1.0;
     waypointsMarker.color.g = 1.0;
     waypointsMarker.color.b = 0.0;
@@ -160,12 +160,12 @@ void GlobalPlanner::sendPathToLocalPlannerServer()
 void GlobalPlanner::publishMakePlanFeedback()
 {
     float x, y;
-    x = (getRobotPose().transform.translation.x - goal.vector.x );
-    y = (getRobotPose().transform.translation.y - goal.vector.y );
+    x = (getRobotPose().transform.translation.x - goal.vector.x);
+    y = (getRobotPose().transform.translation.y - goal.vector.y);
 
-    dist2Goal.data = sqrtf(x*x+y*y);
+    dist2Goal.data = sqrtf(x * x + y * y);
     make_plan_fb.distance_to_goal = dist2Goal;
-    
+
     travel_time.data = (ros::Time::now() - start_time);
     make_plan_fb.travel_time = travel_time;
     /**
@@ -179,7 +179,7 @@ void GlobalPlanner::publishMakePlanFeedback()
     float speed;
     nh->param("/nav_node/linear_max_speed", speed, (float)0.4);
     float time = pathLength / speed;
-    int m= 0;
+    int m = 0;
     float s;
     if (time < 60)
     {
@@ -194,7 +194,7 @@ void GlobalPlanner::publishMakePlanFeedback()
         }
         s = time;
     }
-    string data_ = "Estimated Time of Arrival " + to_string(m)+string(":")+to_string((int)s);
+    string data_ = "Estimated Time of Arrival " + to_string(m) + string(":") + to_string((int)s);
     make_plan_fb.ETA.data = data_;
 
     /**
@@ -210,7 +210,6 @@ void GlobalPlanner::publishMakePlanFeedback()
     data_ = to_string(percent) + string("%");
     make_plan_fb.percent_achieved.data = data_;
     make_plan_server_ptr->publishFeedback(make_plan_fb);
-   
 }
 int GlobalPlanner::getClosestWaypoint()
 {
@@ -239,8 +238,8 @@ void GlobalPlanner::makePlanGoalCB()
     clearMarkers();
     nbrRotationsExec = 0;
     countImpossible = 0;
-    timesReplaned=0;
-    make_plan_res.replan_number.data=0;
+    timesReplaned = 0;
+    make_plan_res.replan_number.data = 0;
 
     start_time = ros::Time::now();
     upo_actions::MakePlanGoalConstPtr goal_ptr = make_plan_server_ptr->acceptNewGoal();
@@ -272,7 +271,7 @@ void GlobalPlanner::makePlanGoalCB()
 void GlobalPlanner::makePlanPreemptCB()
 {
     make_plan_res.finished = false;
-    travel_time.data = ros::Time::now() - start_time; 
+    travel_time.data = ros::Time::now() - start_time;
     make_plan_res.time_spent = travel_time;
 
     make_plan_server_ptr->setPreempted(make_plan_res, "Goal Preempted by User");
@@ -280,28 +279,27 @@ void GlobalPlanner::makePlanPreemptCB()
 bool GlobalPlanner::replan()
 {
     resetGlobalCostmap();
-    usleep(5e5);    
-   
+    usleep(5e5);
+
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
     lock.unlock();
-    
+
     make_plan_res.replan_number.data++;
-    
+
     //For the world to know the planner is replanning
     flg_replan_status.data = true;
     replan_status_pub.publish(flg_replan_status);
 
     if (calculatePath())
     {
-         ++timesReplaned;
+        ++timesReplaned;
         ROS_INFO_COND(debug, "Succesfully calculated path");
         sendPathToLocalPlannerServer();
         return true;
     }
     else
     {
-        upo_actions::MakePlanResult result;
         make_plan_res.finished = false;
         make_plan_res.not_possible = true;
         make_plan_server_ptr->setPreempted(make_plan_res, "Tried to replan and aborted after replanning and rotation in place");
@@ -309,17 +307,18 @@ bool GlobalPlanner::replan()
         return false;
     }
 }
-void GlobalPlanner::clearMarkers(){
+void GlobalPlanner::clearMarkers()
+{
 
     waypointsMarker.action = RVizMarker::DELETEALL;
     lineMarker.action = RVizMarker::DELETEALL;
-    
+
     visMarkersPublisher.publish(lineMarker);
     visMarkersPublisher.publish(waypointsMarker);
-    
+
     lineMarker.points.clear();
     waypointsMarker.points.clear();
-    
+
     lineMarker.action = RVizMarker::ADD;
     waypointsMarker.action = RVizMarker::ADD;
 }
@@ -331,25 +330,44 @@ void GlobalPlanner::plan()
 {
     //TODO Maybe I can change the goalRunning flag by check if is active any goal
 
-    if (make_plan_server_ptr->isActive()){
-         publishMakePlanFeedback();
+    if (make_plan_server_ptr->isActive())
+    {
+        publishMakePlanFeedback();
     }else{
         return;
     }
 
-    if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
+    if (execute_path_client_ptr->getState().isDone())
     {
-        clearMarkers();
-        make_plan_res.finished = true;
-        make_plan_res.not_possible = false;
-        make_plan_res.replan_number.data = timesReplaned;
-        make_plan_res.time_spent.data = (ros::Time::now() - start_time);
-        make_plan_server_ptr->setSucceeded(make_plan_res);
+        if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
+        {
+            clearMarkers();
+            make_plan_res.finished = true;
+            make_plan_res.not_possible = false;
+            make_plan_res.replan_number.data = timesReplaned;
+            make_plan_res.time_spent.data = (ros::Time::now() - start_time);
+            make_plan_server_ptr->setSucceeded(make_plan_res);
+        }
+
+        if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED)
+        {
+            ROS_INFO("Path execution aborted by local planner...");
+            replan();
+        } //!It means that local planner couldn t find a local solution
+
+        if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::PREEMPTED)
+        { //!Maybe when the goal is inside the local workspace and occupied
+
+            ROS_INFO("Path execution preempted by local planner");
+            //Decide What to do next....
+        }
+        if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::REJECTED)
+        { //!Maybe when the goal is inside the local workspace and occupied
+
+            ROS_INFO("Path execution rejected by local planner");
+            //Decide What to do next....
+        }
     }
-
-    if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED) //!It means that local planner couldn t find a local solution
-        replan();
-
 }
 bool GlobalPlanner::calculatePath()
 {
@@ -357,60 +375,60 @@ bool GlobalPlanner::calculatePath()
     //so if there is no map received it won't calculate a path
     bool ret = false;
 
-    while (!ret)
+    //while (!ret)
+    //{
+    if (setGoal() && setStart())
     {
-        if (setGoal() && setStart())
+        ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal and start successfull set");
+        // Path calculation
+
+        ftime(&start);
+        number_of_points = gbPlanner.computePath();
+        ftime(&finish);
+
+        seconds = finish.time - start.time - 1;
+        milliseconds = (1000 - start.millitm) + finish.millitm;
+
+        ROS_INFO(PRINTF_YELLOW "Time Spent in Global Path Calculation: %.1f ms", milliseconds + seconds * 1000);
+        ROS_INFO(PRINTF_YELLOW "Number of points: %d", number_of_points);
+
+        if (number_of_points > 0)
         {
-            ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal and start successfull set");
-            // Path calculation
+            ROS_INFO_COND(debug, PRINTF_MAGENTA "Publishing trajectory, %d", number_of_points);
+            publishTrajectory();
 
-            ftime(&start);
-            number_of_points = gbPlanner.computePath();
-            ftime(&finish);
-
-            seconds = finish.time - start.time - 1;
-            milliseconds = (1000 - start.millitm) + finish.millitm;
-
-            ROS_INFO(PRINTF_YELLOW "Time Spent in Global Path Calculation: %.1f ms", milliseconds + seconds * 1000);
-            ROS_INFO(PRINTF_YELLOW "Number of points: %d", number_of_points);
-
-            if (number_of_points > 0)
+            //Reset the counter of the number of times the planner tried to calculate a path without success
+            countImpossible = 0;
+            //If it was replanning before, reset flag
+            if (flg_replan_status.data)
             {
-                ROS_INFO_COND(debug, PRINTF_MAGENTA "Publishing trajectory, %d", number_of_points);
-                publishTrajectory();
-
-                //Reset the counter of the number of times the planner tried to calculate a path without success
-                countImpossible = 0;
-                //If it was replanning before, reset flag
-                if (flg_replan_status.data)
-                {
-                    flg_replan_status.data = false;
-                    replan_status_pub.publish(flg_replan_status);
-                }
-
-                ret = true;
+                flg_replan_status.data = false;
+                replan_status_pub.publish(flg_replan_status);
             }
-            else
-            {
-                if(nbrRotationsExec || flg_replan_status.data){
-                    break;
-                }
-                
-                countImpossible++;
-                if (countImpossible == 3 && nbrRotationsExec < 1)
-                {
-                    rot_in_place_goal.execute_rotation = true;
-                    rot_in_place_client_ptr->sendGoal(rot_in_place_goal);
-                    rot_in_place_client_ptr->waitForResult(ros::Duration(15));
-                    nbrRotationsExec++;
-                }
-            }
+
+            ret = true;
         }
         else
         {
-            break;
+            countImpossible++;
+            /*if(nbrRotationsExec || flg_replan_status.data){
+                    //break;
+                }
+                if (countImpossible == 3 && nbrRotationsExec < 1)
+                {
+                    //rot_in_place_goal.execute_rotation = true;
+                    //rot_in_place_client_ptr->sendGoal(rot_in_place_goal);
+                    //rot_in_place_client_ptr->waitForResult(ros::Duration(15));
+                    //nbrRotationsExec++;
+                }*/
         }
     }
+    /*else
+        {
+            ret = false;
+            //break;
+        }
+    }*/
     return ret;
 }
 void GlobalPlanner::calculatePathLength()
@@ -485,16 +503,16 @@ void GlobalPlanner::publishTrajectory()
     waypointsMarker.header.stamp = ros::Time::now();
 
     geometry_msgs::Point p;
-    
+
     for (size_t i = 0; i < trajectory.points.size(); i++)
     {
         p.x = trajectory.points[i].transforms[0].translation.x;
         p.y = trajectory.points[i].transforms[0].translation.y;
-        
+
         lineMarker.points.push_back(p);
         waypointsMarker.points.push_back(p);
     }
-   
+
     visMarkersPublisher.publish(lineMarker);
     visMarkersPublisher.publish(waypointsMarker);
 }
