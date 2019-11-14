@@ -118,7 +118,7 @@ private:
 
     bool showConfig;
     bool mapGeometryConfigured;
-    bool doPlan;
+    bool doPlan, First;
     //Flow control flags
     bool localCostMapReceived;
     //To calculate planning time
@@ -178,7 +178,8 @@ private:
     std_msgs::Float32 d2goal;
     //action client to navigate
     std::unique_ptr<NavigateClient> navigate_client_ptr;
-    upo_actions::NavigateActionGoal navigate_goal;
+    upo_actions::NavigateGoal nav_goal;
+
 };
 
 } // namespace PathPlanners

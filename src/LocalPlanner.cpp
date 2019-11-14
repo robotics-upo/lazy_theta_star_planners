@@ -47,7 +47,7 @@ void LocalPlanner::resetFlags()
 {
     localCostMapReceived = false;
     doPlan = true;
-
+    First = true;
     impossibleCnt = 0;
     occGoalCnt = 0;
     startIter = 1;
@@ -158,12 +158,9 @@ void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended t
     costmap_clean_srv.call(trg);
     usleep(5e5);
     start_time = ros::Time::now();
-
-    upo_actions::NavigateGoal nav_goal;
-    size_t siz = globalTrajectory.points.size();
-    nav_goal.global_goal.position.x = globalTrajectory.points.at(--siz).transforms[0].translation.x;
-    nav_goal.global_goal.position.y = globalTrajectory.points.at(--siz).transforms[0].translation.y;
-    navigate_client_ptr->sendGoal(nav_goal);
+    
+   
+     
 }
 void LocalPlanner::configTheta()
 {
@@ -254,7 +251,14 @@ void LocalPlanner::plan()
                     {
                         buildAndPubTrayectory();
                         planningStatus.data = "OK";
-
+                        if(First){
+                            size_t siz = globalTrajectory.points.size();
+                            nav_goal.global_goal.position.x = globalTrajectory.points.at(siz-1).transforms[0].translation.x;
+                            nav_goal.global_goal.position.y = globalTrajectory.points.at(siz-1).transforms[0].translation.y;
+                            nav_goal.global_goal.orientation = globalTrajectory.points.at(siz-1).transforms[0].rotation;
+                            navigate_client_ptr->sendGoal(nav_goal);
+                            First = false;
+                        }
                         if (impossibleCnt > 0) //If previously the local planner couldn t find solution, reset
                             impossibleCnt = 0;
                     }
