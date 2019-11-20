@@ -7,5 +7,5 @@ lof_distance: 1.5
 occ_threshold: 99
 
 world_frame: map
-robot_base_frame: base_link
+robot_base_frame: siar/base_link
 

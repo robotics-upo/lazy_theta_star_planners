@@ -1,6 +1,6 @@
 global_costmap:
    global_frame: map
-   robot_base_frame: base_link
+   robot_base_frame: siar/base_link
    map_topic: map
 
    subscribe_to_updates: true
@@ -19,14 +19,14 @@ global_costmap:
    
    obstacle_layer:
       combination_method: 1
-      enabled: false
+      enabled: true
       max_obstacle_height: 2.0
       footprint_clearing_enabled: true
       obstacle_range: 3
       raytrace_range: 30
       observation_sources: scan_multi 
       scan_multi: {clearing: true, data_type: LaserScan, expected_update_rate: 1, observation_persistence: 0.0,
-         marking: true, sensor_frame: base_link, topic: /scanFromPC, raytrace_range: 31, obstacle_range: 6}
+         marking: true, sensor_frame: siar/base_link, topic: /scanFromPC, raytrace_range: 31, obstacle_range: 6}
       
    inflation_layer: 
       cost_scaling_factor: 1
@@ -40,5 +40,5 @@ global_costmap:
 
    plugins:
       - {name: static_layer, type: "costmap_2d::StaticLayer"}
-      - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
+      #- {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
       - {name: inflation_layer, type: 'costmap_2d::InflationLayer'}

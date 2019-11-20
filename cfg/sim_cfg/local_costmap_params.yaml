@@ -6,15 +6,15 @@ costmap:
   origin_x: -3
   origin_y: -3
   
-  footprint: '[[0.01,0.01],[-0.01,0.01],[-0.01,-0.01],[0.05,-0.01]]'
-  footprint_padding: 0.3 #0.55 es mas conservador 
-  robot_radius: 0.3
+  #footprint: '[[0.01,0.01],[-0.01,0.01],[-0.01,-0.01],[0.05,-0.01]]'
+  #footprint_padding: 0.5 #0.55 es mas conservador 
+  robot_radius: 0.5
   publish_frequency: 10.0
   update_frequency: 10.0
   resolution: 0.05
-  transform_tolerance: 2
+  transform_tolerance: 1
 
-  robot_base_frame: base_link
+  robot_base_frame: siar/base_link
   map_type: costmap
   global_frame: /map
 
@@ -37,10 +37,11 @@ costmap:
     max_obstacle_height: 2.0
 
     footprint_clearing_enabled: true
-    observation_sources: pico_1
+
+    observation_sources: laser_scan_sensor 
    
-    pico_1: {data_type: PointCloud2, expected_update_rate: 0.8, observation_persistence: 0.0,
-      marking: true,clearing: true, sensor_frame: right_pico_flexx_optical_frame, topic: /right_pico_flexx/points, raytrace_range: 4, obstacle_range: 4, max_obstacle_height: 0.15, min_obstacle_height: 0.02}
+    laser_scan_sensor: {clearing: true, data_type: LaserScan, expected_update_rate: 1,observation_persistence: 0.0,
+      marking: true, sensor_frame: siar/base_link, topic: /scanFromPC, raytrace_range: 31, obstacle_range: 6}
    
   plugins:
   - {name: obstacle_layer, type: 'costmap_2d::ObstacleLayer'}

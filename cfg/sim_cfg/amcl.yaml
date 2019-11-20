@@ -1,0 +1,42 @@
+
+#node config
+odom_frame_id: odom
+base_frame_id: siar/base_link
+global_frame_id: map
+tf_broadcast: true
+ #particle filter
+min_particles: 500
+max_particles: 5000
+kld_err: 0.01
+kld_z: 0.99
+update_min_d: 0.2
+update_min_a: 0.2
+resample_interval: 2
+
+transform_tolerance: 0.2
+recovery_alpha_slow: 0.0
+recovery_alpha_fast: 0.0
+initial_pose_x: 3.0
+initial_pose_y: 4.0 
+initial_pose_a: 1.0 
+first_map_only: true
+use_map_topic: true
+#Laser model 
+laser_min_range: 0.08
+laser_max_range: 25.0
+laser_max_beams: 30
+laser_z_hit: 0.95
+laser_z_short: 0.03
+laser_z_max: 0.01
+laser_z_rand: 0.01
+laser_sigma_hit: 0.01
+laser_lambda_short: 0.1
+laser_likelihood_max_dist: 0.2
+laser_model_type: likelihood_field 
+#Motion model 
+odom_model_type: diff-corrected
+odom_alpha1: 0.3 #0.1
+odom_alpha2: 0.2
+odom_alpha3: 0.05
+odom_alpha4: 0.1
+odom_alpha5: 0.05

@@ -1,32 +1,32 @@
-mission_enabled: true
+mission_enabled: false
 mission:
     goal1:
-        pose:
-            x: 21.8
-            y: 28.9
-        orientation:
-            x: 0
-            y: 0
-            z: 0.57
-            w: 0.819
+       pose:
+           x: 21.8
+           y: 28.9
+       orientation:
+           x: 0
+           y: 0
+           z: 0.57
+           w: 0.819
     goal2:
-        pose:
-            x: 22.7
-            y: 31.7
-        orientation:
-            x: 0
-            y: 0
-            z: 0.77
-            w: 0.629
+       pose:
+           x: 22.7
+           y: 31.7
+       orientation:
+           x: 0
+           y: 0
+           z: 0.77
+           w: 0.629
     goal3:
-        pose:
-            x: 22.6
-            y: 36
-        orientation:
-            x: 0
-            y: 0
-            z: 0.189
-            w: 0.982
+       pose:
+           x: 22.6
+           y: 36
+       orientation:
+           x: 0
+           y: 0
+           z: 0.189
+           w: 0.982
     goal4:
         pose:
             x: 25.4

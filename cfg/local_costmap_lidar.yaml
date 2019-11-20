@@ -1,47 +1,49 @@
 costmap:
 
+  robot_base_frame: base_link
+  map_type: costmap
+  global_frame: map
+
   height: 6
   width: 6
-  
+  resolution: 0.05
   origin_x: -3
   origin_y: -3
   
   footprint: '[[0.01,0.01],[-0.01,0.01],[-0.01,-0.01],[0.05,-0.01]]'
   footprint_padding: 0.3 #0.55 es mas conservador 
   robot_radius: 0.3
-  publish_frequency: 10.0
-  update_frequency: 10.0
-  resolution: 0.05
-  transform_tolerance: 2
 
-  robot_base_frame: base_link
-  map_type: costmap
-  global_frame: /map
+  publish_frequency: 10
+  update_frequency: 10.0
+  transform_tolerance: 0.5
 
   rolling_window: true
   static_map: false
-  subscribe_to_updates: false
   always_send_full_costmap: true
   
   inflation_layer: 
     cost_scaling_factor: 0.5
     enabled: true
     inflate_unknown: false
-    inflation_radius: 2.0
+    inflation_radius: 1.0
 
   obstacle_layer:
     combination_method: 1
-    
     enabled: true
-    
-    max_obstacle_height: 2.0
-
     footprint_clearing_enabled: true
-    observation_sources: pico_1
+    max_obstacle_height: 0.5
+    min_obstacle_height: 0.15
+    observation_sources: lidar
    
-    pico_1: {data_type: PointCloud2, expected_update_rate: 0.8, observation_persistence: 0.0,
-      marking: true,clearing: true, sensor_frame: right_pico_flexx_optical_frame, topic: /right_pico_flexx/points, raytrace_range: 4, obstacle_range: 4, max_obstacle_height: 0.15, min_obstacle_height: 0.02}
+    lidar: {data_type: PointCloud2, expected_update_rate: 0.5, observation_persistence: 0.0,
+      marking: true,clearing: true, sensor_frame: base_link, topic: /os1_cloud_node/points, raytrace_range: 100, 
+      obstacle_range: 4, max_obstacle_height: 0.5, min_obstacle_height: 0.15}
+    
+   
    
   plugins:
   - {name: obstacle_layer, type: 'costmap_2d::ObstacleLayer'}
   - {name: inflation_layer, type: 'costmap_2d::InflationLayer'}
+  
+  

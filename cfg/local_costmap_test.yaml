@@ -1,0 +1,55 @@
+costmap:
+
+  robot_base_frame: base_link
+  map_type: costmap
+  global_frame: map
+
+  height: 6
+  width: 6
+  resolution: 0.05
+  origin_x: -3
+  origin_y: -3
+  
+  footprint: '[[0.01,0.01],[-0.01,0.01],[-0.01,-0.01],[0.05,-0.01]]'
+  footprint_padding: 0.3 #0.55 es mas conservador 
+  robot_radius: 0.3
+
+  publish_frequency: 40.0
+  update_frequency: 40.0
+  transform_tolerance: 0.5
+
+  rolling_window: true
+  static_map: false
+  always_send_full_costmap: true
+  
+  inflation_layer: 
+    cost_scaling_factor: 0.5
+    enabled: true
+    inflate_unknown: false
+    inflation_radius: 1.0
+
+  obstacle_layer:
+    combination_method: 1
+    enabled: true
+    footprint_clearing_enabled: true
+
+    observation_sources: pico_1 #pico_2 pico_3 pico_4
+   
+    pico_1: {data_type: PointCloud2, expected_update_rate: 0.5, observation_persistence: 0.0,
+      marking: true,clearing: true, sensor_frame: pico_flexx_optical_frame, topic: /pico_flexx/points, raytrace_range: 4, 
+      obstacle_range: 4, max_obstacle_height: 0.15, min_obstacle_height: 0.02}
+    
+    pico_2: {clearing: true, data_type: PointCloud2, expected_update_rate: 0.1,observation_persistence: 0.0,
+      marking: true, sensor_frame: base_link, topic: /picoPoints2, raytrace_range: 31, obstacle_range: 6}
+    
+    pico_3: {clearing: true, data_type: PointCloud2, expected_update_rate: 0.1,observation_persistence: 0.0,
+      marking: true, sensor_frame: base_link, topic: /picoPoints3, raytrace_range: 31, obstacle_range: 6}
+
+    pico_4: {clearing: true, data_type: PointCloud2, expected_update_rate: 0.1,observation_persistence: 0.0,
+      marking: true, sensor_frame: base_link, topic: /picoPoints4, raytrace_range: 31, obstacle_range: 6}
+   
+  plugins:
+  - {name: obstacle_layer, type: 'costmap_2d::ObstacleLayer'}
+  - {name: inflation_layer, type: 'costmap_2d::InflationLayer'}
+  
+  
