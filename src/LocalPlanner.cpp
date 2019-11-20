@@ -47,7 +47,6 @@ void LocalPlanner::resetFlags()
 {
     localCostMapReceived = false;
     doPlan = true;
-    First = true;
     impossibleCnt = 0;
     occGoalCnt = 0;
     startIter = 1;
@@ -147,7 +146,7 @@ void LocalPlanner::executePathPreemptCB()
 void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended to exe here
 {
     ROS_INFO_COND(debug, "Local Planner Goal received in action server mode");
-    upo_actions::ExecutePathGoalConstPtr path_shared_ptr;
+    static upo_actions::ExecutePathGoalConstPtr path_shared_ptr;
     path_shared_ptr = execute_path_srv_ptr->acceptNewGoal();
 
     globalTrajectory = path_shared_ptr->path;
@@ -159,7 +158,12 @@ void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended t
     usleep(5e5);
     start_time = ros::Time::now();
     
-   
+    static size_t size;
+    size = globalTrajectory.points.size();
+    nav_goal.global_goal.position.x = globalTrajectory.points.at(size-1).transforms[0].translation.x;
+    nav_goal.global_goal.position.y = globalTrajectory.points.at(size-1).transforms[0].translation.y;
+    nav_goal.global_goal.orientation = globalTrajectory.points.at(size-1).transforms[0].rotation;
+    navigate_client_ptr->sendGoal(nav_goal);
      
 }
 void LocalPlanner::configTheta()
@@ -251,14 +255,6 @@ void LocalPlanner::plan()
                     {
                         buildAndPubTrayectory();
                         planningStatus.data = "OK";
-                        if(First){
-                            size_t siz = globalTrajectory.points.size();
-                            nav_goal.global_goal.position.x = globalTrajectory.points.at(siz-1).transforms[0].translation.x;
-                            nav_goal.global_goal.position.y = globalTrajectory.points.at(siz-1).transforms[0].translation.y;
-                            nav_goal.global_goal.orientation = globalTrajectory.points.at(siz-1).transforms[0].rotation;
-                            navigate_client_ptr->sendGoal(nav_goal);
-                            First = false;
-                        }
                         if (impossibleCnt > 0) //If previously the local planner couldn t find solution, reset
                             impossibleCnt = 0;
                     }

@@ -118,7 +118,7 @@ private:
 
     bool showConfig;
     bool mapGeometryConfigured;
-    bool doPlan, First;
+    bool doPlan;
     //Flow control flags
     bool localCostMapReceived;
     //To calculate planning time
