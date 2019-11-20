@@ -1,0 +1,25 @@
+<launch>
+
+   
+
+    <node pkg="theta_star_2d" type="action_goal_interface_node" name="mission_interface" output="screen">
+        <rosparam command="load" file="$(find theta_star_2d)/cfg/goals.yaml"/>
+    </node>
+
+    <node pkg="theta_star_2d" type="custom_costmap_node" name="custom_costmap_node">
+        <rosparam command="load" file="$(find theta_star_2d)/cfg/sim_cfg/local_costmap_params.yaml"/>
+    </node>
+    <node pkg="theta_star_2d" type="global_planner_node" name="global_planner_node" output="screen">
+        <rosparam command="load" file="$(find theta_star_2d)/cfg/sim_cfg/costmap_params.yaml"/>
+        <rosparam command="load" file="$(find theta_star_2d)/cfg/sim_cfg/global_params.yaml"/>
+    </node>
+    <node pkg="theta_star_2d" type="local_planner_node" name="local_planner_node">
+        <rosparam command="load" file="$(find theta_star_2d)/cfg/sim_cfg/local_params.yaml"/>
+    </node>
+<!-- 
+    <node pkg="arco_path_tracker" type="nav_node_2" name="nav_node_2" output="screen">
+        <rosparam command="load" file="$(find arco_path_tracker)/cfg/navigation2.yaml"/>
+        <remap from="/cmd_vel" to="/siar/nav_vel"/> 
+    </node> -->
+
+</launch>
