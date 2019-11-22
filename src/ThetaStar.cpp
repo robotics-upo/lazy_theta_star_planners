@@ -297,7 +297,7 @@ void ThetaStar::getMap(nav_msgs::OccupancyGrid *message)
     {
         getDiscreteWorldPositionFromIndex(x, y, i);
 
-        if (isInside(x, y) && message->data[i] >= occ_threshold)
+        if (isInside(x, y) && (message->data[i] >= occ_threshold || message->data[i] < 0))
             discrete_world[i].notOccupied = false;
 
         discrete_world[i].cost = message->data[i];
