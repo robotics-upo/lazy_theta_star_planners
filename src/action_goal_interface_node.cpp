@@ -327,22 +327,16 @@ private:
             std::queue<geometry_msgs::PoseStamped> goals_queu_temp;
             geometry_msgs::PoseStamped temp_pose;
             size_t q_s=goals_queu.size();
-            ROS_INFO("1SIZE: %d", (int)goals_queu.size());
             for(size_t i=1; i< q_s; ++i){
                 temp_pose = goals_queu.front();
                 goals_queu_temp.push(temp_pose);
                 goals_queu.pop();
-                ROS_INFO("SIZE: %d", (int)goals_queu.size());
             }
-            goals_queu_temp.push(*pose);
-            
+            goals_queu_temp.push(*pose);   
             temp_pose = goals_queu.front();
             goals_queu_temp.push(temp_pose);
-            ROS_INFO("2SIZE: %d", (int)goals_queu.size());//Debe ser 1
             goals_queu.pop();
-            ROS_INFO("3SIZE: %d", (int)goals_queu.size());//Debe ser 0
             goals_queu = goals_queu_temp;
-            ROS_INFO("4SIZE: %d", (int)goals_queu.size());//Debe ser 1SIZE +1
         }
     }
 
