@@ -1,0 +1,8 @@
+<launch>
+    <node pkg="theta_star_2d" type="action_goal_interface_node" name="mission_interface" output="screen">
+        <rosparam command="load" file="$(find theta_star_2d)/cfg/goals.yaml"/>
+        <rosparam command="load" file="$(find theta_star_2d)/cfg/missions/shelter.yaml"/>
+        <remap from="/mission_interface/add_waypoint" to="/move_base_simple/goal"/>
+    </node>
+
+</launch>
