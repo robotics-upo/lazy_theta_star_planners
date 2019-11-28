@@ -17,6 +17,16 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(Boost REQUIRED COMPONENTS system)
 
+add_service_files(
+  FILES
+  SaveMission.srv
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
+
 generate_dynamic_reconfigure_options(
   cfg/LocalPlanner.cfg
   cfg/GlobalPlanner.cfg

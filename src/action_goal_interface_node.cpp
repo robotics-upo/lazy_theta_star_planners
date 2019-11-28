@@ -8,6 +8,7 @@
 #include <queue>
 #include <std_srvs/Trigger.h>
 #include <ros/package.h>
+#include <theta_star_2d/SaveMission.h>
 
 class MissionInterface
 {
@@ -17,7 +18,6 @@ public:
     MissionInterface()
     {
         makePlanClient.reset(new MakePlanActionClient("Make_Plan", false));
-        building_mission=false;
         nh.reset(new ros::NodeHandle("~"));
         nh->param("mission_enabled", goals_by_file, (bool)1);
         nh->param("world_frame", world_frame, (std::string) "/map");
@@ -26,7 +26,8 @@ public:
         //This topic will add the current last goal succedeed(i.e. the current robot pose) to the goals queue just before the shelter
         goal_red_marker_sub = nh->subscribe<geometry_msgs::PoseStamped>("add_red_waypoint", 1, &MissionInterface::redPointCb,this);
         build_mission_points = nh->subscribe<geometry_msgs::PoseStamped>("add_waypoint", 1, &MissionInterface::addWaypointCb,this);
-        
+        save_mission_server = nh->advertiseService("save_mission", &MissionInterface::saveMissionSrvCB, this);
+
         if (goals_by_file)
         {
             ROS_DEBUG("Goal interface in Mission Mode");
@@ -46,14 +47,6 @@ public:
 
     void processMissions()
     {
-        
-        if(build_mission_points.getNumPublishers()>0 && !doMission ){
-            ROS_INFO("Building mission");
-            building_mission=true;
-        }else if (building_mission){
-            ROS_INFO("Writing mission");
-            writeMission();
-        }
         
         if (goals_by_file)
         {
@@ -103,36 +96,7 @@ public:
     }
 
 private:
-    void writeMission(){
-        
-        //It means the HMI stopped sending goals so we only need to process the mission pose stamped vector
-        std::string file_name="test";
-        std::string yaml_path =ros::package::getPath("theta_star_2d")+"/cfg/missions/"+file_name+".yaml";
-        std::ofstream mission_f;
-        mission_f.open(yaml_path, std::ios_base::out | std::ios_base::trunc);
-        mission_f<<"mission:"<<std::endl;
-        int count=0;
-        for(auto it:mission){
-            mission_f<<"  goal"<<++count<<":"<<std::endl;
-            mission_f<<"    pose:"<<std::endl;
-            mission_f<<"      x: "<<it.pose.position.x<<std::endl;
-            mission_f<<"      y: "<<it.pose.position.y<<std::endl;
-            mission_f<<"  orientation:"<<std::endl;
-            mission_f<<"      x: "<<it.pose.orientation.x<<std::endl;
-            mission_f<<"      y: "<<it.pose.orientation.y<<std::endl;
-            mission_f<<"      z: "<<it.pose.orientation.z<<std::endl;
-            mission_f<<"      w: "<<it.pose.orientation.w<<std::endl;
-        }
-        mission_f.close();
-        building_mission=false;
-        mission.clear();
-        system("rosparam delete /mission_interface/mission");
-        std::string cmd="rosparam load "+yaml_path+" "+nh->getNamespace();
-        system(cmd.c_str());
-        loadMissionData();
-        ROS_INFO("Mission writed");
-        
-    }
+   
     bool isGoalActive()
     {
         if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ACTIVE)
@@ -319,6 +283,7 @@ private:
     *   This callback will receive the list of the points sent by the HMI 
     */       
     void addWaypointCb(const geometry_msgs::PoseStampedConstPtr &p){
+
         mission.push_back(*p);
     }
     void redPointCb(const geometry_msgs::PoseStampedConstPtr &pose){
@@ -327,6 +292,7 @@ private:
             std::queue<geometry_msgs::PoseStamped> goals_queu_temp;
             geometry_msgs::PoseStamped temp_pose;
             size_t q_s=goals_queu.size();
+
             for(size_t i=1; i< q_s; ++i){
                 temp_pose = goals_queu.front();
                 goals_queu_temp.push(temp_pose);
@@ -339,16 +305,60 @@ private:
             goals_queu = goals_queu_temp;
         }
     }
+    bool saveMissionSrvCB(theta_star_2d::SaveMissionRequest &req, theta_star_2d::SaveMissionResponse &rep){
 
+        if(!doMission){
+            writeMission(req.mission_name);
+            rep.success=true;
+            rep.message="Mission succesfully wrote to file";
+        }else{
+            rep.success=false;
+            rep.message="You can't save the mission while doing one";
+        }
+        
+        return true;
+    }
+    void writeMission(std::string file_name){
+        
+        //It means the HMI stopped sending goals so we only need to process the mission pose stamped vector
+        std::string yaml_path =ros::package::getPath("theta_star_2d")+"/cfg/missions/"+file_name+".yaml";
+        std::ofstream mission_f;
+
+        mission_f.open(yaml_path, std::ios_base::out | std::ios_base::trunc);
+        mission_f<<"mission:"<<std::endl;
+        
+        int count=0;
+        
+        for(auto it:mission){
+            mission_f<<"  goal"<<++count<<":"<<std::endl;
+            mission_f<<"    pose:"<<std::endl;
+            mission_f<<"      x: "<<it.pose.position.x<<std::endl;
+            mission_f<<"      y: "<<it.pose.position.y<<std::endl;
+            mission_f<<"  orientation:"<<std::endl;
+            mission_f<<"      x: "<<it.pose.orientation.x<<std::endl;
+            mission_f<<"      y: "<<it.pose.orientation.y<<std::endl;
+            mission_f<<"      z: "<<it.pose.orientation.z<<std::endl;
+            mission_f<<"      w: "<<it.pose.orientation.w<<std::endl;
+        }
+        mission_f.close();
+        
+        mission.clear();
+        
+        system("rosparam delete /mission_interface/mission");
+        std::string cmd="rosparam load "+yaml_path+" "+nh->getNamespace();
+        system(cmd.c_str());
+        loadMissionData();
+        ROS_INFO("Mission writed and loaded. Ready to start it");
+        
+    }
     //!HMI interac 
     geometry_msgs::PoseStamped temp_pose, shelter_position;
     std::vector<geometry_msgs::PoseStamped> mission;
-    bool building_mission;
     //!HMI interac
 
     ros::NodeHandlePtr nh;
     ros::ServiceServer start_mission_server, reload_mission_data, continue_mission_server, restore_mission_server;
-    ros::ServiceServer build_mission_from_hmi;
+    ros::ServiceServer save_mission_server;
     ros::Subscriber rviz_goal_sub, goal_hmi_sub,goal_red_marker_sub,build_mission_points;
 
     upo_actions::MakePlanActionGoal actionGoal;
