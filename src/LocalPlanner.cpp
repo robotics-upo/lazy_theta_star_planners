@@ -166,6 +166,7 @@ void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended t
     navigate_client_ptr->sendGoal(nav_goal);
      
 }
+
 void LocalPlanner::configTheta()
 {
     string node_name = "local_planner_node";
@@ -264,11 +265,22 @@ void LocalPlanner::plan()
                         //ROS_INFO("Local: +1 impossible");
                         if (impossibleCnt > 2)
                         {
-                            navigate_client_ptr->cancelGoal();
+                            if(euclideanDistance(nav_goal.global_goal.position.x, getTfMapToRobot().transform.translation.x, nav_goal.global_goal.position.y, getTfMapToRobot().transform.translation.y) < 0.2){
+                                
+                                clearMarkers();
+                                action_result.arrived = true;
+                                execute_path_srv_ptr->setSucceeded(action_result);
+                                ROS_ERROR("LocalPlanner: Goal Succed");
+                                navigate_client_ptr->cancelGoal(); 
 
-                            planningStatus.data = "Requesting new global path, navigation cancelled";
-                            execute_path_srv_ptr->setAborted();
-                            impossibleCnt=0;
+                            }else{
+                                navigate_client_ptr->cancelGoal();
+
+                                planningStatus.data = "Requesting new global path, navigation cancelled";
+                                execute_path_srv_ptr->setAborted();
+                                impossibleCnt=0;
+                            }
+                            
                         }
                     }
                 }
@@ -279,6 +291,7 @@ void LocalPlanner::plan()
                     planningStatus.data = "Final position Busy, Cancelling goal";
                     //TODO What to tell to the path tracker
                     navigate_client_ptr->cancelGoal();
+                    
                     execute_path_srv_ptr->setAborted();
                     //In order to resume planning, someone must call the pause/resume planning Service that will change the flag to true
                     occGoalCnt = 0;

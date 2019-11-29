@@ -298,11 +298,11 @@ bool GlobalPlanner::replan()
         sendPathToLocalPlannerServer();
         return true;
     }
-    else
+    else if(timesReplaned>2)
     {
         make_plan_res.finished = false;
         make_plan_res.not_possible = true;
-        make_plan_server_ptr->setPreempted(make_plan_res, "Tried to replan and aborted after replanning and rotation in place");
+        make_plan_server_ptr->setPreempted(make_plan_res, "Tried to replan and aborted after replanning");
         execute_path_client_ptr->cancelAllGoals();
         return false;
     }
