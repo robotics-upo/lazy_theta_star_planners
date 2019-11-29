@@ -264,8 +264,9 @@ void LocalPlanner::plan()
                         impossibleCnt++;
                         //ROS_INFO("Local: +1 impossible");
                         if (impossibleCnt > 2)
-                        {
-                            if(euclideanDistance(nav_goal.global_goal.position.x, getTfMapToRobot().transform.translation.x, nav_goal.global_goal.position.y, getTfMapToRobot().transform.translation.y) < 0.2){
+                        {   
+                            double dist2goal = euclideanDistance(nav_goal.global_goal.position.x, getTfMapToRobot().transform.translation.x, nav_goal.global_goal.position.y, getTfMapToRobot().transform.translation.y);
+                            if(dist2goal < 0.25){
                                 
                                 clearMarkers();
                                 action_result.arrived = true;
