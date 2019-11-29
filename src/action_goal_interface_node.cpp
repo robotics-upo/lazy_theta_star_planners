@@ -44,6 +44,7 @@ public:
             ROS_DEBUG("Goal interface in manual mode");
             rviz_goal_sub = nh->subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &MissionInterface::goalCb, this);
         }
+        i_p=1;
     }
 
     void processMissions()
@@ -113,13 +114,14 @@ private:
 
         if (goalRunning)
         {
-            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ABORTED && !lastGoalAborted)
+            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::PREEMPTED && !lastGoalPreempted)
             {
                 //?It can mean the robot need an operator or something else
-                ROS_DEBUG_ONCE("Goal aborted by the Global Planner");
-                lastGoalAborted = true;
-                ROS_DEBUG_ONCE("Holding on mission, waiting for manual intervention to clear the path");
-                ROS_DEBUG_ONCE("Call service /mission_interface/restore_mission to continue to last goal");
+                ROS_INFO_NAMED(hmi_ns,"Goal aborted by the Global Planner");
+                ROS_INFO_NAMED(hmi_ns,"Holding on mission, waiting for manual intervention to clear the path");
+                ROS_INFO_NAMED(hmi_ns,"Call service /mission_interface/restore_mission to continue to last goal");
+                lastGoalPreempted = true;
+                goalRunning = false;
             }
 
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::LOST)
@@ -131,15 +133,16 @@ private:
             {
                 ROS_DEBUG("Goal Rejected :'(");
             }
-            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::PREEMPTED)
+            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ABORTED)
             {
                 //!Do next goal?
-                ROS_DEBUG("Goal Preempted");
+                ROS_INFO("Goal Preempted");//?
                 goalRunning = false;
             }
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
             {
-                ROS_INFO_NAMED(hmi_ns,"Robot arrived to inspection point");
+                ROS_INFO_NAMED(hmi_ns,"Robot arrived to inspection point number %d", i_p);
+                ++i_p;
                 goalRunning = false;
             }
         }
@@ -161,12 +164,11 @@ private:
     }
     bool restoreMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp)
     {
-        if (lastGoalAborted)
+        if (lastGoalPreempted)
         {
             makePlanClient->sendGoal(actionGoal.goal);
             goalRunning = true;
-            goNext = false;
-            lastGoalAborted = false;
+            lastGoalPreempted = false;
         }
         return true;
     }
@@ -234,7 +236,6 @@ private:
 
     bool loadMissionData()
     {
-        bool ret = true;
         std::string base_path = "mission/goal";
         geometry_msgs::PoseStamped goal;
 
@@ -272,12 +273,12 @@ private:
         if (i == 1)
         {
             missionLoaded = false;
-            ROS_DEBUG("Mission Not Loaded");
+            ROS_INFO_NAMED(hmi_ns,"Mission Not Loaded.");
         }
         else
         {
             missionLoaded = true;
-            ROS_DEBUG("Mission Loaded");
+            ROS_INFO_NAMED(hmi_ns,"Mission Loaded.");
         }
         return missionLoaded;
     }
@@ -286,11 +287,14 @@ private:
     */       
     void addWaypointCb(const geometry_msgs::PoseStampedConstPtr &p){
 
-        mission.push_back(*p);
+        if(!doMission){
+            mission.push_back(*p);
+        }
+        
     }
     void redPointCb(const geometry_msgs::PoseStampedConstPtr &pose){
 
-        ROS_INFO_NAMED(hmi_ns,"Found red marker at current inspection point. Adding point for ulterior inspection");
+        ROS_INFO_NAMED(hmi_ns,"Found red marker at current inspection point (inspection point number %d). Adding point for ulterior inspection",i_p-1);
         if(doMission && goals_queu.size() > 1){
             std::queue<geometry_msgs::PoseStamped> goals_queu_temp;
             geometry_msgs::PoseStamped temp_pose;
@@ -337,7 +341,7 @@ private:
             mission_f<<"    pose:"<<std::endl;
             mission_f<<"      x: "<<it.pose.position.x<<std::endl;
             mission_f<<"      y: "<<it.pose.position.y<<std::endl;
-            mission_f<<"  orientation:"<<std::endl;
+            mission_f<<"    orientation:"<<std::endl;
             mission_f<<"      x: "<<it.pose.orientation.x<<std::endl;
             mission_f<<"      y: "<<it.pose.orientation.y<<std::endl;
             mission_f<<"      z: "<<it.pose.orientation.z<<std::endl;
@@ -379,9 +383,11 @@ private:
     bool goalRunning = false;
     bool goalReceived = false; //This flag is only used when rviz goal mode is active
     bool goals_by_file;
-    bool lastGoalAborted = false;
+    bool lastGoalPreempted = false;
 
     bool override;
+
+    int i_p;
 };
 
 int main(int argc, char **argv)
@@ -390,20 +396,15 @@ int main(int argc, char **argv)
     *   This nodes listen to goals from topic and transform it to action message goal to request a plan
     *   It's useful to use when working with rviz for example if you want to test some features sending goals manually 
     */
-
-    std::string node_name = "mission_interface";
-
-    ros::init(argc, argv, node_name);
-
+    ros::init(argc, argv, "mission_interface");
+    
     MissionInterface iface;
 
     ros::Rate sleep_rate(10);
-
     while (ros::ok())
     {
         ros::spinOnce();
         iface.processMissions();
-
         sleep_rate.sleep();
     }
 
