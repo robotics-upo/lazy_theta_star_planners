@@ -107,7 +107,11 @@ private:
     void inflateCostMap();
     //Set to 0 the positions near the local goal in the border
     void freeLocalGoal();
-
+    
+    inline double euclideanDistance(double x0, double y0, double x, double y)
+    {
+    return sqrt(pow(x - x0, 2) + pow(y - y0, 2));
+    }
     //Variables
     ros::NodeHandlePtr nh;
     ros::ServiceClient costmap_clean_srv;
