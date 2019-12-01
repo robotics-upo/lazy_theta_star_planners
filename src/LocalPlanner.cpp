@@ -105,6 +105,7 @@ void LocalPlanner::configParams()
     lineMarker.type = RVizMarker::LINE_STRIP;
     lineMarker.action = RVizMarker::ADD;
     lineMarker.pose.orientation.w = 1;
+    lineMarker.pose.position.z=0.1;
     lineMarker.color.r = 1.0;
     lineMarker.color.g = 0.0;
     lineMarker.color.b = 0.0;
@@ -119,6 +120,7 @@ void LocalPlanner::configParams()
     waypointsMarker.type = RVizMarker::POINTS;
     waypointsMarker.action = RVizMarker::ADD;
     waypointsMarker.pose.orientation.w = 1;
+    waypointsMarker.pose.position.z=0.1;
     waypointsMarker.color.r = 0.0;
     waypointsMarker.color.g = 0.0;
     waypointsMarker.color.b = 1.0;
@@ -146,8 +148,8 @@ void LocalPlanner::executePathPreemptCB()
 void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended to exe here
 {
     ROS_INFO_COND(debug, "Local Planner Goal received in action server mode");
-    static upo_actions::ExecutePathGoalConstPtr path_shared_ptr;
-    path_shared_ptr = execute_path_srv_ptr->acceptNewGoal();
+    //upo_actions::ExecutePathGoalConstPtr path_shared_ptr;
+    auto path_shared_ptr = execute_path_srv_ptr->acceptNewGoal();
 
     globalTrajectory = path_shared_ptr->path;
 
@@ -158,15 +160,14 @@ void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended t
     usleep(5e5);
     start_time = ros::Time::now();
     
-    static size_t size;
-    size = globalTrajectory.points.size();
+    auto size = globalTrajectory.points.size();
+
     nav_goal.global_goal.position.x = globalTrajectory.points.at(size-1).transforms[0].translation.x;
     nav_goal.global_goal.position.y = globalTrajectory.points.at(size-1).transforms[0].translation.y;
     nav_goal.global_goal.orientation = globalTrajectory.points.at(size-1).transforms[0].rotation;
-    navigate_client_ptr->sendGoal(nav_goal);
-     
+    
+    navigate_client_ptr->sendGoal(nav_goal);    
 }
-
 void LocalPlanner::configTheta()
 {
     string node_name = "local_planner_node";
@@ -210,7 +211,7 @@ void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
 }
 void LocalPlanner::plan()
 {
-    running_state_pub.publish(is_running);
+    running_state_pub.publish(is_running);//TODO: This can be actually deleted 
     number_of_points = 0; //Reset variable
 
     if (!execute_path_srv_ptr->isActive())
@@ -231,6 +232,7 @@ void LocalPlanner::plan()
     }else if(navigate_client_ptr->getState() == actionlib::SimpleClientGoalState::PREEMPTED){
         ROS_INFO("Goal preempted by path tracker");
     }
+    ROS_INFO("Before start loop calculation");
 
     ftime(&startT);
     if (localCostMapReceived && doPlan)
@@ -245,13 +247,16 @@ void LocalPlanner::plan()
 
                 inflateCostMap();//TODO Gordo arreglar esta chapuza de funcion
                 ROS_INFO_COND(debug, PRINTF_MAGENTA"Local Goal calculated");
+
                 if ( lcPlanner.setValidFinalPosition(localGoal) || lcPlanner.searchFinalPosition2d(0.3))
                 {
                     ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Computing Local Path(2)");
 
                     number_of_points = lcPlanner.computePath();
+                    ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Path computed, number %d",number_of_points);
                     occGoalCnt = 0;
                     timesCleaned = 0;
+                    
                     if (number_of_points > 0)
                     {
                         buildAndPubTrayectory();
@@ -261,10 +266,12 @@ void LocalPlanner::plan()
                     }
                     else if (number_of_points == 0)//!Esto es lo que devuelve el algoritmo cuando NO HAY SOLUCION
                     {
+                        
                         impossibleCnt++;
                         //ROS_INFO("Local: +1 impossible");
                         if (impossibleCnt > 2)
                         {   
+                            
                             double dist2goal = euclideanDistance(nav_goal.global_goal.position.x, getTfMapToRobot().transform.translation.x, nav_goal.global_goal.position.y, getTfMapToRobot().transform.translation.y);
                             if(dist2goal < 0.25){
                                 
@@ -348,6 +355,7 @@ void LocalPlanner::publishExecutePathFeedback()
 bool LocalPlanner::calculateLocalGoal()
 {
 
+    ROS_INFO("Lcal goal calculation");
     geometry_msgs::Vector3Stamped A, B, C;
 
     trajectory_msgs::MultiDOFJointTrajectory globalTrajBLFrame = globalTrajectory;
@@ -484,15 +492,23 @@ void LocalPlanner::buildAndPubTrayectory()
     geometry_msgs::Transform temp1;
     //La trayectoria se obtiene en el frame del local costmap, que tiene la misma orientacion que el map pero esta centrado en el base_link
 
+    ROS_INFO("Clearing local trajectory");
     localTrajectory.points.clear();
 
-    lcPlanner.getTrajectoryYawInAdvance(localTrajectory, getTfMapToRobot().transform);
+    if(number_of_points>1){
+        lcPlanner.getTrajectoryYawInAdvance(localTrajectory, getTfMapToRobot().transform);
+    }else{
+         getTrajectoryYawFixed(localTrajectory,0);
+    }
+  
+    ROS_INFO("Got traj");
 
     for (size_t i = 0; i < localTrajectory.points.size(); i++)
     {
         localTrajectory.points[i].transforms[0].translation.x += localCostMapInflated.info.origin.position.x;
         localTrajectory.points[i].transforms[0].translation.y += localCostMapInflated.info.origin.position.y;
     }
+    ROS_INFO("After for loop");
     localGoal.x += localCostMapInflated.info.origin.position.x;
     localGoal.y += localCostMapInflated.info.origin.position.y;
 
