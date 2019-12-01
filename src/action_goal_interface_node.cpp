@@ -36,7 +36,7 @@ public:
             reload_mission_data = nh->advertiseService("reload_mission_data", &MissionInterface::reloadMissionData, this);
             continue_mission_server = nh->advertiseService("continue_mission", &MissionInterface::continueMission, this);
             restore_mission_server = nh->advertiseService("restore_mission", &MissionInterface::restoreMission, this);
-
+            cancel_mission_server = nh->advertiseService("cancel_mission", &MissionInterface::cancelMission, this);
             missionLoaded = loadMissionData();
         }
         else
@@ -88,6 +88,7 @@ public:
                 goalRunning = false;
                 goalReceived = false;
                 missionLoaded = false;
+                i_p=1;
             }
         }
         else if (goalReceived && (override || !isGoalActive()))
@@ -150,20 +151,101 @@ private:
             }
         }
     }
-    void goalCb(const geometry_msgs::PoseStampedConstPtr &goal)
+    bool loadMissionData()
+    {
+        std::string base_path = "mission/goal";
+        geometry_msgs::PoseStamped goal;
+
+        goal.header.frame_id = world_frame;
+
+        int i = 1;
+
+        //First get shelter position
+        nh->param("shelter/pose/x", shelter_position.pose.position.x, (double)0);
+        nh->param("shelter/pose/y", shelter_position.pose.position.y, (double)0);
+        nh->param("shelter/orientation/x", shelter_position.pose.orientation.x, (double)0);
+        nh->param("shelter/orientation/y", shelter_position.pose.orientation.y, (double)0);
+        nh->param("shelter/orientation/z", shelter_position.pose.orientation.z, (double)0);
+        nh->param("shelter/orientation/w", shelter_position.pose.orientation.w, (double)1);
+
+        while (nh->hasParam(base_path + std::to_string(i) + "/pose/x"))
+        {
+            if (i == 1)
+                for (size_t j = 1; goals_queu.size(); ++j)
+                    goals_queu.pop();
+
+            nh->param(base_path + std::to_string(i) + "/pose/x", goal.pose.position.x, (double)0);
+            nh->param(base_path + std::to_string(i) + "/pose/y", goal.pose.position.y, (double)0);
+            nh->param(base_path + std::to_string(i) + "/orientation/x", goal.pose.orientation.x, (double)0);
+            nh->param(base_path + std::to_string(i) + "/orientation/y", goal.pose.orientation.y, (double)0);
+            nh->param(base_path + std::to_string(i) + "/orientation/z", goal.pose.orientation.z, (double)0);
+            nh->param(base_path + std::to_string(i) + "/orientation/w", goal.pose.orientation.w, (double)1);
+            goal.header.seq = i;
+            ROS_INFO_NAMED(hmi_ns, "Goal %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", i, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
+            goals_queu.push(goal);
+
+            ++i;
+        }
+        goals_queu.push(shelter_position);
+        if (i == 1)
+        {
+            missionLoaded = false;
+            ROS_INFO_NAMED(hmi_ns, "Mission Not Loaded.");
+        }
+        else
+        {
+            missionLoaded = true;
+            ROS_INFO_NAMED(hmi_ns, "Mission Loaded.");
+        }
+        return missionLoaded;
+    }
+
+    void writeMission(std::string file_name)
     {
 
-        ROS_DEBUG("Goal Interface: Sending action goal");
-        actionGoal.goal.global_goal = *goal;
-        actionGoal.goal_id.id += 1;
-        actionGoal.goal_id.stamp = ros::Time::now();
+        //It means the HMI stopped sending goals so we only need to process the mission pose stamped vector
+        std::string yaml_path = ros::package::getPath("theta_star_2d") + "/cfg/missions/" + file_name + ".yaml";
+        std::ofstream mission_f;
 
-        actionGoal.header.frame_id = world_frame;
-        actionGoal.header.seq = rand();
-        actionGoal.header.stamp = ros::Time::now();
+        mission_f.open(yaml_path, std::ios_base::out | std::ios_base::trunc);
+        mission_f << "mission:" << std::endl;
 
-        goalReceived = true;
+        int count = 0;
+
+        for (auto it : mission)
+        {
+            mission_f << "  goal" << ++count << ":" << std::endl;
+            mission_f << "    pose:" << std::endl;
+            mission_f << "      x: " << it.pose.position.x << std::endl;
+            mission_f << "      y: " << it.pose.position.y << std::endl;
+            mission_f << "    orientation:" << std::endl;
+            mission_f << "      x: " << it.pose.orientation.x << std::endl;
+            mission_f << "      y: " << it.pose.orientation.y << std::endl;
+            mission_f << "      z: " << it.pose.orientation.z << std::endl;
+            mission_f << "      w: " << it.pose.orientation.w << std::endl;
+        }
+        mission_f.close();
+
+        mission.clear();
+
+        system("rosparam delete /mission_interface/mission");
+        std::string cmd = "rosparam load " + yaml_path + " " + nh->getNamespace();
+        system(cmd.c_str());
+        loadMissionData();
+        ROS_INFO_NAMED(hmi_ns, "Mission writed to file and loaded. Ready to start it");
+    }
+    bool cancelMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp){
+        
+        makePlanClient->cancelAllGoals();
+        goNext = true;
+        doMission = false;
         goalRunning = false;
+        goalReceived = false;
+        missionLoaded = false;
+        i_p=1;
+        loadMissionData();
+
+        return true;
     }
     bool restoreMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp)
     {
@@ -216,7 +298,7 @@ private:
     bool continueMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp)
     {
         resp.success = false;
-        if (!goals_queu.empty() && !goalRunning)
+        if (!goals_queu.empty() && !goalRunning && doMission)
         { //If there are goals in the queu and no one is running it means the client is waiting to send another one
             resp.message = "Sending next goal...";
 
@@ -236,54 +318,22 @@ private:
 
         return true;
     }
-
-    bool loadMissionData()
+    bool saveMissionSrvCB(theta_star_2d::SaveMissionRequest &req, theta_star_2d::SaveMissionResponse &rep)
     {
-        std::string base_path = "mission/goal";
-        geometry_msgs::PoseStamped goal;
 
-        goal.header.frame_id = world_frame;
-
-        int i = 1;
-
-        //First get shelter position
-        nh->param("shelter/pose/x", shelter_position.pose.position.x, (double)0);
-        nh->param("shelter/pose/y", shelter_position.pose.position.y, (double)0);
-        nh->param("shelter/orientation/x", shelter_position.pose.orientation.x, (double)0);
-        nh->param("shelter/orientation/y", shelter_position.pose.orientation.y, (double)0);
-        nh->param("shelter/orientation/z", shelter_position.pose.orientation.z, (double)0);
-        nh->param("shelter/orientation/w", shelter_position.pose.orientation.w, (double)1);
-
-        while (nh->hasParam(base_path + std::to_string(i) + "/pose/x"))
+        if (!doMission)
         {
-            if (i == 1)
-                for (size_t j = 1; goals_queu.size(); ++j)
-                    goals_queu.pop();
-
-            nh->param(base_path + std::to_string(i) + "/pose/x", goal.pose.position.x, (double)0);
-            nh->param(base_path + std::to_string(i) + "/pose/y", goal.pose.position.y, (double)0);
-            nh->param(base_path + std::to_string(i) + "/orientation/x", goal.pose.orientation.x, (double)0);
-            nh->param(base_path + std::to_string(i) + "/orientation/y", goal.pose.orientation.y, (double)0);
-            nh->param(base_path + std::to_string(i) + "/orientation/z", goal.pose.orientation.z, (double)0);
-            nh->param(base_path + std::to_string(i) + "/orientation/w", goal.pose.orientation.w, (double)1);
-            goal.header.seq = i;
-            ROS_INFO_NAMED(hmi_ns, "Goal %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", i, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
-            goals_queu.push(goal);
-
-            ++i;
-        }
-        goals_queu.push(shelter_position);
-        if (i == 1)
-        {
-            missionLoaded = false;
-            ROS_INFO_NAMED(hmi_ns, "Mission Not Loaded.");
+            writeMission(req.mission_name);
+            rep.success = true;
+            rep.message = "Mission succesfully wrote to file";
         }
         else
         {
-            missionLoaded = true;
-            ROS_INFO_NAMED(hmi_ns, "Mission Loaded.");
+            rep.success = false;
+            rep.message = "You can't save the mission while doing one";
         }
-        return missionLoaded;
+
+        return true;
     }
     /*
     *   This callback will receive the list of the points sent by the HMI 
@@ -319,57 +369,22 @@ private:
             goals_queu = goals_queu_temp;
         }
     }
-    bool saveMissionSrvCB(theta_star_2d::SaveMissionRequest &req, theta_star_2d::SaveMissionResponse &rep)
+    void goalCb(const geometry_msgs::PoseStampedConstPtr &goal)
     {
 
-        if (!doMission)
-        {
-            writeMission(req.mission_name);
-            rep.success = true;
-            rep.message = "Mission succesfully wrote to file";
-        }
-        else
-        {
-            rep.success = false;
-            rep.message = "You can't save the mission while doing one";
-        }
+        ROS_DEBUG("Goal Interface: Sending action goal");
+        actionGoal.goal.global_goal = *goal;
+        actionGoal.goal_id.id += 1;
+        actionGoal.goal_id.stamp = ros::Time::now();
 
-        return true;
+        actionGoal.header.frame_id = world_frame;
+        actionGoal.header.seq = rand();
+        actionGoal.header.stamp = ros::Time::now();
+
+        goalReceived = true;
+        goalRunning = false;
     }
-    void writeMission(std::string file_name)
-    {
 
-        //It means the HMI stopped sending goals so we only need to process the mission pose stamped vector
-        std::string yaml_path = ros::package::getPath("theta_star_2d") + "/cfg/missions/" + file_name + ".yaml";
-        std::ofstream mission_f;
-
-        mission_f.open(yaml_path, std::ios_base::out | std::ios_base::trunc);
-        mission_f << "mission:" << std::endl;
-
-        int count = 0;
-
-        for (auto it : mission)
-        {
-            mission_f << "  goal" << ++count << ":" << std::endl;
-            mission_f << "    pose:" << std::endl;
-            mission_f << "      x: " << it.pose.position.x << std::endl;
-            mission_f << "      y: " << it.pose.position.y << std::endl;
-            mission_f << "    orientation:" << std::endl;
-            mission_f << "      x: " << it.pose.orientation.x << std::endl;
-            mission_f << "      y: " << it.pose.orientation.y << std::endl;
-            mission_f << "      z: " << it.pose.orientation.z << std::endl;
-            mission_f << "      w: " << it.pose.orientation.w << std::endl;
-        }
-        mission_f.close();
-
-        mission.clear();
-
-        system("rosparam delete /mission_interface/mission");
-        std::string cmd = "rosparam load " + yaml_path + " " + nh->getNamespace();
-        system(cmd.c_str());
-        loadMissionData();
-        ROS_INFO_NAMED(hmi_ns, "Mission writed to file and loaded. Ready to start it");
-    }
     //!HMI interac
     geometry_msgs::PoseStamped temp_pose, shelter_position;
     std::vector<geometry_msgs::PoseStamped> mission;
@@ -377,8 +392,7 @@ private:
     //!HMI interac
 
     ros::NodeHandlePtr nh;
-    ros::ServiceServer start_mission_server, reload_mission_data, continue_mission_server, restore_mission_server;
-    ros::ServiceServer save_mission_server;
+    ros::ServiceServer start_mission_server, reload_mission_data, continue_mission_server, restore_mission_server,save_mission_server,cancel_mission_server;
     ros::Subscriber rviz_goal_sub, goal_hmi_sub, goal_red_marker_sub, build_mission_points;
 
     upo_actions::MakePlanActionGoal actionGoal;

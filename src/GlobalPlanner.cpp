@@ -69,6 +69,7 @@ void GlobalPlanner::configServices()
     make_plan_server_ptr.reset(new MakePlanServer(*nh, "/Make_Plan", false));
     make_plan_server_ptr->registerGoalCallback(boost::bind(&GlobalPlanner::makePlanGoalCB, this));
     make_plan_server_ptr->registerPreemptCallback(boost::bind(&GlobalPlanner::makePlanPreemptCB, this));
+
     make_plan_server_ptr->start();
 }
 void GlobalPlanner::dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level)
@@ -275,6 +276,9 @@ void GlobalPlanner::makePlanPreemptCB()
     make_plan_res.time_spent = travel_time;
 
     make_plan_server_ptr->setPreempted(make_plan_res, "Goal Preempted by User");
+    ROS_INFO("Make plan preempt cb: cancelling");
+    execute_path_client_ptr->cancelAllGoals();
+    clearMarkers();
 }
 bool GlobalPlanner::replan()
 {

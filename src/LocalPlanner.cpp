@@ -144,6 +144,9 @@ void LocalPlanner::executePathPreemptCB()
 {
     ROS_INFO("Goal Preempted");
     execute_path_srv_ptr->setPreempted();// set the action state to preempted
+    navigate_client_ptr->cancelAllGoals();
+    resetFlags();
+    clearMarkers();
 }
 void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended to exe here
 {
@@ -325,6 +328,7 @@ void LocalPlanner::plan()
             planningStatus.data = "Tried to clean costmap but no initial position found...";
             navigate_client_ptr->cancelGoal();
             execute_path_srv_ptr->setAborted();
+            clearMarkers();
         }
     }
     ftime(&finishT);
