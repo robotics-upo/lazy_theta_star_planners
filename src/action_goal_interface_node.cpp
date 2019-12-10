@@ -171,12 +171,11 @@ private:
                 if(sended_to_shelter){
                     sended_to_shelter=false;
                     ROS_INFO_NAMED(hmi_ns, "Robot arrived to shelter after cancelling mission");
-
                 }
                 if (actionGoal.goal.global_goal.header.seq != 0)
                 {
-                    ++i_p;
                     ROS_INFO_NAMED(hmi_ns, "Robot arrived to inspection point number %d", i_p);
+                    ++i_p;
                 }
 
                 ++waypoint_number;
@@ -485,11 +484,13 @@ private:
 
         goNext = true;
         doMission = false;
-        goalRunning = false;
-        goalReceived = false;
+        goalRunning = true;
         missionLoaded = false;
-        i_p = 1;
         sended_to_shelter=true;
+
+        i_p = 1;
+        waypoint_number=1;
+        
         ROS_INFO_NAMED(hmi_ns, "Mission cancelled by the operator. Sending robot back to shelter");
     }
     void publishActionFb()
