@@ -168,12 +168,17 @@ private:
             }
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
             {
+                if(sended_to_shelter){
+                    sended_to_shelter=false;
+                    ROS_INFO_NAMED(hmi_ns, "Robot arrived to shelter after cancelling mission");
 
+                }
                 if (actionGoal.goal.global_goal.header.seq != 0)
                 {
                     ++i_p;
                     ROS_INFO_NAMED(hmi_ns, "Robot arrived to inspection point number %d", i_p);
                 }
+
                 ++waypoint_number;
                 goalRunning = false;
 
@@ -205,11 +210,13 @@ private:
     bool loadMissionData()
     {
         std::string base_path = "mission/goal";
+
         geometry_msgs::PoseStamped goal;
-        bool inter = false;
         goal.header.frame_id = world_frame;
 
         int i = 1;
+        int realgoals = 0;
+        int goal_type = 0;
 
         //First get shelter position
         nh->param("shelter/pose/x", shelter_position.pose.position.x, (double)0);
@@ -222,8 +229,6 @@ private:
         while (!goals_queu.empty()) //Clear old goals if last mission not finished
             goals_queu.pop();
 
-        int realgoals = 0;
-        int goal_type=0;
         while (nh->hasParam(base_path + std::to_string(i) + "/pose/x"))
         {
             nh->param(base_path + std::to_string(i) + "/type", goal_type, (int)0);
@@ -233,11 +238,12 @@ private:
             nh->param(base_path + std::to_string(i) + "/orientation/y", goal.pose.orientation.y, (double)0);
             nh->param(base_path + std::to_string(i) + "/orientation/z", goal.pose.orientation.z, (double)0);
             nh->param(base_path + std::to_string(i) + "/orientation/w", goal.pose.orientation.w, (double)1);
-            if (goal_type==1)
+
+            if (goal_type == 1)
             {
                 goal.header.seq = 0;
             }
-            else if(goal_type==0)
+            else if (goal_type == 0)
             {
                 ++realgoals;
                 goal.header.seq = i;
@@ -248,7 +254,7 @@ private:
 
             ++i;
         }
-        goals_queu.push(shelter_position);
+
         if (i == 1)
         {
             missionLoaded = false;
@@ -258,6 +264,7 @@ private:
         {
             missionLoaded = true;
             ROS_INFO_NAMED(hmi_ns, "Mission Loaded.");
+            goals_queu.push(shelter_position);
         }
         return missionLoaded;
     }
@@ -482,7 +489,7 @@ private:
         goalReceived = false;
         missionLoaded = false;
         i_p = 1;
-
+        sended_to_shelter=true;
         ROS_INFO_NAMED(hmi_ns, "Mission cancelled by the operator. Sending robot back to shelter");
     }
     void publishActionFb()
@@ -503,6 +510,7 @@ private:
     upo_actions::ExecuteMissionGoalConstPtr execMissActGoal;
     upo_actions::ExecuteMissionFeedback execMissFb;
     int waypoint_number = 1;
+    bool sended_to_shelter=false;
     //!HMI interac
 
     ros::NodeHandlePtr nh;
