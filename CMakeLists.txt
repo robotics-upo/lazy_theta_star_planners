@@ -72,3 +72,11 @@ target_link_libraries( action_goal_interface_node
 )
 
 add_dependencies(action_goal_interface_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+add_executable(hmi_fake src/hmi_fake.cpp)
+
+target_link_libraries( hmi_fake
+  ${catkin_LIBRARIES}
+)
+
+add_dependencies(hmi_fake ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
