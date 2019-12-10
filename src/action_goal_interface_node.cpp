@@ -34,6 +34,10 @@ public:
         nh->param("hmi_ns", hmi_ns, (std::string) "HMI");
         nh->param("hmi_mode", hmi_mode, (bool)false);
 
+        double waiting_time;
+        nh->param("waiting_time", waiting_time, (double)10.0);
+        waitTime = ros::Duration(waiting_time);
+
         //This topic will add the current last goal succedeed(i.e. the current robot pose) to the goals queue just before the shelter
         goal_red_marker_sub = nh->subscribe<geometry_msgs::PoseStamped>("add_red_waypoint", 1, &MissionInterface::redPointCb, this);
         build_mission_points = nh->subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &MissionInterface::addWaypointCb, this);
@@ -70,6 +74,15 @@ public:
         {
             if (hmi_mode && execMissionServer->isActive())
                 publishActionFb();
+
+            if (hmi_mode && !goals_queu.empty() && !goalRunning && doMission)
+            {
+                if (ros::Time::now() - start > waitTime)
+                {
+                    goNext = true;
+                    inspecting = false;
+                }
+            }
 
             if (!makePlanClient->isServerConnected())
             {
@@ -168,21 +181,26 @@ private:
             }
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
             {
-                if(sended_to_shelter){
-                    sended_to_shelter=false;
+                if (sended_to_shelter)
+                {
+                    sended_to_shelter = false;
                     ROS_INFO_NAMED(hmi_ns, "Robot arrived to shelter after cancelling mission");
                 }
                 if (actionGoal.goal.global_goal.header.seq != 0)
                 {
                     ROS_INFO_NAMED(hmi_ns, "Robot arrived to inspection point number %d", i_p);
                     ++i_p;
+                    //TODO: Wait here for ten seconds around
+                    start = ros::Time::now();
+                    inspecting = true;
+                }
+                else if (hmi_mode && !goals_queu.empty() && doMission)
+                {
+                    goNext = true;
                 }
 
                 ++waypoint_number;
                 goalRunning = false;
-
-                if (hmi_mode && !goals_queu.empty() && !goalRunning && doMission)
-                    goNext = true;
             }
         }
     }
@@ -486,11 +504,11 @@ private:
         doMission = false;
         goalRunning = true;
         missionLoaded = false;
-        sended_to_shelter=true;
+        sended_to_shelter = true;
 
         i_p = 1;
-        waypoint_number=1;
-        
+        waypoint_number = 1;
+
         ROS_INFO_NAMED(hmi_ns, "Mission cancelled by the operator. Sending robot back to shelter");
     }
     void publishActionFb()
@@ -498,6 +516,7 @@ private:
         //Fill the fb
         execMissFb.inspection_point.data = i_p;
         execMissFb.last_ip_color.data = "green";
+        execMissFb.inspecting = inspecting; //If the robot is standing on the inspection point or travelling from one to another
         execMissFb.waypoint.data = waypoint_number;
         execMissFb.extra_info.data = "extra_information";
         execMissionServer->publishFeedback(execMissFb);
@@ -511,7 +530,10 @@ private:
     upo_actions::ExecuteMissionGoalConstPtr execMissActGoal;
     upo_actions::ExecuteMissionFeedback execMissFb;
     int waypoint_number = 1;
-    bool sended_to_shelter=false;
+    bool sended_to_shelter = false;
+    ros::Duration waitTime;
+    ros::Time start;
+    bool inspecting = false; //While the robot is waiting for the timeout to finish, it's consider for the robot to be inspecting
     //!HMI interac
 
     ros::NodeHandlePtr nh;
