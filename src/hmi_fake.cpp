@@ -20,7 +20,6 @@ int main(int argc, char **argv)
     
     if(argc==2){
         std::string mis = argv[1];
-        ROS_INFO(mis.c_str());
         mission_goal.mission_name.data =std::string(argv[1]);
         hmi_client.sendGoal(mission_goal);
         ROS_INFO("Goal sended");
