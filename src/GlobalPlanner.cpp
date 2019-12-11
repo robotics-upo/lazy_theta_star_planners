@@ -57,8 +57,8 @@ void GlobalPlanner::configServices()
 {
     reset_global_costmap_service = nh->advertiseService("reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
 
-    rot_in_place_client_ptr.reset(new RotationInPlaceClient("Recovery_Rotation", true));
-    execute_path_client_ptr.reset(new ExecutePathClient("Execute_Plan", true));
+    rot_in_place_client_ptr.reset(new RotationInPlaceClient("/Recovery_Rotation", true));
+    execute_path_client_ptr.reset(new ExecutePathClient("/Execute_Plan", true));
 
     //TODO: Removed the comments
     execute_path_client_ptr->waitForServer();
