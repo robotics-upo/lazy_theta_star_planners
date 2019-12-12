@@ -33,7 +33,7 @@ public:
         nh->param("override_in_rviz_mode", override, (bool)true);
         nh->param("hmi_ns", hmi_ns, (std::string) "HMI");
         nh->param("hmi_mode", hmi_mode, (bool)false);
-
+        extra_info_fb = "Ok";
         double waiting_time;
         nh->param("waiting_time", waiting_time, (double)10.0);
         waitTime = ros::Duration(waiting_time);
@@ -100,7 +100,7 @@ public:
             {
                 actionGoal.goal.global_goal = goals_queu.front();
                 goals_queu.pop();
-
+                
                 makePlanClient->sendGoal(actionGoal.goal);
                 goalRunning = true;
                 goNext = false;
@@ -110,10 +110,19 @@ public:
                     ROS_INFO_NAMED(hmi_ns, "Sending Robot to next inspection point: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
                                    actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
                                    actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
+                ++i_p;
                 }
                 else if (goals_queu.empty())
                 {
                     ROS_INFO_NAMED(hmi_ns, "Last point inspected, sending robot back to shelter");
+                    extra_info_fb = "Inspection finished, robot returning to shelter";
+                }
+                else if (actionGoal.goal.global_goal.header.seq != 0)
+                {
+                //TODO Display the right inspection point avoiding intermediate waypoints
+                    ROS_INFO_NAMED(hmi_ns, "Sending Robot to next inspection point: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
+                                   actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
+                                   actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
                 }
             }
             else if (goals_queu.empty() && doMission && !isGoalActive())
@@ -189,7 +198,7 @@ private:
                 if (actionGoal.goal.global_goal.header.seq != 0)
                 {
                     ROS_INFO_NAMED(hmi_ns, "Robot arrived to inspection point number %d", i_p);
-                    ++i_p;
+                    
                     //TODO: Wait here for ten seconds around
                     start = ros::Time::now();
                     inspecting = true;
@@ -486,6 +495,8 @@ private:
         loadMissionData(std::string(execMissActGoal->mission_name.data));
 
         doMission = true;
+
+        extra_info_fb = "Ok";
     }
     void actionPreemptCb() //TODO: What to do if mission is cancelled by the operator? ->Send robot to shelter
     {
@@ -510,6 +521,7 @@ private:
         waypoint_number = 1;
 
         ROS_INFO_NAMED(hmi_ns, "Mission cancelled by the operator. Sending robot back to shelter");
+        extra_info_fb = "Returning to shelter after cancelling mission";
     }
     void publishActionFb()
     {
@@ -518,7 +530,7 @@ private:
         execMissFb.last_ip_color.data = "green";
         execMissFb.inspecting = inspecting; //If the robot is standing on the inspection point or travelling from one to another
         execMissFb.waypoint.data = waypoint_number;
-        execMissFb.extra_info.data = "extra_information";
+        execMissFb.extra_info.data = extra_info_fb;
         execMissionServer->publishFeedback(execMissFb);
     }
     //!HMI interac
@@ -534,6 +546,7 @@ private:
     ros::Duration waitTime;
     ros::Time start;
     bool inspecting = false; //While the robot is waiting for the timeout to finish, it's consider for the robot to be inspecting
+    std::string extra_info_fb;
     //!HMI interac
 
     ros::NodeHandlePtr nh;
