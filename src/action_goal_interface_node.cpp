@@ -39,7 +39,7 @@ public:
         waitTime = ros::Duration(waiting_time);
 
         //This topic will add the current last goal succedeed(i.e. the current robot pose) to the goals queue just before the shelter
-        goal_red_marker_sub = nh->subscribe<geometry_msgs::PoseStamped>("add_red_waypoint", 1, &MissionInterface::redPointCb, this);
+        // goal_red_marker_sub = nh->subscribe<geometry_msgs::PoseStamped>("add_red_waypoint", 1, &MissionInterface::redPointCb, this);
         build_mission_points = nh->subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &MissionInterface::addWaypointCb, this);
         save_mission_server = nh->advertiseService("save_mission", &MissionInterface::saveMissionSrvCB, this);
 
@@ -98,9 +98,11 @@ public:
             }
             else if (!goals_queu.empty() && doMission && goNext)
             {
-                actionGoal.goal.global_goal = goals_queu.front();
-                goals_queu.pop();
+                actionGoal.goal.global_goal = goals_queu.front().first;
+                goalType = goals_queu.front().second;
                 
+                goals_queu.pop();
+
                 makePlanClient->sendGoal(actionGoal.goal);
                 goalRunning = true;
                 goNext = false;
@@ -110,7 +112,7 @@ public:
                     ROS_INFO_NAMED(hmi_ns, "Sending Robot to next inspection point: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
                                    actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
                                    actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
-                ++i_p;
+                
                 }
                 else if (goals_queu.empty())
                 {
@@ -165,12 +167,28 @@ private:
         {
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::PREEMPTED && !lastGoalPreempted)
             {
-                //?It can mean the robot need an operator or something else
                 ROS_INFO_NAMED(hmi_ns, "Goal aborted by the Global Planner");
-                ROS_INFO_NAMED(hmi_ns, "Holding on mission, waiting for manual intervention to clear the path");
-                ROS_INFO_NAMED(hmi_ns, "Call service /mission_interface/restore_mission to continue to last goal");
-                lastGoalPreempted = true;
-                goalRunning = false;
+                if(hmi_mode){//In this case, try to go to the next inspection point 
+                    
+                    ROS_INFO_NAMED(hmi_ns, "Trying to calculate alternative route to the goal");
+
+                    ++tries;
+                    if(tries>1){
+                        goNext = true;
+                        ROS_INFO_NAMED(hmi_ns, "No alternative route found to get to the inspection point number %d, skipping to next one", i_p);
+                    }else{
+                        makePlanClient->sendGoal(actionGoal.goal);
+                        goalRunning = true;
+                    }
+                    lastGoalPreempted = false;
+
+                }else{
+                    //?It can mean the robot need an operator or something else
+                    ROS_INFO_NAMED(hmi_ns, "Holding on mission, waiting for manual intervention to clear the path");
+                    ROS_INFO_NAMED(hmi_ns, "Call service /mission_interface/restore_mission to continue to last goal");
+                    lastGoalPreempted = true;
+                    goalRunning = false;
+                }
             }
 
             if (makePlanClient->getState() == actionlib::SimpleClientGoalState::LOST)
@@ -202,6 +220,7 @@ private:
                     //TODO: Wait here for ten seconds around
                     start = ros::Time::now();
                     inspecting = true;
+                    ++i_p;
                 }
                 else if (hmi_mode && !goals_queu.empty() && doMission)
                 {
@@ -238,6 +257,7 @@ private:
         std::string base_path = "mission/goal";
 
         geometry_msgs::PoseStamped goal;
+        std::pair<geometry_msgs::PoseStamped, int> temp_pair;
         goal.header.frame_id = world_frame;
 
         int i = 1;
@@ -275,8 +295,9 @@ private:
                 goal.header.seq = i;
                 ROS_INFO_NAMED(hmi_ns, "Goal %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
             }
-
-            goals_queu.push(goal);
+            temp_pair.first=goal;
+            temp_pair.second=goal_type;
+            goals_queu.push(temp_pair);
 
             ++i;
         }
@@ -290,7 +311,9 @@ private:
         {
             missionLoaded = true;
             ROS_INFO_NAMED(hmi_ns, "Mission Loaded.");
-            goals_queu.push(shelter_position);
+            temp_pair.first=shelter_position;
+            temp_pair.second=2;
+            goals_queu.push(temp_pair);
         }
         return missionLoaded;
     }
@@ -449,29 +472,6 @@ private:
             mission.push_back(*p);
         }
     }
-    void redPointCb(const geometry_msgs::PoseStampedConstPtr &pose)
-    {
-
-        /*if (doMission && goals_queu.size() > 1)
-        {
-            ROS_INFO_NAMED(hmi_ns, "Found red marker at current inspection point (inspection point number %d). Adding point for ulterior inspection", i_p - 1);
-            std::queue<geometry_msgs::PoseStamped> goals_queu_temp;
-            geometry_msgs::PoseStamped temp_pose;
-            size_t q_s = goals_queu.size();
-
-            for (size_t i = 1; i < q_s; ++i)
-            {
-                temp_pose = goals_queu.front();
-                goals_queu_temp.push(temp_pose);
-                goals_queu.pop();
-            }
-            goals_queu_temp.push(*pose);
-            temp_pose = goals_queu.front();
-            goals_queu_temp.push(temp_pose);
-            goals_queu.pop();
-            goals_queu = goals_queu_temp;
-        }*/
-    }
     void goalCb(const geometry_msgs::PoseStampedConstPtr &goal)
     {
 
@@ -497,6 +497,7 @@ private:
         doMission = true;
 
         extra_info_fb = "Ok";
+        tries=0;
     }
     void actionPreemptCb() //TODO: What to do if mission is cancelled by the operator? ->Send robot to shelter
     {
@@ -530,7 +531,9 @@ private:
         execMissFb.last_ip_color.data = "green";
         execMissFb.inspecting = inspecting; //If the robot is standing on the inspection point or travelling from one to another
         execMissFb.waypoint.data = waypoint_number;
+        execMissFb.waypoint_type.data = goalType;
         execMissFb.extra_info.data = extra_info_fb;
+        
         execMissionServer->publishFeedback(execMissFb);
     }
     //!HMI interac
@@ -547,15 +550,17 @@ private:
     ros::Time start;
     bool inspecting = false; //While the robot is waiting for the timeout to finish, it's consider for the robot to be inspecting
     std::string extra_info_fb;
+    int tries=0;
     //!HMI interac
 
     ros::NodeHandlePtr nh;
     ros::ServiceServer start_mission_server, reload_mission_data, continue_mission_server, restore_mission_server, save_mission_server, cancel_mission_server;
-    ros::Subscriber rviz_goal_sub, goal_hmi_sub, goal_red_marker_sub, build_mission_points;
+    ros::Subscriber rviz_goal_sub, goal_hmi_sub, build_mission_points; //goal_red_marker_sub;
 
     upo_actions::MakePlanActionGoal actionGoal;
-
-    std::queue<geometry_msgs::PoseStamped> goals_queu;
+    
+    std::queue<std::pair<geometry_msgs::PoseStamped,int>> goals_queu;
+    int goalType;
     std::unique_ptr<MakePlanActionClient> makePlanClient;
     std::string world_frame;
 
