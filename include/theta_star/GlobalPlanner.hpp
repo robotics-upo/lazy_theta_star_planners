@@ -241,7 +241,7 @@ private:
     int timesReplaned;
     struct timeb start, finish;
     float seconds, milliseconds;
-
+    float minPathLenght;
     ros::Time start_time;
 
 }; //class GlobalPlanner

@@ -93,6 +93,7 @@ void GlobalPlanner::configParams()
     nh->param("show_config", showConfig, (bool)0);
     nh->param("debug", debug, (bool)0);
 
+    nh->param("min_path_lenght", minPathLenght, (float)0.2);
     nh->param("goal_weight", goal_weight, (float)1.5);
     nh->param("cost_weight", cost_weight, (float)0.2);
     nh->param("lof_distance", lof_distance, (float)0.2);
@@ -400,7 +401,10 @@ bool GlobalPlanner::calculatePath()
         {
             ROS_INFO_COND(debug, PRINTF_MAGENTA "Publishing trajectory, %d", number_of_points);
             publishTrajectory();
-
+            if(pathLength < minPathLenght ){
+                execute_path_client_ptr->cancelAllGoals();
+                make_plan_server_ptr->setPreempted();
+            }
             //Reset the counter of the number of times the planner tried to calculate a path without success
             countImpossible = 0;
             //If it was replanning before, reset flag
