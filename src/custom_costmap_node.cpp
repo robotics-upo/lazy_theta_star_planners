@@ -40,7 +40,7 @@ bool checkEnvSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
             x = floor(s_x + robot_r_disc * cos(th));
             y = floor(s_y + robot_r_disc * sin(th));
 
-            if (i < x && j < y && costmap_ptr->getCostmap()->getCost(i+s_x, j+s_y) == costmap_2d::LETHAL_OBSTACLE) //Check if the point is inside a circle centered at the robot
+            if (i < x && j < y && costmap_ptr->getCostmap()->getCost(i+s_x, j+s_y) == costmap_2d::INSCRIBED_INFLATED_OBSTACLE) //Check if the point is inside a circle centered at the robot
                 ++count;
         }
     }
@@ -65,8 +65,8 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "custom_costmap_node");
     ros::NodeHandle n("~");
 
-    n.param("n_max", n_max, (int)20);
-    n.param("costmap/robot_radius", robot_radius, (double)0.4);
+    n.param("n_max", n_max, (int)100);
+    n.param("costmap/robot_radius", robot_radius, (double)0.35);
     
     ros::ServiceServer reset_costmap_svr = n.advertiseService("reset_costmap", resetCostmapSrv);
     ros::ServiceServer check_env = n.advertiseService("check_env", &checkEnvSrv);
