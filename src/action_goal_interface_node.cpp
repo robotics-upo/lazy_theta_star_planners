@@ -176,6 +176,32 @@ private:
                     if(tries>1){
                         goNext = true;
                         ROS_INFO_NAMED(hmi_ns, "No alternative route found to get to the inspection point number %d, skipping to next one", i_p);
+                        //TODO: Añadir aqui de nuevo a la cola antes del shelter
+                        //Crear una copia de la cola actual
+                        //Limpiar la cola actual
+                        //sacar los front y hacer pop 
+                        //Pushearlo a la cola nueva
+                        //si el tamaño de la cola es 1 pushear el goal actual que ha sido preempted
+                        //Pushear el ultimo goal que debe ser el shelter
+                        /*std::queue<std::pair<geometry_msgs::PoseStamped, int>> temp_queu = goals_queu;
+
+                        std::pair<geometry_msgs::PoseStamped, int> temp_goal;
+
+                        while (!goals_queu.empty())
+                            goals_queu.pop();
+
+                        while (temp_queu.size() > 1)
+                        {
+                            temp_goal = temp_queu.front();
+                            goals_queu.push(temp_goal);
+                        }
+                        temp_goal.second = goalType;
+                        temp_goal.first = actionGoal.goal.global_goal;
+                        goals_queu.push(temp_goal);
+
+                        temp_goal = temp_queu.front();*/
+
+
                     }else{
                         makePlanClient->sendGoal(actionGoal.goal);
                         goalRunning = true;
@@ -288,6 +314,8 @@ private:
             if (goal_type == 1)
             {
                 goal.header.seq = 0;
+                ROS_INFO_NAMED(hmi_ns, "Goal Intermedio %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
+
             }
             else if (goal_type == 0)
             {
