@@ -108,8 +108,9 @@ public:
 
                 if (std::abs(goalType) > 10000)
                 {
+
                     fid_goal = std::floor(std::abs(goalType) / 100) - 100;
-                    fid_orientation = std::floor(std::abs(goalType) - 10000);
+                    fid_orientation = std::floor(std::abs(goalType) % 100);
                     if (goalType < 0)
                         reverse = true;
 
@@ -171,23 +172,22 @@ public:
 private:
     bool isGoalActive()
     {
-        if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ACTIVE)
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
+        return makePlanClient->getState() == actionlib::SimpleClientGoalState::ACTIVE 
+        || fidNavigationClient->getState() == actionlib::SimpleClientGoalState::ACTIVE;
     }
     void processState()
     {
+        auto curr_state = makePlanClient->getState();
 
-        if (goalRunning)
+        if(std::abs(goalType) > 10000 ){
+           curr_state = fidNavigationClient->getState();
+        }
+
+        if (goalRunning )
         {
-            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::PREEMPTED && !lastGoalPreempted)
+            if (curr_state == actionlib::SimpleClientGoalState::PREEMPTED)
             {
-                ROS_INFO_NAMED(hmi_ns, "Goal aborted by the Global Planner");
+                ROS_INFO_NAMED(hmi_ns, "Goal preempt by the Global Planner");
                 if (hmi_mode)
                 { //In this case, try to go to the next inspection point
 
@@ -196,8 +196,19 @@ private:
                     ++tries;
                     if (tries > 1)
                     {
-                        goNext = true;
-                        ROS_INFO_NAMED(hmi_ns, "No alternative route found to get to the inspection point number %d, skipping to next one", i_p);
+                        if( std::abs(goalType) < 10000){
+                            goNext = true;
+                            ROS_INFO_NAMED(hmi_ns, "No alternative route found to get to the inspection point number %d, skipping to next one", i_p);
+                        }else{
+                            ROS_ERROR_NAMED(hmi_ns, "Could not get to the fiducial goal");
+                            execMissionServer->setPreempted();
+                            goNext = true;
+                            doMission = false;
+                            goalRunning = false;
+                            goalReceived = false;
+                            missionLoaded = false;
+                            i_p = 1;
+                        }
                         //TODO: Añadir aqui de nuevo a la cola antes del shelter
                         //Crear una copia de la cola actual
                         //Limpiar la cola actual
@@ -222,13 +233,22 @@ private:
                         goals_queu.push(temp_goal);
 
                         temp_goal = temp_queu.front();*/
+                        
                     }
                     else
                     {
-                        makePlanClient->sendGoal(actionGoal.goal);
+                        waitTime.sleep();
+
+                        if(std::abs(goalType) > 10000 ){
+                            fidNavigationClient->sendGoal(fidGoal);
+                            ROS_INFO("Retrying fiducial goal");
+                        }else{
+                            makePlanClient->sendGoal(actionGoal.goal);
+                        }
+
                         goalRunning = true;
                     }
-                    lastGoalPreempted = false;
+                    // lastGoalPreempted = false;
                 }
                 else
                 {
@@ -240,29 +260,30 @@ private:
                 }
             }
 
-            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::LOST)
+            if (curr_state == actionlib::SimpleClientGoalState::LOST)
             {
                 //!Maybe resend goal?
                 ROS_INFO_NAMED(hmi_ns, "Communication fail, goal lost");
             }
-            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::REJECTED)
+            if (curr_state == actionlib::SimpleClientGoalState::REJECTED)
             {
                 ROS_DEBUG("Goal Rejected :'(");
             }
-            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::ABORTED || fidNavigationClient->getState() == actionlib::SimpleClientGoalState::ABORTED)
+            if (curr_state == actionlib::SimpleClientGoalState::ABORTED )//Fiducial abort
             {
                 //!Do next goal?
-                ROS_INFO("Goal Preempted"); //?
+                ROS_INFO("Goal Aborted"); //?
                 goalRunning = false;
             }
-            if (makePlanClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED || fidNavigationClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
+            if (curr_state == actionlib::SimpleClientGoalState::SUCCEEDED)
             {
+                tries=0;
                 if (sended_to_shelter)
                 {
                     sended_to_shelter = false;
                     ROS_INFO_NAMED(hmi_ns, "Robot arrived to shelter after cancelling mission");
                 }
-                if (actionGoal.goal.global_goal.header.seq != 0 && std::abs(actionGoal.goal.global_goal.header.seq)< 10000 )
+                if (actionGoal.goal.global_goal.header.seq != 0  )
                 {
                     ROS_INFO_NAMED(hmi_ns, "Robot arrived to inspection point number %d", i_p);
 
@@ -275,7 +296,9 @@ private:
                 {
                     goNext = true;
                 }
-
+                if(std::abs(goalType) > 10000 )
+                    waitTime.sleep();
+                
                 ++waypoint_number;
                 goalRunning = false;
             }
@@ -329,6 +352,8 @@ private:
             nh->param(base_path + std::to_string(i) + "/type", goal_type, (int)0);
             nh->param(base_path + std::to_string(i) + "/pose/x", goal.pose.position.x, (double)0);
             nh->param(base_path + std::to_string(i) + "/pose/y", goal.pose.position.y, (double)0);
+            nh->param(base_path + std::to_string(i) + "/pose/z", goal.pose.position.z, (double)0);
+            
             nh->param(base_path + std::to_string(i) + "/orientation/x", goal.pose.orientation.x, (double)0);
             nh->param(base_path + std::to_string(i) + "/orientation/y", goal.pose.orientation.y, (double)0);
             nh->param(base_path + std::to_string(i) + "/orientation/z", goal.pose.orientation.z, (double)0);
@@ -348,7 +373,7 @@ private:
             else if (std::abs(goal_type) > 10000)
             {
 
-                goal.header.seq = goal_type;
+                goal.header.seq = 0;
                 ROS_INFO_NAMED(hmi_ns, "Goal %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
             }
 
@@ -643,6 +668,7 @@ private:
 
     bool override;
     int i_p = 1;
+
 };
 
 int main(int argc, char **argv)
