@@ -148,7 +148,7 @@ public:
                                    actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
                 }
             }
-            else if (goals_queu.empty() && doMission && !isGoalActive())
+            else if (goals_queu.empty() && doMission && goalRunning)//!isGoalActive())
             {
                 ROS_INFO_NAMED(hmi_ns, "Robot arrived to shelter, mission finished");
                 goNext = true;
