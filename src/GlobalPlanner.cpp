@@ -364,12 +364,14 @@ void GlobalPlanner::plan()
         { //!Maybe when the goal is inside the local workspace and occupied
 
             ROS_INFO("Path execution preempted by local planner");
+            replan();
             //Decide What to do next....
         }
         if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::REJECTED)
         { //!Maybe when the goal is inside the local workspace and occupied
 
             ROS_INFO("Path execution rejected by local planner");
+            replan();
             //Decide What to do next....
         }
     }
