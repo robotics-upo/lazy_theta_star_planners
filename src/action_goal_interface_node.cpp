@@ -41,7 +41,7 @@ public:
         double waiting_time;
         nh->param("waiting_time", waiting_time, (double)10.0);
         waitTime = ros::Duration(waiting_time);
-
+        
         //This topic will add the current last goal succedeed(i.e. the current robot pose) to the goals queue just before the shelter
         // goal_red_marker_sub = nh->subscribe<geometry_msgs::PoseStamped>("add_red_waypoint", 1, &MissionInterface::redPointCb, this);
         build_mission_points = nh->subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &MissionInterface::addWaypointCb, this);
@@ -81,7 +81,7 @@ public:
 
             if (hmi_mode && !goals_queu.empty() && !goalRunning && doMission)
             {
-                if (ros::Time::now() - start > waitTime)
+                if (ros::Time::now() - start > waitTime || std::abs(goalType) > 10000)
                 {
                     goNext = true;
                     inspecting = false;
@@ -111,8 +111,7 @@ public:
 
                     fid_goal = std::floor(std::abs(goalType) / 100) - 100;
                     fid_orientation = std::floor(std::abs(goalType) % 100);
-                    if (goalType < 0)
-                        reverse = true;
+                    reverse = goalType < 0 ;
 
                     fid_pose = actionGoal.goal.global_goal.pose;
 
@@ -131,26 +130,26 @@ public:
 
                 if (!goals_queu.empty() && actionGoal.goal.global_goal.header.seq != 0)
                 {
-                    ROS_INFO_NAMED(hmi_ns, "Sending Robot to next inspection point: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
+                    ROS_INFO_NAMED(hmi_ns, "HMI: Sending Robot to next inspection point: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
                                    actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
                                    actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
                 }
                 else if (goals_queu.empty())
                 {
-                    ROS_INFO_NAMED(hmi_ns, "Last point inspected, sending robot back to shelter");
+                    ROS_INFO_NAMED(hmi_ns, "HMI: Last point inspected, sending robot back to shelter");
                     extra_info_fb = "Inspection finished, robot returning to shelter";
                 }
                 else if (actionGoal.goal.global_goal.header.seq != 0)
                 {
                     //TODO Display the right inspection point avoiding intermediate waypoints
-                    ROS_INFO_NAMED(hmi_ns, "Sending Robot to next inspection point: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
+                    ROS_INFO_NAMED(hmi_ns, "HMI: Sending Robot to next inspection point: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
                                    actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
                                    actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
                 }
             }
-            else if (goals_queu.empty() && doMission && goalRunning)//!isGoalActive())
+            else if (goals_queu.empty() && doMission && !goalRunning)//!isGoalActive())
             {
-                ROS_INFO_NAMED(hmi_ns, "Robot arrived to shelter, mission finished");
+                ROS_INFO_NAMED(hmi_ns, "HMI: Robot arrived to shelter, mission finished");
                 goNext = true;
                 doMission = false;
                 goalRunning = false;
@@ -187,28 +186,31 @@ private:
         {
             if (curr_state == actionlib::SimpleClientGoalState::PREEMPTED)
             {
-                ROS_INFO_NAMED(hmi_ns, "Goal preempt by the Global Planner");
+                ROS_INFO_NAMED(hmi_ns, "HMI: Goal preempt");
                 if (hmi_mode)
                 { //In this case, try to go to the next inspection point
 
-                    ROS_INFO_NAMED(hmi_ns, "Trying to calculate alternative route to the goal");
+                    ROS_INFO_NAMED(hmi_ns, "HMI: Trying to calculate alternative route to the goal");
+
+                    if(std::abs(goalType)>10000){
+                        ROS_INFO_NAMED(hmi_ns,"Skipping fiducial goal");
+                        ++tries;
+                        goNext = true;
+                    }
 
                     ++tries;
-                    if (tries > 1)
+                    if (tries > 1 && goalType!=2)
                     {
-                        if( std::abs(goalType) < 10000){
-                            goNext = true;
-                            ROS_INFO_NAMED(hmi_ns, "No alternative route found to get to the inspection point number %d, skipping to next one", i_p);
-                        }else{
-                            ROS_ERROR_NAMED(hmi_ns, "Could not get to the fiducial goal");
-                            execMissionServer->setPreempted();
-                            goNext = true;
-                            doMission = false;
-                            goalRunning = false;
-                            goalReceived = false;
-                            missionLoaded = false;
-                            i_p = 1;
-                        }
+                        
+                        ROS_ERROR_NAMED(hmi_ns, "Could not get to the fiducial goal");
+                        // execMissionServer->setPreempted();
+                        goNext = true;
+                        doMission = true;
+                        goalRunning = false;
+                        goalReceived = false;
+                        missionLoaded = true;
+                        // i_p = 1;
+                        
                         //TODO: Añadir aqui de nuevo a la cola antes del shelter
                         //Crear una copia de la cola actual
                         //Limpiar la cola actual
@@ -237,12 +239,11 @@ private:
                     }
                     else
                     {
-                        waitTime.sleep();
-
                         if(std::abs(goalType) > 10000 ){
                             fidNavigationClient->sendGoal(fidGoal);
                             ROS_INFO("Retrying fiducial goal");
                         }else{
+                            waitTime.sleep();
                             makePlanClient->sendGoal(actionGoal.goal);
                         }
 
@@ -263,7 +264,7 @@ private:
             if (curr_state == actionlib::SimpleClientGoalState::LOST)
             {
                 //!Maybe resend goal?
-                ROS_INFO_NAMED(hmi_ns, "Communication fail, goal lost");
+                ROS_INFO_NAMED(hmi_ns, "HMI: Communication fail, goal lost");
             }
             if (curr_state == actionlib::SimpleClientGoalState::REJECTED)
             {
@@ -281,11 +282,11 @@ private:
                 if (sended_to_shelter)
                 {
                     sended_to_shelter = false;
-                    ROS_INFO_NAMED(hmi_ns, "Robot arrived to shelter after cancelling mission");
+                    ROS_INFO_NAMED(hmi_ns, "HMI: Robot arrived to shelter after cancelling mission");
                 }
-                if (actionGoal.goal.global_goal.header.seq != 0  )
+                if (goalType == 0)
                 {
-                    ROS_INFO_NAMED(hmi_ns, "Robot arrived to inspection point number %d", i_p);
+                    ROS_INFO_NAMED(hmi_ns, "HMI: Robot arrived to inspection point number %d", i_p);
 
                     //TODO: Wait here for ten seconds around
                     start = ros::Time::now();
@@ -296,8 +297,6 @@ private:
                 {
                     goNext = true;
                 }
-                if(std::abs(goalType) > 10000 )
-                    waitTime.sleep();
                 
                 ++waypoint_number;
                 goalRunning = false;
@@ -368,11 +367,10 @@ private:
             {
                 ++realgoals;
                 goal.header.seq = i;
-                ROS_INFO_NAMED(hmi_ns, "Goal %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
+                ROS_INFO_NAMED(hmi_ns, "HMI: Inspection Point %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
             }
             else if (std::abs(goal_type) > 10000)
             {
-
                 goal.header.seq = 0;
                 ROS_INFO_NAMED(hmi_ns, "Goal %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
             }
@@ -392,7 +390,7 @@ private:
         else
         {
             missionLoaded = true;
-            ROS_INFO_NAMED(hmi_ns, "Mission Loaded.");
+            ROS_INFO_NAMED(hmi_ns, "HMI: Mission Loaded.");
             temp_pair.first = shelter_position;
             temp_pair.second = 2;
             goals_queu.push(temp_pair);
@@ -435,7 +433,7 @@ private:
         system(cmd.c_str());
         loadMissionData();
         */
-        ROS_INFO_NAMED(hmi_ns, "Mission writed to file and loaded. Ready to start it");
+        ROS_INFO_NAMED(hmi_ns, "HMI: Mission writed to file and loaded. Ready to start it");
     }
     bool cancelMission(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp)
     {
@@ -591,6 +589,7 @@ private:
         execMissionServer->setPreempted(result);
 
         makePlanClient->cancelAllGoals();
+        fidNavigationClient->cancelAllGoals();
         actionGoal.goal.global_goal = shelter_position;
         makePlanClient->sendGoal(actionGoal.goal);
 
@@ -603,7 +602,7 @@ private:
         i_p = 1;
         waypoint_number = 1;
 
-        ROS_INFO_NAMED(hmi_ns, "Mission cancelled by the operator. Sending robot back to shelter");
+        ROS_INFO_NAMED(hmi_ns, "HMI: Mission cancelled by the operator. Sending robot back to shelter");
         extra_info_fb = "Returning to shelter after cancelling mission";
     }
     void publishActionFb()
