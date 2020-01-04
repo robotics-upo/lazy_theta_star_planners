@@ -159,8 +159,9 @@ void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended t
     resetFlags();
 
     std_srvs::Trigger trg;
+    
     costmap_clean_srv.call(trg);
-    usleep(5e5);
+    usleep(1e5);
     start_time = ros::Time::now();
     
     auto size = globalTrajectory.points.size();
