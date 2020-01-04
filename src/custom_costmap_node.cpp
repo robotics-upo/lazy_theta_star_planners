@@ -7,6 +7,7 @@
 #include <std_srvs/Trigger.h>
 #include <tf/transform_listener.h>
 #include <tf2_ros/transform_listener.h>
+#include <theta_star_2d/checkObstacles.h>
 
 std::unique_ptr<costmap_2d::Costmap2DROS> costmap_ptr;
 typedef unsigned int uint;
@@ -20,8 +21,12 @@ bool resetCostmapSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &r
     costmap_ptr->resetLayers();
     return true;
 }
-bool checkEnvSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
+bool checkEnvSrv(theta_star_2d::checkObstaclesRequest &req, theta_star_2d::checkObstaclesResponse &rep)
 {
+    // boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_ptr->getCostmap()->getMutex()));
+    // costmap_ptr->resetLayers();
+    // lock.unlock();
+    
     static float res = costmap_ptr->getCostmap()->getResolution();
 
     static uint s_x = costmap_ptr->getCostmap()->getSizeInCellsX() / 2;
@@ -45,8 +50,12 @@ bool checkEnvSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
         }
     }
 
+    int max_obst = req.thresh.data;
+    if( max_obst == 0)
+        max_obst=n_max;
 
-    if (count > n_max)
+        
+    if (count > max_obst)
     {
         rep.message = "Too much obstacles: " + std::to_string(count);
         rep.success = false;
@@ -67,7 +76,7 @@ int main(int argc, char **argv)
 
     n.param("n_max", n_max, (int)100);
     n.param("costmap/robot_radius", robot_radius, (double)0.35);
-    
+    robot_radius+=0.05;
     ros::ServiceServer reset_costmap_svr = n.advertiseService("reset_costmap", resetCostmapSrv);
     ros::ServiceServer check_env = n.advertiseService("check_env", &checkEnvSrv);
 

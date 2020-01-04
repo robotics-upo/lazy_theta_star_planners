@@ -20,6 +20,7 @@ find_package(Boost REQUIRED COMPONENTS system)
 add_service_files(
   FILES
   SaveMission.srv
+  checkObstacles.srv
 )
 
 generate_messages(
