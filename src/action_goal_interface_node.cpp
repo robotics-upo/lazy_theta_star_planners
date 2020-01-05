@@ -563,7 +563,7 @@ private:
         actionGoal.header.frame_id = world_frame;
         actionGoal.header.seq = rand();
         actionGoal.header.stamp = ros::Time::now();
-
+        
         goalReceived = true;
         goalRunning = false;
     }
@@ -571,11 +571,11 @@ private:
     {
         execMissActGoal = execMissionServer->acceptNewGoal();
         //Execute the mission in mission_name:
-
+        std::system("roslaunch nix_html_logger logger.launch &");
         loadMissionData(std::string(execMissActGoal->mission_name.data));
 
         doMission = true;
-
+        i_p=1;
         extra_info_fb = "Ok";
         tries = 0;
     }
