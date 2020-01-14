@@ -1,0 +1,4 @@
+std_msgs/Int32 thresh
+---
+string message
+bool success
