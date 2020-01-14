@@ -8,8 +8,8 @@
  * 			trajectory [xyz, yaw, time].
  */
 
-#ifndef THETASTAR_H_
-#define THETASTAR_H_
+#ifndef THETASTAR2D_H_
+#define THETASTAR2D_H_
 
 #include <vector>
 #include <set>
@@ -17,11 +17,10 @@
 #include <ros/ros.h>
 #include <geometry_msgs/Vector3.h>//Sustituir por un mensaje tipo vector2? 
 
+#include <theta_star/ThetaStar3D.hpp>
 #include <visualization_msgs/Marker.h>
 
 #include <nav_msgs/OccupancyGrid.h>
-
-
 #include <trajectory_msgs/MultiDOFJointTrajectory.h>
 
 #include <tf/transform_listener.h>
@@ -54,24 +53,24 @@ typedef visualization_msgs::Marker RVizMarker;
 //*****************************************************************
 //				Auxiliar Class for ThetaStar Algorithm
 //*****************************************************************
-class DiscretePosition{
-	public:
-	   int x,y;
-};
+// class DiscretePosition{
+// 	public:
+// 	   int x,y;
+// };
 
 // Nodes (declaration)
-class ThetaStarNode;
+class ThetaStarNode2D;
 
 
-class ThetaStartNodeLink
+class ThetaStartNodeLink2D
 {
 	public:
-	   ThetaStartNodeLink(): 	node(NULL), isInOpenList(false), isInCandidateList(false), checked(false), 
+	   ThetaStartNodeLink2D(): 	node(NULL), isInOpenList(false), isInCandidateList(false), checked(false), 
 								notOccupied(true), lastTimeSeen(std::numeric_limits<int>::max()), countToBeOccupied(0), cost(0)
 	   {
 	   }
 
-	   ThetaStarNode *node;				// Node from this link
+	   ThetaStarNode2D *node;				// Node from this link
 	   bool isInOpenList;				// algorithm open list flag
 	   bool isInCandidateList;			// algorithm candidate list flag
 	   bool notOccupied;				// occupancy mark
@@ -84,23 +83,23 @@ class ThetaStartNodeLink
 };
 
 // Nodes (definition)
-class ThetaStarNode
+class ThetaStarNode2D
 {
 	public:
-	   ThetaStarNode():	parentNode(NULL), nodeInWorld(NULL), lineDistanceToFinalPoint( std::numeric_limits<float>::max() ), 
+	   ThetaStarNode2D():	parentNode(NULL), nodeInWorld(NULL), lineDistanceToFinalPoint( std::numeric_limits<float>::max() ), 
 						distanceFromInitialPoint( std::numeric_limits<float>::max()), totalDistance(std::numeric_limits<float>::max())
 	   {
 	   }
 
 	   DiscretePosition    point;		// Discrete position of this node
-	   ThetaStarNode      *parentNode;	// pointer to parent node
-	   ThetaStartNodeLink *nodeInWorld;	// pointer to link from this node to its parent 
+	   ThetaStarNode2D      *parentNode;	// pointer to parent node
+	   ThetaStartNodeLink2D *nodeInWorld;	// pointer to link from this node to its parent 
 	   float lineDistanceToFinalPoint;	// algorithm value
 	   float distanceFromInitialPoint;	// algorithm value
 	   float totalDistance;				// algorithm value
 	   float cost; 						//Cost from costmap
 	   // Comparator '!=' definition
-	   friend bool operator != (const ThetaStarNode& lhs, const ThetaStarNode& rhs)
+	   friend bool operator != (const ThetaStarNode2D& lhs, const ThetaStarNode2D& rhs)
 	   {
 		  return lhs.point.x!=rhs.point.x ||
 				 lhs.point.y!=rhs.point.y; 
@@ -108,13 +107,13 @@ class ThetaStarNode
 	   }
 };
 
-// Comparator for pointer to ThetaStarNode objects
-struct NodePointerComparator
+// Comparator for pointer to ThetaStarNode2D objects
+struct NodePointerComparator2D
 {
-   bool operator () (const ThetaStarNode* const& lhs__, const ThetaStarNode* const& rhs__) const
+   bool operator () (const ThetaStarNode2D* const& lhs__, const ThetaStarNode2D* const& rhs__) const
    {
-      const ThetaStarNode *lhs = lhs__;
-      const ThetaStarNode *rhs = rhs__;
+      const ThetaStarNode2D *lhs = lhs__;
+      const ThetaStarNode2D *rhs = rhs__;
       float res = 0;
 
       res = lhs->totalDistance - rhs->totalDistance;
@@ -144,13 +143,13 @@ struct NodePointerComparator
 //*****************************************************************
 // 				ThetaStar Algoritm Class Declaration
 //*****************************************************************
-class ThetaStar
+class ThetaStar2D
 {
   public:
 		/**
 		  Default constructor
 		**/	
-		ThetaStar();
+		ThetaStar2D();
 
 		/**
 		  Constructor with arguments
@@ -162,13 +161,13 @@ class ThetaStar
 		   @param Lazy Theta* with Optimization: goal point factor [0 to inf]. Bigger -> distance to target more weight than distance to origin -> minor exploration -> shorter runtime, grater path length
 		   @param NodeHandle 
 		**/
-		ThetaStar(string plannerName, string frame_id, 
+		ThetaStar2D(string plannerName, string frame_id, 
 		float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_, 
 		float step_, float goal_weight_,float cost_weight_,float lof_distance_, int occ_threshold_, ros::NodeHandlePtr n);
 		/**
 		 * Alternative constructor that calls initAuto function and automatically gets params from ros topics 
 		**/
-		ThetaStar(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandlePtr n);
+		ThetaStar2D(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandlePtr n);
 		/**
 		 * 
 		**/
@@ -204,7 +203,7 @@ class ThetaStar
 		/**
 		  Default destructor
 		**/
-		~ThetaStar();
+		~ThetaStar2D();
 
 		/**
 		 Configure the computed trajectories by getCurrentTrajectory() functions
@@ -403,7 +402,7 @@ class ThetaStar
 		   @param node (input)
 		   @param his neighbors (output)
 		**/
-		void getNeighbors(ThetaStarNode &node, set<ThetaStarNode*,NodePointerComparator> &neighbors);
+		void getNeighbors(ThetaStarNode2D &node, set<ThetaStarNode2D*,NodePointerComparator2D> &neighbors);
 
 		/**
 		 Returns distance to goal.
@@ -411,8 +410,8 @@ class ThetaStar
 		   @return distance to goal.
 		 Weighted version, using the 'z_weight_cost' param to increase the altitude change cost
 		**/
-		float distanceToGoal(ThetaStarNode node);
-		float weightedDistanceToGoal(ThetaStarNode node);
+		float distanceToGoal(ThetaStarNode2D node);
+		float weightedDistanceToGoal(ThetaStarNode2D node);
 
 		/**
 		 Returns distance between 2 nodes.
@@ -421,8 +420,8 @@ class ThetaStar
 		   @return distance to origin to target node
 		 Weighted version, using the 'z_weight_cost' param to increase the altitude change cost
 		**/
-		float distanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2);
-		float weightedDistanceBetween2nodes(ThetaStarNode &n1,ThetaStarNode &n2); 
+		float distanceBetween2nodes(ThetaStarNode2D &n1,ThetaStarNode2D &n2);
+		float weightedDistanceBetween2nodes(ThetaStarNode2D &n1,ThetaStarNode2D &n2); 
 
 		/**
 		 Returns distance from initial.
@@ -431,21 +430,21 @@ class ThetaStar
 		   @return distance to init node
 		 Weighted version, using the 'z_weight_cost' param to increase the altitude change cost
 		**/
-		float distanceFromInitialPoint(ThetaStarNode node, ThetaStarNode parent);
-		float weightedDistanceFromInitialPoint(ThetaStarNode node, ThetaStarNode parent);
+		float distanceFromInitialPoint(ThetaStarNode2D node, ThetaStarNode2D parent);
+		float weightedDistanceFromInitialPoint(ThetaStarNode2D node, ThetaStarNode2D parent);
 
 		/**
 		 Open and candidates node list, ordered by minor total distance (std::set --> listas ordenadas)
 		**/
-		set<ThetaStarNode*, NodePointerComparator> open,candidates;
+		set<ThetaStarNode2D*, NodePointerComparator2D> open,candidates;
 
 		/**
 		 Main algorithm functions. See http://aigamedev.com/open/tutorial/lazy-theta-star/
 		**/
-		void ComputeCost(ThetaStarNode &s, ThetaStarNode &s2);
-		void UpdateVertex(ThetaStarNode &s, ThetaStarNode &s2);
-		void SetVertex(ThetaStarNode &s,set<ThetaStarNode*,NodePointerComparator> &neighbors);
-		double g(ThetaStarNode &s);
+		void ComputeCost(ThetaStarNode2D &s, ThetaStarNode2D &s2);
+		void UpdateVertex(ThetaStarNode2D &s, ThetaStarNode2D &s2);
+		void SetVertex(ThetaStarNode2D &s,set<ThetaStarNode2D*,NodePointerComparator2D> &neighbors);
+		double g(ThetaStarNode2D &s);
 
 		/**	
 		  Returns if exists line of sight between two points.
@@ -453,14 +452,14 @@ class ThetaStar
 			@param Position of second one point
 			@return true if exists line of sight, false in the other case.
 		**/
-		bool lineofsight(ThetaStarNode &p1, ThetaStarNode &p2);
+		bool lineofsight(ThetaStarNode2D &p1, ThetaStarNode2D &p2);
 
 		/** 
 		 Check if a node is occupied
-		   @param A ThetaStarNode
+		   @param A ThetaStarNode2D
 		   @return true if is occupied in the occupancy matrix
 		**/
-		bool isOccupied(ThetaStarNode n);
+		bool isOccupied(ThetaStarNode2D n);
 
 		/** 
 		  Return true if set initial/final position is occupied
@@ -486,11 +485,11 @@ class ThetaStar
 		void printfTrajectory(Trajectory trajectory, string trajectory_name);
 
 		/**
-		 Publish a marker in the position of a ThetaStarNode
+		 Publish a marker in the position of a ThetaStarNode2D
 		   @param node to publish his position
 		   @param Set true to publish it instantly or false to simply push back at the marker array to publish later
 		**/
-		void publishMarker(ThetaStarNode &s, bool publish);
+		void publishMarker(ThetaStarNode2D &s, bool publish);
 
 
   /** Inline Functions **/
@@ -536,7 +535,7 @@ class ThetaStar
 		   @param ThetaStar Node / Discrete position
 		   @return true if is inside the ws
 		**/
-		inline bool isInside(ThetaStarNode n)
+		inline bool isInside(ThetaStarNode2D n)
 		{
 			return  isInside(n.point.x,n.point.y); //Qutar z
 		}
@@ -759,7 +758,7 @@ class ThetaStar
   /** Variables **/	
   
 		// Global Occupancy Matrix
-		std::vector<ThetaStartNodeLink> discrete_world;	// Occupancy Matrix and its size 
+		std::vector<ThetaStartNodeLink2D> discrete_world;	// Occupancy Matrix and its size 
 		int matrix_size;
 		int ws_x_max, ws_y_max; // WorkSpace lenghts from origin (0,0,0)
 		int ws_x_min, ws_y_min;
@@ -772,7 +771,7 @@ class ThetaStar
 		float trf_x,trf_y;
 		// Origin and target position.
 		Vector3 initial_position, final_position;	// Continuous
-		ThetaStarNode *disc_initial, *disc_final;	// Discretes
+		ThetaStarNode2D *disc_initial, *disc_final;	// Discretes
 
 		// Max time to get path
 		int timeout;

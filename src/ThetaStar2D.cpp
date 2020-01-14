@@ -8,7 +8,7 @@
  * 			trajectory [xyz, yaw, time].
  */
 
-#include <theta_star/ThetaStar.hpp>
+#include <theta_star/ThetaStar2D.hpp>
 
 namespace PathPlanners
 {
@@ -27,12 +27,12 @@ namespace PathPlanners
 // 				ThetaStar Algorithm Class Definitions
 //*****************************************************************
 // Default constructor
-ThetaStar::ThetaStar()
+ThetaStar2D::ThetaStar2D()
 {
 }
 
 // Constructor with arguments
-ThetaStar::ThetaStar(string plannerName, string frame_id,
+ThetaStar2D::ThetaStar2D(string plannerName, string frame_id,
                      float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_,
                      float step_, float goal_weight_, float cost_weight_, float lof_distance_, int occ_threshold_, ros::NodeHandlePtr n)
 {
@@ -40,13 +40,13 @@ ThetaStar::ThetaStar(string plannerName, string frame_id,
     //ROS_WARN("\t 2WorkSpace: X:[%.2f, %.2f], Y:[%.2f, %.2f] \n", ws_x_min_, ws_x_max_, ws_y_min_, ws_y_max_);
     init(plannerName, frame_id, ws_x_max_, ws_y_max_, ws_x_min_, ws_y_min_, step_, goal_weight_, cost_weight_, lof_distance_, occ_threshold_, n);
 }
-ThetaStar::ThetaStar(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandlePtr n)
+ThetaStar2D::ThetaStar2D(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandlePtr n)
 {
 
     mapParamsConfigured = false;
     initAuto(plannerName, frame_id, goal_weight_, cost_weight_, lof_distance_, n);
 }
-void ThetaStar::setDynParams(float goal_weight_, float cost_weight_, float lof_distance_, int occ_threshold_)
+void ThetaStar2D::setDynParams(float goal_weight_, float cost_weight_, float lof_distance_, int occ_threshold_)
 {
     goal_weight = goal_weight_;
     cost_weight = cost_weight_;
@@ -54,7 +54,7 @@ void ThetaStar::setDynParams(float goal_weight_, float cost_weight_, float lof_d
     occ_threshold = occ_threshold_;
 }
 // Initialization: creates the occupancy matrix (discrete nodes) from the bounding box sizes, resolution, inflation and optimization arguments
-/*void ThetaStar::initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandle *n)
+/*void ThetaStar2D::initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandle *n)
 {
     nh = n;
 
@@ -71,7 +71,7 @@ void ThetaStar::setDynParams(float goal_weight_, float cost_weight_, float lof_d
     //The geometric params will be passed to thetastar once the planners receive the first map
 }*/
 // Initialization: creates the occupancy matrix (discrete nodes) from the bounding box sizes, resolution, inflation and optimization arguments
-void ThetaStar::initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandlePtr n)
+void ThetaStar2D::initAuto(string plannerName, string frame_id, float goal_weight_, float cost_weight_, float lof_distance_, ros::NodeHandlePtr n)
 {
     nh = n;
     
@@ -87,7 +87,7 @@ void ThetaStar::initAuto(string plannerName, string frame_id, float goal_weight_
     configureMarkers(plannerName, frame_id, step);
     //The geometric params will be passed to thetastar once the planners receive the first map
 }
-void ThetaStar::loadMapParams(float ws_x_max_, float ws_y_max_, float map_resolution_)
+void ThetaStar2D::loadMapParams(float ws_x_max_, float ws_y_max_, float map_resolution_)
 {
     disc_initial = NULL;
     disc_final = NULL;
@@ -105,11 +105,11 @@ void ThetaStar::loadMapParams(float ws_x_max_, float ws_y_max_, float map_resolu
     Ly_inv = 1.0 / Ly;
     matrix_size = Lx * Ly;
 
-    printf("1. ThetaStar: Occupancy Matrix has %d nodes [%d MB]\n", matrix_size, (int)(matrix_size * sizeof(ThetaStarNode)) / (1024 * 1024));
+    printf("1. ThetaStar: Occupancy Matrix has %d nodes [%d MB]\n", matrix_size, (int)(matrix_size * sizeof(ThetaStarNode2D)) / (1024 * 1024));
     discrete_world.resize(matrix_size);
     mapParamsConfigured = true;
 }
-void ThetaStar::init(string plannerName, string frame_id,
+void ThetaStar2D::init(string plannerName, string frame_id,
                      float ws_x_max_, float ws_y_max_, float ws_x_min_, float ws_y_min_,
                      float step_, float goal_weight_, float cost_weight_, float lof_distance_, int occ_threshold_, ros::NodeHandlePtr n)
 {
@@ -133,7 +133,7 @@ void ThetaStar::init(string plannerName, string frame_id,
     Ly_inv = 1.0 / Ly;
     matrix_size = Lx * Ly;
     mapParamsConfigured = true;
-    printf("ThetaStar (%s): Occupancy Matrix has %d nodes [%d MB]\n", plannerName.c_str(), matrix_size, (int)(matrix_size * sizeof(ThetaStarNode)) / (1024 * 1024));
+    printf("ThetaStar (%s): Occupancy Matrix has %d nodes [%d MB]\n", plannerName.c_str(), matrix_size, (int)(matrix_size * sizeof(ThetaStarNode2D)) / (1024 * 1024));
     discrete_world.resize(matrix_size);
 
     //Get the value used by the functuion getAverageDistance2Obstacles
@@ -196,7 +196,7 @@ void ThetaStar::init(string plannerName, string frame_id,
     // if you want a trajectory, its params must be configured using setTrajectoryParams()
     trajectoryParamsConfigured = false;
 }
-void ThetaStar::configureMarkers(string plannerName, string frame_id, float step)
+void ThetaStar2D::configureMarkers(string plannerName, string frame_id, float step)
 {
     // Visualitazion Markers
     //char topicPath[100];
@@ -235,11 +235,11 @@ void ThetaStar::configureMarkers(string plannerName, string frame_id, float step
     marker_no_los.color.g = 1.0;
     marker_no_los.color.b = 0.0;
 }
-ThetaStar::~ThetaStar()
+ThetaStar2D::~ThetaStar2D()
 {
 }
 
-void ThetaStar::setTrajectoryParams(float dxy_max_, float dxy_tolerance_, float min_yaw_ahead_)
+void ThetaStar2D::setTrajectoryParams(float dxy_max_, float dxy_tolerance_, float min_yaw_ahead_)
 {
     // Parse params
     dxy_max = dxy_max_;
@@ -249,7 +249,7 @@ void ThetaStar::setTrajectoryParams(float dxy_max_, float dxy_tolerance_, float 
     trajectoryParamsConfigured = true;
 }
 
-//void ThetaStar::getMap(nav_msgs::OccupancyGrid::ConstPtr &message)
+//void ThetaStar2D::getMap(nav_msgs::OccupancyGrid::ConstPtr &message)
 //{
 //
 //    clearMap();
@@ -268,7 +268,7 @@ void ThetaStar::setTrajectoryParams(float dxy_max_, float dxy_tolerance_, float 
 //        discrete_world[i].cost = message->data[i];
 //    }
 //}
-void ThetaStar::getMap(unsigned char *map)
+void ThetaStar2D::getMap(unsigned char *map)
 {
     clearMap();
     int x, y;
@@ -285,7 +285,7 @@ void ThetaStar::getMap(unsigned char *map)
         // ROS_WARN("Cost %d: %f", i, discrete_world[i].cost);
     // }
 }
-void ThetaStar::getMap(nav_msgs::OccupancyGrid *message)
+void ThetaStar2D::getMap(nav_msgs::OccupancyGrid *message)
 {
     clearMap();
     int size = message->info.width * message->info.height;
@@ -304,23 +304,23 @@ void ThetaStar::getMap(nav_msgs::OccupancyGrid *message)
     }
 }
 // Clear the map
-void ThetaStar::clearMap()
+void ThetaStar2D::clearMap()
 {
     for (int i = 0; i < matrix_size; i++)
         discrete_world[i].notOccupied = true;
 }
 
-bool ThetaStar::setInitialPosition(DiscretePosition p_)
+bool ThetaStar2D::setInitialPosition(DiscretePosition p_)
 {
     if (isInside(p_.x, p_.y))
     {
-        ThetaStartNodeLink *initialNodeInWorld = &discrete_world[getWorldIndex(
+        ThetaStartNodeLink2D *initialNodeInWorld = &discrete_world[getWorldIndex(
             p_.x,
             p_.y)];
 
         if (initialNodeInWorld->node == NULL)
         {
-            initialNodeInWorld->node = new ThetaStarNode();
+            initialNodeInWorld->node = new ThetaStarNode2D();
             initialNodeInWorld->node->point.x = p_.x;
             initialNodeInWorld->node->point.x = p_.y;
 
@@ -343,7 +343,7 @@ bool ThetaStar::setInitialPosition(DiscretePosition p_)
     }
 }
 
-bool ThetaStar::setInitialPosition(Vector3 p)
+bool ThetaStar2D::setInitialPosition(Vector3 p)
 {
     initial_position = p;
     DiscretePosition p_ = discretizePosition(p);
@@ -351,17 +351,17 @@ bool ThetaStar::setInitialPosition(Vector3 p)
     return setInitialPosition(p_);
 }
 
-bool ThetaStar::setFinalPosition(DiscretePosition p_)
+bool ThetaStar2D::setFinalPosition(DiscretePosition p_)
 {
     if (isInside(p_.x, p_.y))
     {
-        ThetaStartNodeLink *finalNodeInWorld = &discrete_world[getWorldIndex(
+        ThetaStartNodeLink2D *finalNodeInWorld = &discrete_world[getWorldIndex(
             p_.x,
             p_.y)];
 
         if (finalNodeInWorld->node == NULL)
         {
-            finalNodeInWorld->node = new ThetaStarNode();
+            finalNodeInWorld->node = new ThetaStarNode2D();
             finalNodeInWorld->node->point.x = p_.x;
             finalNodeInWorld->node->point.x = p_.y;
 
@@ -384,24 +384,24 @@ bool ThetaStar::setFinalPosition(DiscretePosition p_)
     }
 }
 
-bool ThetaStar::setFinalPosition(Vector3 p)
+bool ThetaStar2D::setFinalPosition(Vector3 p)
 {
     DiscretePosition p_ = discretizePosition(p);
 
     return setFinalPosition(p_);
 }
 
-Vector3 ThetaStar::getInitialPosition()
+Vector3 ThetaStar2D::getInitialPosition()
 {
     return initial_position;
 }
 
-Vector3 ThetaStar::getFinalPosition()
+Vector3 ThetaStar2D::getFinalPosition()
 {
     return final_position;
 }
 
-bool ThetaStar::lineofsight(ThetaStarNode &p1, ThetaStarNode &p2)
+bool ThetaStar2D::lineofsight(ThetaStarNode2D &p1, ThetaStarNode2D &p2)
 {
     //printf("Checking LofS: [%d, %d, %d] to [%d, %d, %d]\n", p1.point.x, p1.point.y, p1.point.z, p2.point.x, p2.point.y, p2.point.z);
 
@@ -471,12 +471,12 @@ bool ThetaStar::lineofsight(ThetaStarNode &p1, ThetaStarNode &p2)
     return true;
 }
 
-bool ThetaStar::isOccupied(ThetaStarNode n)
+bool ThetaStar2D::isOccupied(ThetaStarNode2D n)
 {
     return !discrete_world[getWorldIndex(n.point.x, n.point.y)].notOccupied;
 }
 
-bool ThetaStar::isInitialPositionOccupied()
+bool ThetaStar2D::isInitialPositionOccupied()
 {
     if (isOccupied(*disc_initial))
         return true;
@@ -484,7 +484,7 @@ bool ThetaStar::isInitialPositionOccupied()
         return false;
 }
 
-bool ThetaStar::isFinalPositionOccupied()
+bool ThetaStar2D::isFinalPositionOccupied()
 {
     if (isOccupied(*disc_final))
         return true;
@@ -492,12 +492,12 @@ bool ThetaStar::isFinalPositionOccupied()
         return false;
 }
 
-float ThetaStar::getMapResolution()
+float ThetaStar2D::getMapResolution()
 {
     return step;
 }
 
-DiscretePosition ThetaStar::discretizePosition(Vector3 p)
+DiscretePosition ThetaStar2D::discretizePosition(Vector3 p)
 {
     DiscretePosition res;
 
@@ -507,7 +507,7 @@ DiscretePosition ThetaStar::discretizePosition(Vector3 p)
     return res;
 }
 
-bool ThetaStar::searchInitialPosition2d(float maxDistance)
+bool ThetaStar2D::searchInitialPosition2d(float maxDistance)
 {
     DiscretePosition init_ = discretizePosition(initial_position); // Start coordinates
 
@@ -526,7 +526,7 @@ bool ThetaStar::searchInitialPosition2d(float maxDistance)
 
     return false;
 }
-bool ThetaStar::searchFinalPosition2d(float maxDistance)
+bool ThetaStar2D::searchFinalPosition2d(float maxDistance)
 {
     DiscretePosition final_ = discretizePosition(final_position); // Start coordinates
 
@@ -545,17 +545,17 @@ bool ThetaStar::searchFinalPosition2d(float maxDistance)
 
     return false;
 }
-void ThetaStar::setTimeOut(int sec)
+void ThetaStar2D::setTimeOut(int sec)
 {
     timeout = sec;
 }
 
-int ThetaStar::getTimeOut()
+int ThetaStar2D::getTimeOut()
 {
     return timeout;
 }
 
-int ThetaStar::computePath(void)
+int ThetaStar2D::computePath(void)
 {
     //printf("Calculating...\n");
     if (disc_initial == NULL || disc_final == NULL)
@@ -575,7 +575,7 @@ int ThetaStar::computePath(void)
     marker.points.push_back(p);
 
     //Initialize data structure. --> clear lists
-    ThetaStarNode *erase_node;
+    ThetaStarNode2D *erase_node;
     while (!open.empty())
     {
         erase_node = *open.begin();
@@ -608,7 +608,7 @@ int ThetaStar::computePath(void)
     disc_initial->nodeInWorld->isInOpenList = true;
 
     //Initialize loop
-    ThetaStarNode *min_distance = disc_initial; // s : current node
+    ThetaStarNode2D *min_distance = disc_initial; // s : current node
     noSolution = false;
     long iter = 0;
 
@@ -670,15 +670,15 @@ int ThetaStar::computePath(void)
             min_distance->nodeInWorld->isInCandidateList = true;
 
             //Look for Neighbors with line of sight
-            set<ThetaStarNode *, NodePointerComparator> neighbors;
+            set<ThetaStarNode2D *, NodePointerComparator2D> neighbors;
             getNeighbors(*min_distance, neighbors);
 
             //Check if exist line of sight.
             SetVertex(*min_distance, neighbors);
 
-            set<ThetaStarNode *, NodePointerComparator>::iterator it_;
+            set<ThetaStarNode2D *, NodePointerComparator2D>::iterator it_;
             it_ = neighbors.begin();
-            ThetaStarNode *new_node;
+            ThetaStarNode2D *new_node;
             while (it_ != neighbors.end())
             {
                 new_node = *it_;
@@ -711,7 +711,7 @@ int ThetaStar::computePath(void)
 
     //Path finished, get final path
     last_path.clear();
-    ThetaStarNode *path_point;
+    ThetaStarNode2D *path_point;
     Vector3 point;
 
     path_point = min_distance;
@@ -741,28 +741,28 @@ int ThetaStar::computePath(void)
     //ROS_WARN("Expanded Nodes: %d",expanded_nodes_number);
     return last_path.size();
 }
-bool ThetaStar::isSolution(){
+bool ThetaStar2D::isSolution(){
     return !noSolution;
 }
-vector<Vector3> ThetaStar::getCurrentPath()
+vector<Vector3> ThetaStar2D::getCurrentPath()
 {
     return last_path;
 }
-int ThetaStar::getCurrentPathNPoints()
+int ThetaStar2D::getCurrentPathNPoints()
 {
     return last_path.size();
 }
 //!Test function to deduce the distance from the cost
 //TODO: Check it work
-void ThetaStar::computeAverageDist2Obs()
+void ThetaStar2D::computeAverageDist2Obs()
 {
     average_dist_to_obst = 1 / csf * log(occ_threshold / cost_path) + rob_rad;
 }
-float ThetaStar::getAvDist2Obs()
+float ThetaStar2D::getAvDist2Obs()
 {
     return average_dist_to_obst;
 }
-bool ThetaStar::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw)
+bool ThetaStar2D::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw)
 {
     if (!trajectoryParamsConfigured)
         return false;
@@ -823,7 +823,7 @@ bool ThetaStar::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw)
     return true;
 }
 
-bool ThetaStar::getTrajectoryYawAtTime(Trajectory &trajectory, Transform init_pose)
+bool ThetaStar2D::getTrajectoryYawAtTime(Trajectory &trajectory, Transform init_pose)
 {
     if (!trajectoryParamsConfigured)
         return false;
@@ -867,7 +867,7 @@ bool ThetaStar::getTrajectoryYawAtTime(Trajectory &trajectory, Transform init_po
     return true;
 }
 
-bool ThetaStar::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform init_pose)
+bool ThetaStar2D::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform init_pose)
 {
     if (!trajectoryParamsConfigured)
         return false;
@@ -975,7 +975,7 @@ bool ThetaStar::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform init
     return true;
 }
 
-bool ThetaStar::getTrajectoryYawInAdvanceWithFinalYaw(Trajectory &trajectory, Transform init_pose, double final_yaw_ref)
+bool ThetaStar2D::getTrajectoryYawInAdvanceWithFinalYaw(Trajectory &trajectory, Transform init_pose, double final_yaw_ref)
 {
     if (!trajectoryParamsConfigured)
         return false;
@@ -1006,7 +1006,7 @@ bool ThetaStar::getTrajectoryYawInAdvanceWithFinalYaw(Trajectory &trajectory, Tr
     }
 }
 
-void ThetaStar::getNeighbors(ThetaStarNode &node, set<ThetaStarNode *, NodePointerComparator> &neighbors)
+void ThetaStar2D::getNeighbors(ThetaStarNode2D &node, set<ThetaStarNode2D *, NodePointerComparator2D> &neighbors)
 {
     neighbors.clear();
 
@@ -1028,10 +1028,10 @@ void ThetaStar::getNeighbors(ThetaStarNode &node, set<ThetaStarNode *, NodePoint
                 {
                     int nodeInWorld = getWorldIndex(node_temp.x, node_temp.y);
 
-                    ThetaStartNodeLink *new_neighbor = &discrete_world[nodeInWorld];
+                    ThetaStartNodeLink2D *new_neighbor = &discrete_world[nodeInWorld];
                     if (new_neighbor->node == NULL)
                     {
-                        new_neighbor->node = new ThetaStarNode();
+                        new_neighbor->node = new ThetaStarNode2D();
                         new_neighbor->node->point.x = node_temp.x;
                         new_neighbor->node->point.y = node_temp.y;
                         new_neighbor->node->nodeInWorld = new_neighbor;
@@ -1047,7 +1047,7 @@ void ThetaStar::getNeighbors(ThetaStarNode &node, set<ThetaStarNode *, NodePoint
     }
 }
 
-void ThetaStar::publishMarker(ThetaStarNode &s, bool publish)
+void ThetaStar2D::publishMarker(ThetaStarNode2D &s, bool publish)
 {
     geometry_msgs::Point point;
     point.x = s.point.x * step + trf_x;
@@ -1071,25 +1071,25 @@ void ThetaStar::publishMarker(ThetaStarNode &s, bool publish)
 #endif
 }
 
-float ThetaStar::distanceToGoal(ThetaStarNode node)
+float ThetaStar2D::distanceToGoal(ThetaStarNode2D node)
 {
     return sqrt(pow(disc_final->point.x - node.point.x, 2) +
                 pow(disc_final->point.y - node.point.y, 2));
 }
 
-float ThetaStar::weightedDistanceToGoal(ThetaStarNode node)
+float ThetaStar2D::weightedDistanceToGoal(ThetaStarNode2D node)
 {
     return goal_weight * sqrt(pow(disc_final->point.x - node.point.x, 2) +
                               pow(disc_final->point.y - node.point.y, 2));
 }
 
-float ThetaStar::distanceBetween2nodes(ThetaStarNode &n1, ThetaStarNode &n2)
+float ThetaStar2D::distanceBetween2nodes(ThetaStarNode2D &n1, ThetaStarNode2D &n2)
 {
     return sqrt(pow(n1.point.x - n2.point.x, 2) +
                 pow(n1.point.y - n2.point.y, 2));
 }
 
-float ThetaStar::weightedDistanceBetween2nodes(ThetaStarNode &n1, ThetaStarNode &n2)
+float ThetaStar2D::weightedDistanceBetween2nodes(ThetaStarNode2D &n1, ThetaStarNode2D &n2)
 {
     //Aï¿½adido un factor multiplicativo  discrete_world[i].cost*
     int i = getWorldIndex(n2.point.x, n2.point.y);
@@ -1098,7 +1098,7 @@ float ThetaStar::weightedDistanceBetween2nodes(ThetaStarNode &n1, ThetaStarNode 
                                                        pow(n1.point.y - n2.point.y, 2));
 }
 
-float ThetaStar::distanceFromInitialPoint(ThetaStarNode node, ThetaStarNode parent)
+float ThetaStar2D::distanceFromInitialPoint(ThetaStarNode2D node, ThetaStarNode2D parent)
 {
     float res;
     if (isOccupied(node))
@@ -1114,7 +1114,7 @@ float ThetaStar::distanceFromInitialPoint(ThetaStarNode node, ThetaStarNode pare
     return res;
 }
 
-float ThetaStar::weightedDistanceFromInitialPoint(ThetaStarNode node, ThetaStarNode parent)
+float ThetaStar2D::weightedDistanceFromInitialPoint(ThetaStarNode2D node, ThetaStarNode2D parent)
 {
     float res;
     int i = getWorldIndex(node.point.x, node.point.y);
@@ -1130,7 +1130,7 @@ float ThetaStar::weightedDistanceFromInitialPoint(ThetaStarNode node, ThetaStarN
     return res;
 }
 
-void ThetaStar::ComputeCost(ThetaStarNode &s, ThetaStarNode &s2)
+void ThetaStar2D::ComputeCost(ThetaStarNode2D &s, ThetaStarNode2D &s2)
 {
     double distanceParent2 = weightedDistanceBetween2nodes((*s.parentNode), s2);
     if (s.parentNode->distanceFromInitialPoint + distanceParent2 + s2.lineDistanceToFinalPoint < s2.totalDistance)
@@ -1141,7 +1141,7 @@ void ThetaStar::ComputeCost(ThetaStarNode &s, ThetaStarNode &s2)
     }
 }
 
-void ThetaStar::UpdateVertex(ThetaStarNode &s, ThetaStarNode &s2)
+void ThetaStar2D::UpdateVertex(ThetaStarNode2D &s, ThetaStarNode2D &s2)
 {
     float g_old = s2.totalDistance;
 
@@ -1156,15 +1156,15 @@ void ThetaStar::UpdateVertex(ThetaStarNode &s, ThetaStarNode &s2)
     }
 }
 
-void ThetaStar::SetVertex(ThetaStarNode &s, set<ThetaStarNode *, NodePointerComparator> &neighbors)
+void ThetaStar2D::SetVertex(ThetaStarNode2D &s, set<ThetaStarNode2D *, NodePointerComparator2D> &neighbors)
 {
     if (!lineofsight(*s.parentNode, s))
     {
         float g_value = std::numeric_limits<float>::max();
-        ThetaStarNode *parentCandidate = NULL;
-        set<ThetaStarNode *, NodePointerComparator>::iterator it_;
+        ThetaStarNode2D *parentCandidate = NULL;
+        set<ThetaStarNode2D *, NodePointerComparator2D>::iterator it_;
         it_ = neighbors.begin();
-        ThetaStarNode *new_node;
+        ThetaStarNode2D *new_node;
         bool candidatesNotEmpty = false;
         bool hasLessNumber = false;
 
@@ -1209,7 +1209,7 @@ void ThetaStar::SetVertex(ThetaStarNode &s, set<ThetaStarNode *, NodePointerComp
     }
 }
 
-double ThetaStar::g(ThetaStarNode &s)
+double ThetaStar2D::g(ThetaStarNode2D &s)
 {
     if (s.parentNode == NULL)
     {
@@ -1224,7 +1224,7 @@ double ThetaStar::g(ThetaStarNode &s)
     }
 }
 
-void ThetaStar::setPositionYawAndTime(TrajectoryPoint &trajectory_point, Vector3 position, double _yaw)
+void ThetaStar2D::setPositionYawAndTime(TrajectoryPoint &trajectory_point, Vector3 position, double _yaw)
 {
     tfScalar roll = 0.0;
     tfScalar pitch = 0.0;
@@ -1246,17 +1246,17 @@ void ThetaStar::setPositionYawAndTime(TrajectoryPoint &trajectory_point, Vector3
     trajectory_point.accelerations[0].linear.y = 0.0;
     trajectory_point.accelerations[0].linear.z = 0.0;
 }
-double ThetaStar::getHorizontalNorm(double x, double y)
+double ThetaStar2D::getHorizontalNorm(double x, double y)
 {
     return sqrtf(x * x + y * y);
 }
 
-double ThetaStar::getHorizontalDistance(TrajectoryPoint P1, TrajectoryPoint P2)
+double ThetaStar2D::getHorizontalDistance(TrajectoryPoint P1, TrajectoryPoint P2)
 {
     return getHorizontalNorm(P1.transforms[0].translation.x - P2.transforms[0].translation.x, P1.transforms[0].translation.y - P2.transforms[0].translation.y);
 }
 
-float ThetaStar::getYawFromQuat(Quaternion quat)
+float ThetaStar2D::getYawFromQuat(Quaternion quat)
 {
     double r, p, y;
     tf::Quaternion q(quat.x, quat.y, quat.z, quat.w);
@@ -1266,7 +1266,7 @@ float ThetaStar::getYawFromQuat(Quaternion quat)
     return y;
 }
 
-double ThetaStar::getDyaw(double next_yaw, double last_yaw)
+double ThetaStar2D::getDyaw(double next_yaw, double last_yaw)
 {
     double dyaw = fabs(next_yaw - last_yaw);
     if (dyaw > M_PI)
@@ -1275,7 +1275,7 @@ double ThetaStar::getDyaw(double next_yaw, double last_yaw)
     return dyaw;
 }
 
-void ThetaStar::printfTrajectory(Trajectory trajectory, string trajectory_name)
+void ThetaStar2D::printfTrajectory(Trajectory trajectory, string trajectory_name)
 {
     printf(PRINTF_YELLOW "%s trajectory [%d]:\n", trajectory_name.c_str(), (int)trajectory.points.size());
 
@@ -1288,7 +1288,7 @@ void ThetaStar::printfTrajectory(Trajectory trajectory, string trajectory_name)
     printf(PRINTF_REGULAR);
 }
 
-void ThetaStar::confPrintRosWarn(bool print)
+void ThetaStar2D::confPrintRosWarn(bool print)
 {
     PRINT_WARNINGS = print;
 }

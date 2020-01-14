@@ -12,8 +12,8 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <math.h>
 #include <ros/ros.h>
 #include <memory>
-#include <theta_star/ThetaStar.hpp>
-
+#include <theta_star/ThetaStar2D.hpp>
+#include <theta_star/ThetaStar3D.hpp>
 #include <std_srvs/Trigger.h>
 #include <std_srvs/Empty.h>
 #include <visualization_msgs/Marker.h>
@@ -42,46 +42,14 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <upo_actions/MakePlanAction.h>
 #include <upo_actions/RotationInPlaceAction.h>
 
-struct ReportElement
-{
-    trajectory_msgs::MultiDOFJointTrajectory trajectory;
-    geometry_msgs::PoseStamped goal, robot_pose;
-    ros::Time requested, published;
-    bool replan;
-};
 
-class MissionReport
-{
-public:
-    MissionReport()
-    {
-        data.resize(0);
-    }
-    void newElement()
-    {
-        ReportElement elem;
-        data.push_back(elem);
-    }
-    /*
-    Puedo crear una funcion publica que se llame con cada nueva trayectoria creada
-    *Se guarda la trayectoria con todos sus puntitos
-    *Se guarda el instante en el que se solicito
-    *Se guarda el instante en el que se envio(publico)
-    *Se guarda un flag si fue una solicitud de replanning o que
-    */
-
-    /*
-   Tambien deberia tener una funcion para guardar el report en un archivito
-
-   */
-
-private:
-    std::vector<ReportElement> data;
-};
+#include <sensor_msgs/PointCloud2.h>
+#include <octomap_msgs/Octomap.h>
+#include <pcl_ros/point_cloud.h>
 
 namespace PathPlanners
 {
-class GlobalPlanner : public ThetaStar
+class GlobalPlanner : public ThetaStar3D
 {
 
     typedef actionlib::SimpleActionClient<upo_actions::ExecutePathAction> ExecutePathClient;
@@ -125,7 +93,8 @@ private:
     @brief: Loads parameters from ros param server, if they are not present, load defaults ones
             It also configure markers and global map geometry 
     */
-    void configParams();
+    void configParams2D();
+    void configParams3D();
     /*
     @brief: Load topics names from param server and if they are not present, set defaults topics names for 
             Subscribers and publishers
@@ -146,8 +115,10 @@ private:
     @brief: Lock and reset costmap layers
     */
     void resetGlobalCostmap();
+    void collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg);
+    void publishTrajectory2D();
+    void publishTrajectory3D();
 
-    void publishTrajectory();
 
     bool calculatePath();
 
@@ -169,40 +140,26 @@ private:
 
     //Publishers and Subscribers
     ros::Publisher replan_status_pub,visMarkersPublisher;
-    ros::Subscriber goal_sub, global_costmap_sub;
+    ros::Subscriber goal_sub, sub_map;
 
     //Services servers
     ros::ServiceServer global_replanning_service, reset_global_costmap_service, plan_request_service;
     ros::ServiceClient recovery_rot_srv_client;
     //ThetaStar object
-    ThetaStar gbPlanner;
+    ThetaStar2D theta2D;
 
     //tf buffer used to get the base_link position on the map(i.e. tf base_link-map)
     std::shared_ptr<tf2_ros::Buffer> tfBuffer;
     std::unique_ptr<tf2_ros::TransformListener> tf2_list;
-
-    //Old tf1 used by the costmap wrapper
-    // tf::TransformListener *tf_list_ptr;
-    // costmap_2d::Costmap2DROS *global_costmap_ptr;
 
     std::unique_ptr<tf::TransformListener> tf_list_ptr;
     std::unique_ptr<costmap_2d::Costmap2DROS> global_costmap_ptr;
 
     std_msgs::Bool flg_replan_status;
 
-    //Input parameters
-    float map_resolution;
-    float ws_x_max;
-    float ws_y_max;
-
     float cost_weight;
-    float goal_weight;
     float occ_threshold;
     float lof_distance;
-
-    float traj_dxy_max;
-    float traj_pos_tol;
-    float traj_yaw_tol;
 
     string robot_base_frame, world_frame, node_name;
 
@@ -244,6 +201,35 @@ private:
     float minPathLenght;
     ros::Time start_time;
 
+    //! 3D specific variables
+    ThetaStar3D theta3D;
+    bool use3d;
+    bool data_source;
+    std::shared_ptr<ros::NodeHandle> nh3d;
+
+    octomap_msgs::OctomapConstPtr map;
+
+    double ws_x_max; // 32.2
+    double ws_y_max; // 32.2
+    double ws_z_max;
+    double ws_x_min;
+    double ws_y_min;
+    double ws_z_min;
+    double map_resolution;
+    double map_h_inflaction;
+    double map_v_inflaction; //JAC: Hasta aquí todo cero.
+    double goal_weight;
+    double z_weight_cost;
+    double z_not_inflate;
+    double traj_dxy_max;
+    double traj_dz_max;
+    double traj_vxy_m;
+    double traj_vz_m;
+    double traj_vxy_m_1;
+    double traj_vz_m_1;
+    double traj_wyaw_m;
+    double traj_pos_tol;
+    double traj_yaw_tol;
 }; //class GlobalPlanner
 
 } //namespace PathPlanners

@@ -10,21 +10,31 @@ GlobalPlanner::GlobalPlanner(string node_name_)
 {
     //The tf buffer is used to lookup the base link position(tf from world frame to robot base frame)
     //tfBuffer = tfBuffer_;
+    node_name = node_name_;
 
     nh.reset(new ros::NodeHandle("~"));
+    nh3d.reset(new ros::NodeHandle("~"));
+    nh->param("3dmode", use3d, (bool)false);
+
     tfBuffer.reset(new tf2_ros::Buffer);
     tf2_list.reset(new tf2_ros::TransformListener(*tfBuffer));
+    if (!use3d)
+    {
 #ifdef MELODIC
-    global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", *tfBuffer.get()));
+        global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", *tfBuffer.get()));
 #endif
 
 #ifndef MELODIC
-    tf_list_ptr.reset(new tf::TransformListener(ros::Duration(5)));
-    global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", *tf_list_ptr)); //In ros kinetic the constructor uses tf instead of tf2 :(
+        tf_list_ptr.reset(new tf::TransformListener(ros::Duration(5)));
+        global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", *tf_list_ptr)); //In ros kinetic the constructor uses tf instead of tf2 :(
 #endif
+        configParams2D();
+    }
+    else
+    {
+        configParams3D();
+    }
 
-    node_name = node_name_;
-    configParams();
     configTopics();
     configServices();
     //Pase parameters from configParams to thetastar object
@@ -44,18 +54,42 @@ void GlobalPlanner::resetGlobalCostmap()
 }
 void GlobalPlanner::configTheta()
 {
-    gbPlanner.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, nh);
-    gbPlanner.setTimeOut(10);
-    gbPlanner.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
+    if (use3d)
+    {
+        theta3D.init(node_name, world_frame, ws_x_max, ws_y_max, ws_z_max, ws_x_min, ws_y_min, ws_z_min, map_resolution, map_h_inflaction, map_v_inflaction, goal_weight, z_weight_cost, z_not_inflate, nh3d);
+        theta3D.setTimeOut(10);
+        theta3D.setTrajectoryParams(traj_dxy_max, traj_dz_max, traj_pos_tol, traj_vxy_m, traj_vz_m, traj_vxy_m_1, traj_vz_m_1, traj_wyaw_m, traj_yaw_tol);
+        theta3D.confPrintRosWarn(false);
+    }
+    else
+    {
+        theta2D.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, nh);
+        theta2D.setTimeOut(10);
+        theta2D.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
+    }
 }
 void GlobalPlanner::configTopics()
 {
+
     replan_status_pub = nh->advertise<std_msgs::Bool>("replanning_status", 1);
     visMarkersPublisher = nh->advertise<visualization_msgs::Marker>("markers", 2);
+    if (use3d)
+    {
+        sub_map = nh->subscribe<octomap_msgs::Octomap>("/octomap_binary", 0, &GlobalPlanner::collisionMapCallBack, this);
+    }
+}
+void GlobalPlanner::collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg)
+{
+    map = msg;
+    theta3D.updateMap(map);
+    //ROS_INFO_COND(debug, PRINTF_MAGENTA "Collision Map Received");
 }
 void GlobalPlanner::configServices()
 {
-    reset_global_costmap_service = nh->advertiseService("reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
+    if (!use3d)
+    {
+        reset_global_costmap_service = nh->advertiseService("reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
+    }
 
     rot_in_place_client_ptr.reset(new RotationInPlaceClient("/Recovery_Rotation", true));
     execute_path_client_ptr.reset(new ExecutePathClient("/Execute_Plan", true));
@@ -74,16 +108,19 @@ void GlobalPlanner::configServices()
 }
 void GlobalPlanner::dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level)
 {
-    this->cost_weight = config.cost_weight;
-    this->lof_distance = config.lof_distance;
-    this->goal_weight = config.goal_weight;
-    this->occ_threshold = config.occ_threshold;
+    if (!use3d)
+    {
+        this->cost_weight = config.cost_weight;
+        this->lof_distance = config.lof_distance;
+        this->goal_weight = config.goal_weight;
+        this->occ_threshold = config.occ_threshold;
 
-    gbPlanner.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Dynamic reconfigure requested");
+        theta2D.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
+        ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 2D: Dynamic reconfigure requested");
+    }
 }
 //This function gets parameter from param server at startup if they exists, if not it passes default values
-void GlobalPlanner::configParams()
+void GlobalPlanner::configParams2D()
 {
     //At startup, no goal and no costmap received yet
     nbrRotationsExec = 0;
@@ -94,14 +131,14 @@ void GlobalPlanner::configParams()
     nh->param("debug", debug, (bool)0);
 
     nh->param("min_path_lenght", minPathLenght, (float)0.2);
-    nh->param("goal_weight", goal_weight, (float)1.5);
+    nh->param("goal_weight", goal_weight, (double)1.5);
     nh->param("cost_weight", cost_weight, (float)0.2);
     nh->param("lof_distance", lof_distance, (float)0.2);
     nh->param("occ_threshold", occ_threshold, (float)99);
 
-    nh->param("traj_dxy_max", traj_dxy_max, (float)1);
-    nh->param("traj_pos_tol", traj_pos_tol, (float)1);
-    nh->param("traj_yaw_tol", traj_yaw_tol, (float)0.1);
+    nh->param("traj_dxy_max", traj_dxy_max, (double)1);
+    nh->param("traj_pos_tol", traj_pos_tol, (double)1);
+    nh->param("traj_yaw_tol", traj_yaw_tol, (double)0.1);
 
     nh->param("world_frame", world_frame, (string) "/map");
     nh->param("robot_base_frame", robot_base_frame, (string) "/base_link");
@@ -150,7 +187,81 @@ void GlobalPlanner::configParams()
     ws_x_max = global_costmap_ptr->getCostmap()->getSizeInMetersX();
     ws_y_max = global_costmap_ptr->getCostmap()->getSizeInMetersY();
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: ws_x_max,ws_y_max, map_resolution: [%.2f, %.2f, %.2f]", ws_x_max, ws_y_max, map_resolution);
-    gbPlanner.loadMapParams(ws_x_max, ws_y_max, map_resolution);
+    theta2D.loadMapParams(ws_x_max, ws_y_max, map_resolution);
+}
+void GlobalPlanner::configParams3D()
+{
+    //At startup, no goal and no costmap received yet
+    nbrRotationsExec = 0;
+    seq = 0;
+    timesReplaned = 0;
+    //Get params from param server. If they dont exist give variables default values
+    nh->param("show_config", showConfig, (bool)0);
+    nh->param("debug", debug, (bool)0);
+    //! 1 for octomap
+    //! 0 for point cloud
+    nh->param("data_source", data_source, (bool)1);
+    nh->param("ws_x_max", ws_x_max, (double)30);
+    nh->param("ws_y_max", ws_y_max, (double)30);
+    nh->param("ws_z_max", ws_z_max, (double)30);
+    nh->param("ws_x_min", ws_x_min, (double)0);
+    nh->param("ws_y_min", ws_y_min, (double)0);
+    nh->param("ws_z_min", ws_z_min, (double)0);
+    nh->param("map_resolution", map_resolution, (double)0.05);
+    nh->param("map_h_inflaction", map_h_inflaction, (double)0.05);
+    nh->param("map_v_inflaction", map_v_inflaction, (double)0.05);
+    nh->param("z_weight_cost", z_weight_cost, (double)1.2);
+    nh->param("z_not_inflate", z_not_inflate, (double)1);
+    nh->param("goal_weight", goal_weight, (double)1.1);
+    nh->param("traj_dxy_max", traj_dxy_max, (double)1);
+    nh->param("traj_pos_tol", traj_pos_tol, (double)1);
+    nh->param("traj_yaw_tol", traj_yaw_tol, (double)0.1);
+    nh->param("traj_dz_max", traj_dz_max, (double)1);
+    nh->param("traj_vxy_m", traj_vxy_m, (double)1);
+    nh->param("traj_vz_m", traj_vz_m, (double)1);
+    nh->param("traj_vxy_m_1", traj_vxy_m_1, (double)1);
+    nh->param("traj_vz_m_1", traj_vz_m_1, (double)1);
+    nh->param("traj_wyaw_m", traj_wyaw_m, (double)1);
+    nh->param("world_frame", world_frame, (string) "/map");
+    nh->param("robot_base_frame", robot_base_frame, (string) "/base_link");
+
+    ROS_INFO_COND(showConfig, PRINTF_GREEN "Global Planner 3D Node Configuration:");
+    ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* with optim.: goal_weight = [%.2f]", goal_weight);
+    ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Trajectory Position Increments = [%.2f], Tolerance: [%.2f]", traj_dxy_max, traj_pos_tol);
+    ROS_INFO_COND(showConfig, PRINTF_GREEN "\t World frame: %s, Robot base frame: %s", world_frame.c_str(), robot_base_frame.c_str());
+
+    //Line strip marker use member points, only scale.x is used to control linea width
+    lineMarker.header.frame_id = world_frame;
+    lineMarker.header.stamp = ros::Time::now();
+    lineMarker.id = rand();
+    lineMarker.ns = "global_path_3d";
+    lineMarker.lifetime = ros::Duration(500);
+    lineMarker.type = RVizMarker::LINE_STRIP;
+    lineMarker.action = RVizMarker::ADD;
+    lineMarker.pose.orientation.w = 1;
+    lineMarker.color.r = 0.0;
+    lineMarker.color.g = 1.0;
+    lineMarker.color.b = 0.0;
+    lineMarker.color.a = 1.0;
+    lineMarker.scale.x = 0.1;
+
+    waypointsMarker.header.frame_id = world_frame;
+    waypointsMarker.header.stamp = ros::Time::now();
+    waypointsMarker.ns = "global_path_3d";
+    waypointsMarker.id = lineMarker.id + 1;
+    waypointsMarker.lifetime = ros::Duration(500);
+    waypointsMarker.type = RVizMarker::POINTS;
+    waypointsMarker.action = RVizMarker::ADD;
+    waypointsMarker.pose.orientation.w = 1;
+    waypointsMarker.color.r = 1.0;
+    waypointsMarker.color.g = 1.0;
+    waypointsMarker.color.b = 0.0;
+    waypointsMarker.color.a = 1.0;
+    waypointsMarker.scale.x = 0.15;
+    waypointsMarker.scale.y = 0.15;
+    waypointsMarker.scale.z = 0.15;
+
+    //Configure map parameters
 }
 void GlobalPlanner::sendPathToLocalPlannerServer()
 {
@@ -161,11 +272,12 @@ void GlobalPlanner::sendPathToLocalPlannerServer()
 }
 void GlobalPlanner::publishMakePlanFeedback()
 {
-    float x, y;
+    float x = 0, y = 0, z = 0;
     x = (getRobotPose().transform.translation.x - goal.vector.x);
     y = (getRobotPose().transform.translation.y - goal.vector.y);
+    z = (getRobotPose().transform.translation.z - goal.vector.z);
 
-    dist2Goal.data = sqrtf(x * x + y * y);
+    dist2Goal.data = sqrtf(x * x + y * y + z * z);
     make_plan_fb.distance_to_goal = dist2Goal;
 
     travel_time.data = (ros::Time::now() - start_time);
@@ -223,7 +335,8 @@ int GlobalPlanner::getClosestWaypoint()
     for (auto it = trajectory.points.cbegin(); it != trajectory.points.cend(); it++)
     {
         robotDist = sqrtf(((robotPose.translation.x - it->transforms[0].translation.x) * (robotPose.translation.x - it->transforms[0].translation.x) +
-                           (robotPose.translation.y - it->transforms[0].translation.y) * (robotPose.translation.y - it->transforms[0].translation.y)));
+                           (robotPose.translation.y - it->transforms[0].translation.y) * (robotPose.translation.y - it->transforms[0].translation.y) +
+                           (robotPose.translation.z - it->transforms[0].translation.z) * (robotPose.translation.z - it->transforms[0].translation.z)));
 
         if (robotDist < dist)
         {
@@ -250,11 +363,15 @@ void GlobalPlanner::makePlanGoalCB()
 
     goal.vector.x = goalPoseStamped.pose.position.x;
     goal.vector.y = goalPoseStamped.pose.position.y;
+    goal.vector.z = goalPoseStamped.pose.position.z;
     goal.header = goalPoseStamped.header;
 
-    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
-    gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
-    lock.unlock();
+    if (!use3d)
+    {
+        boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
+        theta2D.getMap(global_costmap_ptr->getCostmap()->getCharMap());
+        lock.unlock();
+    }
 
     ROS_INFO_COND(debug, "Called make plan srv");
 
@@ -283,12 +400,14 @@ void GlobalPlanner::makePlanPreemptCB()
 }
 bool GlobalPlanner::replan()
 {
-    resetGlobalCostmap();
-    usleep(5e5);
-
-    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
-    gbPlanner.getMap(global_costmap_ptr->getCostmap()->getCharMap());
-    lock.unlock();
+    if (use3d)
+    {
+        resetGlobalCostmap();
+        usleep(1e5);
+        boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
+        theta2D.getMap(global_costmap_ptr->getCostmap()->getCharMap());
+        lock.unlock();
+    }
 
     make_plan_res.replan_number.data++;
 
@@ -303,11 +422,16 @@ bool GlobalPlanner::replan()
         sendPathToLocalPlannerServer();
         return true;
     }
-    else if(timesReplaned>2)
+    else if (timesReplaned > 2)
     {
+        timesReplaned = 0;
         make_plan_res.finished = false;
         make_plan_res.not_possible = true;
-        make_plan_server_ptr->setPreempted(make_plan_res, "Tried to replan and aborted after replanning");
+
+        flg_replan_status.data = false;
+        replan_status_pub.publish(flg_replan_status);
+
+        make_plan_server_ptr->setPreempted(make_plan_res, "Tried to replan and aborted after replanning 2 times");
         execute_path_client_ptr->cancelAllGoals();
         return false;
     }
@@ -338,7 +462,9 @@ void GlobalPlanner::plan()
     if (make_plan_server_ptr->isActive())
     {
         publishMakePlanFeedback();
-    }else{
+    }
+    else
+    {
         return;
     }
 
@@ -388,7 +514,14 @@ bool GlobalPlanner::calculatePath()
         // Path calculation
 
         ftime(&start);
-        number_of_points = gbPlanner.computePath();
+        if (use3d)
+        {
+            number_of_points = theta3D.computePath();
+        }
+        else
+        {
+            number_of_points = theta2D.computePath();
+        }
         ftime(&finish);
 
         seconds = finish.time - start.time - 1;
@@ -400,9 +533,17 @@ bool GlobalPlanner::calculatePath()
         if (number_of_points > 0)
         {
             ROS_INFO_COND(debug, PRINTF_MAGENTA "Publishing trajectory, %d", number_of_points);
-            publishTrajectory();
-            
-            if(pathLength < minPathLenght ){
+            if (use3d)
+            {
+                publishTrajectory3D();
+            }
+            else
+            {
+                publishTrajectory2D();
+            }
+
+            if (pathLength < minPathLenght)
+            {
                 execute_path_client_ptr->cancelAllGoals();
                 make_plan_server_ptr->setPreempted();
             }
@@ -426,13 +567,15 @@ bool GlobalPlanner::calculatePath()
 }
 void GlobalPlanner::calculatePathLength()
 {
-    float x, y;
+    float x, y, z;
     pathLength = 0;
     for (size_t it = 0; it < (trajectory.points.size() - 1); it++)
     {
         x = trajectory.points[it].transforms[0].translation.x - trajectory.points[it + 1].transforms[0].translation.x;
         y = trajectory.points[it].transforms[0].translation.y - trajectory.points[it + 1].transforms[0].translation.y;
-        pathLength += sqrtf(x * x + y * y);
+        y = trajectory.points[it].transforms[0].translation.z - trajectory.points[it + 1].transforms[0].translation.z;
+
+        pathLength += sqrtf(x * x + y * y + z * z);
     }
 }
 geometry_msgs::TransformStamped GlobalPlanner::getRobotPose()
@@ -449,7 +592,7 @@ geometry_msgs::TransformStamped GlobalPlanner::getRobotPose()
     }
     return ret;
 }
-void GlobalPlanner::publishTrajectory()
+void GlobalPlanner::publishTrajectory2D()
 {
 
     trajectory.joint_names.push_back(world_frame);
@@ -464,11 +607,11 @@ void GlobalPlanner::publishTrajectory()
 
     if (number_of_points > 1)
     {
-        gbPlanner.getTrajectoryYawInAdvance(trajectory, transform_robot_pose.transform);
+        theta2D.getTrajectoryYawInAdvance(trajectory, transform_robot_pose.transform);
     }
     else if (number_of_points == 1)
     {
-        gbPlanner.getTrajectoryYawFixed(trajectory, gbPlanner.getYawFromQuat(transform_robot_pose.transform.rotation));
+        theta2D.getTrajectoryYawFixed(trajectory, theta2D.getYawFromQuat(transform_robot_pose.transform.rotation));
         trajectory_msgs::MultiDOFJointTrajectoryPoint pos;
         pos.transforms.push_back(transform_robot_pose.transform);
         trajectory.points.push_back(pos);
@@ -509,17 +652,94 @@ void GlobalPlanner::publishTrajectory()
     visMarkersPublisher.publish(lineMarker);
     visMarkersPublisher.publish(waypointsMarker);
 }
+
+void GlobalPlanner::publishTrajectory3D()
+{
+    trajectory.header.stamp = ros::Time::now();
+    trajectory.header.frame_id = world_frame;
+    trajectory.header.seq = ++seq;
+    trajectory.points.clear();
+
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Trajectory calculation...");
+
+    geometry_msgs::TransformStamped transform_robot_pose = getRobotPose();
+
+    if (number_of_points > 1)
+    {
+        theta3D.getTrajectoryYawInAdvance(trajectory, transform_robot_pose.transform);
+    }
+    else if (number_of_points == 1)
+    {
+        theta3D.getTrajectoryYawFixed(trajectory, theta3D.getYawFromQuat(transform_robot_pose.transform.rotation));
+        trajectory_msgs::MultiDOFJointTrajectoryPoint pos;
+        pos.transforms.push_back(transform_robot_pose.transform);
+        trajectory.points.push_back(pos);
+    }
+
+    // Send the trajectory
+    // Trajectory solution visualization marker
+
+    trajectory_msgs::MultiDOFJointTrajectoryPoint goal_multidof;
+    geometry_msgs::Transform transform_goal;
+
+    transform_goal.rotation = goalPoseStamped.pose.orientation;
+    transform_goal.translation.x = goalPoseStamped.pose.position.x;
+    transform_goal.translation.y = goalPoseStamped.pose.position.y;
+    transform_goal.translation.z = goalPoseStamped.pose.position.z;
+
+    goal_multidof.transforms.resize(1, transform_goal);
+
+    trajectory.points.push_back(goal_multidof);
+
+    //!Calculate path length:
+    calculatePathLength();
+
+    clearMarkers();
+
+    lineMarker.header.stamp = ros::Time::now();
+    waypointsMarker.header.stamp = ros::Time::now();
+
+    geometry_msgs::Point p;
+
+    for (size_t i = 0; i < trajectory.points.size(); i++)
+    {
+        p.x = trajectory.points[i].transforms[0].translation.x;
+        p.y = trajectory.points[i].transforms[0].translation.y;
+        p.z = trajectory.points[i].transforms[0].translation.z;
+
+        lineMarker.points.push_back(p);
+        waypointsMarker.points.push_back(p);
+    }
+
+    visMarkersPublisher.publish(lineMarker);
+    visMarkersPublisher.publish(waypointsMarker);
+}
 bool GlobalPlanner::setGoal()
 {
     bool ret = false;
-    if (gbPlanner.setValidFinalPosition(goal.vector))
+    if (use3d)
     {
-        ret = true;
+        if (theta3D.setValidFinalPosition(goal.vector))
+        {
+            ret = true;
+        }
+        else
+        {
+            ROS_ERROR("Global Planner: Failed to set final global position: [%.2f, %.2f] ", goal.vector.x, goal.vector.y);
+        }
     }
     else
     {
-        ROS_ERROR("Global Planner: Failed to set final global position: [%.2f, %.2f] ", goal.vector.x, goal.vector.y);
+        if (theta2D.setValidFinalPosition(goal.vector))
+        {
+            ret = true;
+        }
+        else
+        {
+            ROS_ERROR("Global Planner: Failed to set final global position: [%.2f, %.2f] ", goal.vector.x, goal.vector.y);
+        }
     }
+
     return ret;
 }
 bool GlobalPlanner::setStart()
@@ -528,19 +748,39 @@ bool GlobalPlanner::setStart()
     geometry_msgs::Vector3Stamped start;
     start.vector.x = getRobotPose().transform.translation.x;
     start.vector.y = getRobotPose().transform.translation.y;
+    start.vector.z = getRobotPose().transform.translation.z;
 
-    if (gbPlanner.setValidInitialPosition(start.vector))
+    if (use3d)
     {
-        ret = true;
-    }
-    else if (gbPlanner.searchInitialPosition2d(0.25))
-    {
-        ROS_INFO(PRINTF_MAGENTA "Global Planner: Found a free initial position");
-        ret = true;
+        if (theta3D.setValidInitialPosition(start.vector))
+        {
+            ret = true;
+        }
+        else if (theta3D.searchInitialPosition2d(0.25))
+        {
+            ROS_INFO(PRINTF_MAGENTA "Global Planner 3D: Found a free initial position");
+            ret = true;
+        }
+        else
+        {
+            ROS_ERROR("Global Planner 3D: Failed to set initial global position(after search around): [%.2f, %.2f]", start.vector.x, start.vector.y);
+        }
     }
     else
     {
-        ROS_ERROR("Global Planner: Failed to set initial global position(after search around): [%.2f, %.2f]", start.vector.x, start.vector.y);
+        if (theta2D.setValidInitialPosition(start.vector))
+        {
+            ret = true;
+        }
+        else if (theta2D.searchInitialPosition2d(0.25))
+        {
+            ROS_INFO(PRINTF_MAGENTA "Global Planner 2D: Found a free initial position");
+            ret = true;
+        }
+        else
+        {
+            ROS_ERROR("Global Planner 2D: Failed to set initial global position(after search around): [%.2f, %.2f]", start.vector.x, start.vector.y);
+        }
     }
     return ret;
 }
