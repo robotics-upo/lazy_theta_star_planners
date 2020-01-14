@@ -14,6 +14,11 @@ find_package(catkin REQUIRED COMPONENTS
   costmap_2d
   geometry_msgs
   trajectory_msgs
+  octomap_msgs
+  octomap_ros
+  moveit_msgs
+  pcl_conversions
+  pcl_ros
 )
 find_package(Boost REQUIRED COMPONENTS system)
 
@@ -36,7 +41,8 @@ generate_dynamic_reconfigure_options(
 
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS roscpp upo_actions
+  CATKIN_DEPENDS roscpp upo_actions message_runtime octomap_msgs octomap_ros pcl_conversions pcl_ros
+  DEPENDS octomap_msgs octomap_ros
 )
 ###########
 ## Build ##
@@ -53,11 +59,11 @@ include_directories(
 #add_dependencies(sim_planner_node ${PROJECT_NAME}_gencfg)
 #add_dependencies(sim_planner_node ${catkin_EXPORTED_TARGETS})
 
-add_executable(global_planner_node src/global_planner_node.cpp src/GlobalPlanner.cpp src/ThetaStar.cpp)
+add_executable(global_planner_node src/global_planner_node.cpp src/GlobalPlanner.cpp src/ThetaStar2D.cpp src/ThetaStar3D.cpp)
 target_link_libraries(global_planner_node ${catkin_LIBRARIES})
 add_dependencies(global_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-add_executable(local_planner_node src/local_planner_node.cpp src/LocalPlanner.cpp src/ThetaStar.cpp)
+add_executable(local_planner_node src/local_planner_node.cpp src/LocalPlanner.cpp src/ThetaStar2D.cpp src/ThetaStar3D.cpp)
 target_link_libraries(local_planner_node ${catkin_LIBRARIES})
 add_dependencies(local_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} )
 
