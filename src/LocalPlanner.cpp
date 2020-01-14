@@ -14,7 +14,6 @@ LocalPlanner::LocalPlanner(tf2_ros::Buffer *tfBuffer_)
     nh->param("3dmode", use3d, (bool)false);
     if (use3d)
     {
-        nh3d.reset(new ros::NodeHandle("~"));
         configParams3D();
     }
     else
@@ -292,7 +291,7 @@ void LocalPlanner::configTheta()
     if (use3d)
     {
         ROS_INFO("theta Workspace: X: [%.2f, %.2f]\t Y: [%.2f, %.2f]\t Z: [%.2f, %.2f]", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
-        theta3D.init(node_name, world_frame, ws_x_max, ws_y_max, ws_z_max, ws_x_min, ws_y_min, ws_z_min, map_resolution, map_h_inflaction, map_v_inflaction, goal_weight, z_weight_cost, z_not_inflate, nh3d);
+        theta3D.init(node_name, world_frame, ws_x_max, ws_y_max, ws_z_max, ws_x_min, ws_y_min, ws_z_min, map_resolution, map_h_inflaction, map_v_inflaction, goal_weight, z_weight_cost, z_not_inflate, nh);
         theta3D.setTimeOut(10);
         theta3D.setTrajectoryParams(traj_dxy_max, traj_dz_max, traj_pos_tol, traj_vxy_m, traj_vz_m, traj_vxy_m_1, traj_vz_m_1, traj_wyaw_m, traj_yaw_tol);
         theta3D.confPrintRosWarn(true);

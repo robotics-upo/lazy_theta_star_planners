@@ -182,7 +182,7 @@ class ThetaStar3D
 		   @param Lazy Theta* bounded: Minimum Z that will be inflated vertically 
 		   @param NodeHandle 
 		**/
-		ThetaStar3D(std::string plannerName, std::string frame_id, float ws_x_max_, float ws_y_max_, float ws_z_max_, float ws_x_min_, float ws_y_min_, float ws_z_min_, float step_, float h_inflation_, float v_inflation_, float goal_weight_, float z_weight_cost_, float z_not_inflate_, std::shared_ptr<ros::NodeHandle> n );
+		ThetaStar3D(std::string plannerName, std::string frame_id, float ws_x_max_, float ws_y_max_, float ws_z_max_, float ws_x_min_, float ws_y_min_, float ws_z_min_, float step_, float h_inflation_, float v_inflation_, float goal_weight_, float z_weight_cost_, float z_not_inflate_, ros::NodeHandlePtr n );
 
 		/**
 		  Initialization
@@ -196,7 +196,7 @@ class ThetaStar3D
 		   @param Lazy Theta* bounded: Minimum Z that will be inflated vertically 
 		   @param NodeHandle 
 		**/
-		void init(std::string plannerName, std::string frame_id, float ws_x_max_, float ws_y_max_, float ws_z_max_, float ws_x_min_, float ws_y_min_, float ws_z_min_, float step_, float h_inflation_, float v_inflation_, float goal_weight_, float z_weight_cost_, float z_not_inflate_, std::shared_ptr<ros::NodeHandle> n);
+		void init(std::string plannerName, std::string frame_id, float ws_x_max_, float ws_y_max_, float ws_z_max_, float ws_x_min_, float ws_y_min_, float ws_z_min_, float step_, float h_inflation_, float v_inflation_, float goal_weight_, float z_weight_cost_, float z_not_inflate_, ros::NodeHandlePtr n);
 
 		/**
 		  Default destructor
@@ -883,7 +883,7 @@ class ThetaStar3D
 		float z_not_inflate; // Altitude to not be inflated
 
 		// Debug Visualization markers and theirs topics
-		std::shared_ptr<ros::NodeHandle> nh; // Pointer to the process NodeHandle to publish topics
+		ros::NodeHandlePtr nh; // Pointer to the process NodeHandle to publish topics
 		RVizMarker marker; // Explored nodes by ThetaStar
 		ros::Publisher marker_pub_;
 		PointCloud occupancy_marker; // Occupancy Map as PointCloud markers

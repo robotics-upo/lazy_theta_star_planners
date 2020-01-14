@@ -222,7 +222,6 @@ private:
     octomap_msgs::OctomapConstPtr map;
     ThetaStar3D theta3D;
 
-    std::shared_ptr<ros::NodeHandle> nh3d;
     bool use3d;
     bool mapReceived;
 

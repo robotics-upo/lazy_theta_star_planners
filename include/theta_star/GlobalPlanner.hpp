@@ -205,7 +205,6 @@ private:
     ThetaStar3D theta3D;
     bool use3d;
     bool data_source;
-    std::shared_ptr<ros::NodeHandle> nh3d;
 
     octomap_msgs::OctomapConstPtr map;
 
