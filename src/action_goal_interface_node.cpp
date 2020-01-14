@@ -32,6 +32,7 @@ public:
         fidNavigationClient.reset(new FiducialNavigationctionClient("/FiducialNavigation", false));
 
         nh.reset(new ros::NodeHandle("~"));
+        nh->param("log", use_logger, (bool)false);
         nh->param("mission_enabled", goals_by_file, (bool)true);
         nh->param("world_frame", world_frame, (std::string) "map");
         nh->param("override_in_rviz_mode", override, (bool)true);
@@ -41,7 +42,7 @@ public:
         double waiting_time;
         nh->param("waiting_time", waiting_time, (double)10.0);
         waitTime = ros::Duration(waiting_time);
-        
+
         //This topic will add the current last goal succedeed(i.e. the current robot pose) to the goals queue just before the shelter
         // goal_red_marker_sub = nh->subscribe<geometry_msgs::PoseStamped>("add_red_waypoint", 1, &MissionInterface::redPointCb, this);
         build_mission_points = nh->subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &MissionInterface::addWaypointCb, this);
@@ -111,7 +112,7 @@ public:
 
                     fid_goal = std::floor(std::abs(goalType) / 100) - 100;
                     fid_orientation = std::floor(std::abs(goalType) % 100);
-                    reverse = goalType < 0 ;
+                    reverse = goalType < 0;
 
                     fid_pose = actionGoal.goal.global_goal.pose;
 
@@ -147,7 +148,7 @@ public:
                                    actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
                 }
             }
-            else if (goals_queu.empty() && doMission && !goalRunning)//!isGoalActive())
+            else if (goals_queu.empty() && doMission && !goalRunning) //!isGoalActive())
             {
                 ROS_INFO_NAMED(hmi_ns, "HMI: Robot arrived to shelter, mission finished");
                 goNext = true;
@@ -171,18 +172,18 @@ public:
 private:
     bool isGoalActive()
     {
-        return makePlanClient->getState() == actionlib::SimpleClientGoalState::ACTIVE 
-        || fidNavigationClient->getState() == actionlib::SimpleClientGoalState::ACTIVE;
+        return makePlanClient->getState() == actionlib::SimpleClientGoalState::ACTIVE || fidNavigationClient->getState() == actionlib::SimpleClientGoalState::ACTIVE;
     }
     void processState()
     {
         auto curr_state = makePlanClient->getState();
 
-        if(std::abs(goalType) > 10000 ){
-           curr_state = fidNavigationClient->getState();
+        if (std::abs(goalType) > 10000)
+        {
+            curr_state = fidNavigationClient->getState();
         }
 
-        if (goalRunning )
+        if (goalRunning)
         {
             if (curr_state == actionlib::SimpleClientGoalState::PREEMPTED)
             {
@@ -192,16 +193,17 @@ private:
 
                     ROS_INFO_NAMED(hmi_ns, "HMI: Trying to calculate alternative route to the goal");
 
-                    if(std::abs(goalType)>10000){
-                        ROS_INFO_NAMED(hmi_ns,"Skipping fiducial goal");
+                    if (std::abs(goalType) > 10000)
+                    {
+                        ROS_INFO_NAMED(hmi_ns, "Skipping fiducial goal");
                         ++tries;
                         goNext = true;
                     }
 
                     ++tries;
-                    if (tries > 1 && goalType!=2)
+                    if (tries > 1 && goalType != 2)
                     {
-                        
+
                         ROS_ERROR_NAMED(hmi_ns, "Could not get to the fiducial goal");
                         // execMissionServer->setPreempted();
                         goNext = true;
@@ -210,7 +212,7 @@ private:
                         goalReceived = false;
                         missionLoaded = true;
                         // i_p = 1;
-                        
+
                         //TODO: Añadir aqui de nuevo a la cola antes del shelter
                         //Crear una copia de la cola actual
                         //Limpiar la cola actual
@@ -235,14 +237,16 @@ private:
                         goals_queu.push(temp_goal);
 
                         temp_goal = temp_queu.front();*/
-                        
                     }
                     else
                     {
-                        if(std::abs(goalType) > 10000 ){
+                        if (std::abs(goalType) > 10000)
+                        {
                             fidNavigationClient->sendGoal(fidGoal);
                             ROS_INFO("Retrying fiducial goal");
-                        }else{
+                        }
+                        else
+                        {
                             waitTime.sleep();
                             makePlanClient->sendGoal(actionGoal.goal);
                         }
@@ -270,7 +274,7 @@ private:
             {
                 ROS_DEBUG("Goal Rejected :'(");
             }
-            if (curr_state == actionlib::SimpleClientGoalState::ABORTED )//Fiducial abort
+            if (curr_state == actionlib::SimpleClientGoalState::ABORTED) //Fiducial abort
             {
                 //!Do next goal?
                 ROS_INFO("Goal Aborted"); //?
@@ -278,7 +282,7 @@ private:
             }
             if (curr_state == actionlib::SimpleClientGoalState::SUCCEEDED)
             {
-                tries=0;
+                tries = 0;
                 if (sended_to_shelter)
                 {
                     sended_to_shelter = false;
@@ -297,7 +301,7 @@ private:
                 {
                     goNext = true;
                 }
-                
+
                 ++waypoint_number;
                 goalRunning = false;
             }
@@ -338,6 +342,8 @@ private:
         //First get shelter position
         nh->param("shelter/pose/x", shelter_position.pose.position.x, (double)0);
         nh->param("shelter/pose/y", shelter_position.pose.position.y, (double)0);
+        nh->param("shelter/pose/z", shelter_position.pose.position.z, (double)0);
+
         nh->param("shelter/orientation/x", shelter_position.pose.orientation.x, (double)0);
         nh->param("shelter/orientation/y", shelter_position.pose.orientation.y, (double)0);
         nh->param("shelter/orientation/z", shelter_position.pose.orientation.z, (double)0);
@@ -352,7 +358,7 @@ private:
             nh->param(base_path + std::to_string(i) + "/pose/x", goal.pose.position.x, (double)0);
             nh->param(base_path + std::to_string(i) + "/pose/y", goal.pose.position.y, (double)0);
             nh->param(base_path + std::to_string(i) + "/pose/z", goal.pose.position.z, (double)0);
-            
+
             nh->param(base_path + std::to_string(i) + "/orientation/x", goal.pose.orientation.x, (double)0);
             nh->param(base_path + std::to_string(i) + "/orientation/y", goal.pose.orientation.y, (double)0);
             nh->param(base_path + std::to_string(i) + "/orientation/z", goal.pose.orientation.z, (double)0);
@@ -361,18 +367,18 @@ private:
             if (goal_type == 1)
             {
                 goal.header.seq = 0;
-                ROS_INFO_NAMED(hmi_ns, "Goal Intermedio %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
+                ROS_INFO_NAMED(hmi_ns, "Goal Intermedio %d (x,y,z)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
             }
             else if (goal_type == 0)
             {
                 ++realgoals;
                 goal.header.seq = i;
-                ROS_INFO_NAMED(hmi_ns, "HMI: Inspection Point %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
+                ROS_INFO_NAMED(hmi_ns, "HMI: Inspection Point %d (x,y,z)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
             }
             else if (std::abs(goal_type) > 10000)
             {
                 goal.header.seq = 0;
-                ROS_INFO_NAMED(hmi_ns, "Goal %d (x,y)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
+                ROS_INFO_NAMED(hmi_ns, "Goal %d (x,y,z)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
             }
 
             temp_pair.first = goal;
@@ -417,6 +423,8 @@ private:
             mission_f << "    pose:" << std::endl;
             mission_f << "      x: " << it.pose.position.x << std::endl;
             mission_f << "      y: " << it.pose.position.y << std::endl;
+            mission_f << "      z: " << it.pose.position.z << std::endl;
+
             mission_f << "    orientation:" << std::endl;
             mission_f << "      x: " << it.pose.orientation.x << std::endl;
             mission_f << "      y: " << it.pose.orientation.y << std::endl;
@@ -563,7 +571,7 @@ private:
         actionGoal.header.frame_id = world_frame;
         actionGoal.header.seq = rand();
         actionGoal.header.stamp = ros::Time::now();
-        
+
         goalReceived = true;
         goalRunning = false;
     }
@@ -571,11 +579,15 @@ private:
     {
         execMissActGoal = execMissionServer->acceptNewGoal();
         //Execute the mission in mission_name:
-        std::system("roslaunch nix_html_logger logger.launch &");
+        if (use_logger)
+        {
+            std::system("roslaunch nix_html_logger logger.launch &");
+        }
+
         loadMissionData(std::string(execMissActGoal->mission_name.data));
 
         doMission = true;
-        i_p=1;
+        i_p = 1;
         extra_info_fb = "Ok";
         tries = 0;
     }
@@ -609,7 +621,7 @@ private:
     {
         //Fill the fb
         execMissFb.inspection_point.data = i_p;
-        execMissFb.last_ip_color.data = "green";
+        execMissFb.last_ip_color.data = "empty";
         execMissFb.inspecting = inspecting; //If the robot is standing on the inspection point or travelling from one to another
         execMissFb.waypoint.data = waypoint_number;
         execMissFb.waypoint_type.data = goalType;
@@ -666,8 +678,8 @@ private:
     bool lastGoalPreempted = false;
 
     bool override;
+    bool use_logger = false;
     int i_p = 1;
-
 };
 
 int main(int argc, char **argv)
