@@ -382,8 +382,6 @@ bool GlobalPlanner::calculatePath()
     //so if there is no map received it won't calculate a path
     bool ret = false;
 
-    //while (!ret)
-    //{
     if (setGoal() && setStart())
     {
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal and start successfull set");
@@ -403,6 +401,7 @@ bool GlobalPlanner::calculatePath()
         {
             ROS_INFO_COND(debug, PRINTF_MAGENTA "Publishing trajectory, %d", number_of_points);
             publishTrajectory();
+            
             if(pathLength < minPathLenght ){
                 execute_path_client_ptr->cancelAllGoals();
                 make_plan_server_ptr->setPreempted();
@@ -421,24 +420,8 @@ bool GlobalPlanner::calculatePath()
         else
         {
             countImpossible++;
-            /*if(nbrRotationsExec || flg_replan_status.data){
-                    //break;
-                }
-                if (countImpossible == 3 && nbrRotationsExec < 1)
-                {
-                    //rot_in_place_goal.execute_rotation = true;
-                    //rot_in_place_client_ptr->sendGoal(rot_in_place_goal);
-                    //rot_in_place_client_ptr->waitForResult(ros::Duration(15));
-                    //nbrRotationsExec++;
-                }*/
         }
     }
-    /*else
-        {
-            ret = false;
-            //break;
-        }
-    }*/
     return ret;
 }
 void GlobalPlanner::calculatePathLength()
