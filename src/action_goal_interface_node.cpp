@@ -131,7 +131,8 @@ public:
 
                 if (!goals_queu.empty() && actionGoal.goal.global_goal.header.seq != 0)
                 {
-                    ROS_INFO_NAMED(hmi_ns, "HMI: Sending Robot to next inspection point: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
+                    ROS_INFO_NAMED(hmi_ns, "HMI: Sending Robot to next inspection point: [%.2f, %.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", 
+                                        actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,actionGoal.goal.global_goal.pose.position.z,
                                    actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
                                    actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
                 }
@@ -143,7 +144,8 @@ public:
                 else if (actionGoal.goal.global_goal.header.seq != 0)
                 {
                     //TODO Display the right inspection point avoiding intermediate waypoints
-                    ROS_INFO_NAMED(hmi_ns, "HMI: Sending Robot to next inspection point: [%.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,
+                    ROS_INFO_NAMED(hmi_ns, "HMI: Sending Robot to next inspection point: [%.2f, %.2f, %.2f]\t[%.2f, %.2f, %.2f, %.2f]", 
+                    actionGoal.goal.global_goal.pose.position.x, actionGoal.goal.global_goal.pose.position.y,actionGoal.goal.global_goal.pose.position.z,
                                    actionGoal.goal.global_goal.pose.orientation.x, actionGoal.goal.global_goal.pose.orientation.y,
                                    actionGoal.goal.global_goal.pose.orientation.z, actionGoal.goal.global_goal.pose.orientation.w);
                 }
@@ -367,18 +369,18 @@ private:
             if (goal_type == 1)
             {
                 goal.header.seq = 0;
-                ROS_INFO_NAMED(hmi_ns, "Goal Intermedio %d (x,y,z)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
+                ROS_INFO_NAMED(hmi_ns, "Goal Intermedio %d (x,y,z)(x,y,z,w):\t[%.2f,%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
             }
             else if (goal_type == 0)
             {
                 ++realgoals;
                 goal.header.seq = i;
-                ROS_INFO_NAMED(hmi_ns, "HMI: Inspection Point %d (x,y,z)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
+                ROS_INFO_NAMED(hmi_ns, "HMI: Inspection Point %d (x,y,z)(x,y,z,w):\t[%.2f,%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
             }
             else if (std::abs(goal_type) > 10000)
             {
                 goal.header.seq = 0;
-                ROS_INFO_NAMED(hmi_ns, "Goal %d (x,y,z)(x,y,z,w):\t[%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
+                ROS_INFO_NAMED(hmi_ns, "Goal %d (x,y,z)(x,y,z,w):\t[%.2f,%.2f,%.2f]\t[%.2f,%.2f,%.2f,%.2f]", realgoals, goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w);
             }
 
             temp_pair.first = goal;
