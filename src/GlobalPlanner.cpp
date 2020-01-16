@@ -13,7 +13,7 @@ GlobalPlanner::GlobalPlanner(string node_name_)
     node_name = node_name_;
 
     nh.reset(new ros::NodeHandle("~"));
-    nh->param("3dmode", use3d, (bool)false);
+    nh->param("mode3d", use3d, (bool)false);
 
     tfBuffer.reset(new tf2_ros::Buffer);
     tf2_list.reset(new tf2_ros::TransformListener(*tfBuffer));
