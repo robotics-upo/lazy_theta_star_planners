@@ -11,7 +11,7 @@ namespace PathPlanners
 LocalPlanner::LocalPlanner(tf2_ros::Buffer *tfBuffer_)
 {
     nh.reset(new ros::NodeHandle("~"));
-    nh->param("3dmode", use3d, (bool)false);
+    nh->param("mode3d", use3d, (bool)false);
     if (use3d)
     {
         configParams3D();
@@ -181,9 +181,9 @@ void LocalPlanner::configParams2D()
 
     nh->param("world_frame", world_frame, (string) "/map");
     nh->param("robot_base_frame", robot_base_frame, (string) "/base_link");
-    nh->param("local_costmap_infl_x", localCostMapInflationX, (float)1);
-    nh->param("local_costmap_infl_y", localCostMapInflationY, (float)1);
-    nh->param("border_space", border_space, (float)1);
+    nh->param("local_costmap_infl_x", localCostMapInflationX, (float)1.5);
+    nh->param("local_costmap_infl_y", localCostMapInflationY, (float)1.5);
+    nh->param("border_space", border_space, (float)1.5);
 
     nh->param("debug", debug, (bool)0);
     nh->param("show_config", showConfig, (bool)0);
@@ -396,15 +396,15 @@ void LocalPlanner::calculatePath2D()
     {
         ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Global trj received and local costmap received");
         mapReceived = false;
+        inflateCostMap(); //TODO Gordo arreglar esta chapuza de funcion
+        theta2D.getMap(&localCostMapInflated);
 
         if (theta2D.setValidInitialPosition(local_costmap_center) || theta2D.searchInitialPosition2d(0.3))
         {
             ROS_INFO_COND(debug, PRINTF_MAGENTA "Start ok, calculating local goal");
+
             if (calculateLocalGoal2D())
             {
-
-                inflateCostMap(); //TODO Gordo arreglar esta chapuza de funcion
-                theta2D.getMap(&localCostMapInflated);
 
                 ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Goal calculated");
 
@@ -478,6 +478,7 @@ void LocalPlanner::calculatePath2D()
             {
                 navigate_client_ptr->cancelGoal();
                 execute_path_srv_ptr->setAborted();
+                badGoal = 0;
             }
         }
         else if (timesCleaned < 3)
@@ -578,6 +579,7 @@ void LocalPlanner::calculatePath3D()
             {
                 navigate_client_ptr->cancelGoal();
                 execute_path_srv_ptr->setAborted();
+                badGoal = 0;
             }
         }
         else
