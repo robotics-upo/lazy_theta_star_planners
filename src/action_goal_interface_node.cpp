@@ -24,6 +24,7 @@ class MissionInterface
     typedef actionlib::SimpleActionClient<upo_actions::MakePlanAction> MakePlanActionClient;
     typedef actionlib::SimpleActionServer<upo_actions::ExecuteMissionAction> ExecMissActionServer;
     typedef actionlib::SimpleActionClient<upo_actions::FiducialNavigationAction> FiducialNavigationctionClient;
+    
 
 public:
     MissionInterface()
@@ -43,8 +44,6 @@ public:
         nh->param("waiting_time", waiting_time, (double)10.0);
         waitTime = ros::Duration(waiting_time);
 
-        //This topic will add the current last goal succedeed(i.e. the current robot pose) to the goals queue just before the shelter
-        // goal_red_marker_sub = nh->subscribe<geometry_msgs::PoseStamped>("add_red_waypoint", 1, &MissionInterface::redPointCb, this);
         build_mission_points = nh->subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &MissionInterface::addWaypointCb, this);
         save_mission_server = nh->advertiseService("save_mission", &MissionInterface::saveMissionSrvCB, this);
 
@@ -178,6 +177,12 @@ private:
     }
     void processState()
     {
+        if((hmi_mode || goals_by_file) && !doMission){
+            return;
+        }
+        if(!hmi_mode && !goals_by_file && !goalRunning){
+            return;
+        }
         auto curr_state = makePlanClient->getState();
 
         if (std::abs(goalType) > 10000)
@@ -682,6 +687,15 @@ private:
     bool override;
     bool use_logger = false;
     int i_p = 1;
+
+        enum MissionStates{
+        
+
+    };
+    enum SimpleStates{
+
+    };
+
 };
 
 int main(int argc, char **argv)
