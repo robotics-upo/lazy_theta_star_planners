@@ -170,6 +170,8 @@ void LocalPlanner::configParams2D()
     occGoalCnt = 0;
     startIter = 1;
 
+    nh->param("arrived_thresh", arrivedThresh, (double)0.25);
+
     nh->param("goal_weight", goal_weight, (double)1.5);
     nh->param("cost_weight", cost_weight, (float)0.2);
     nh->param("lof_distance", lof_distance, (float)1.5);
