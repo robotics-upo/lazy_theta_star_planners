@@ -338,10 +338,13 @@ void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
 
         local_costmap_center.x = ws_x_max / 2;
         local_costmap_center.y = ws_y_max / 2;
+        //Initiaize the inflated costmap occupancy grid with the data and metadata from the original costmap
 
-        theta2D.loadMapParams(ws_x_max, ws_y_max, map_resolution);
+        inflateCostMap();
         mapGeometryConfigured = true;
 
+        theta2D.loadMapParams(ws_x_max, ws_y_max, map_resolution);
+        theta2D.getMap(&localCostMapInflated);
         ROS_INFO_COND(showConfig, PRINTF_GREEN "\t WorkSpace: X:[%.2f], Y:[%.2f]", ws_x_max, ws_y_max);
         ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Local Costmap Origin: [%.2f, %.2f]", local_costmap_center.x, local_costmap_center.y);
         ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map: resol.= [%.2f]", map_resolution);
@@ -393,8 +396,9 @@ void LocalPlanner::plan()
 }
 void LocalPlanner::calculatePath2D()
 {
-    ROS_INFO("Calculating");s
-    ftime(&startT);
+    ROS_INFO("Calculating");
+    
+        ftime(&startT);
     if (mapReceived && doPlan && mapGeometryConfigured)
     {
         ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Global trj received and local costmap received");
@@ -411,7 +415,7 @@ void LocalPlanner::calculatePath2D()
 
                 ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Goal calculated");
                 freeLocalGoal();
-
+                theta2D.getMap(&localCostMapInflated);
                 if (theta2D.setValidFinalPosition(localGoal) || theta2D.searchFinalPosition2d(0.3))
                 {
                     ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Computing Local Path(2)");
@@ -655,11 +659,11 @@ bool LocalPlanner::calculateLocalGoal2D()
         C.vector.x = B.vector.x + (ws_x_max) / 2;
         C.vector.y = B.vector.y + (ws_y_max) / 2;
 
-        if (fabs(B.vector.x) > (ws_x_max / 2 - localCostMapInflationX) || fabs(B.vector.y) > (ws_y_max / 2 - localCostMapInflationY) || (i == globalTrajectory.points.size() - (size_t)1))
+        if (std::abs(B.vector.x) > (ws_x_max / 2 - localCostMapInflationX) || std::abs(B.vector.y) > (ws_y_max / 2 - localCostMapInflationY) || (i == globalTrajectory.points.size() - (size_t)1))
         {
             A.vector.x = globalTrajBLFrame.points[i - 1].transforms[0].translation.x;
             A.vector.y = globalTrajBLFrame.points[i - 1].transforms[0].translation.y;
-            if (fabs(B.vector.x) > ws_x_max / 2 || fabs(B.vector.y) > ws_y_max / 2)
+            if (std::abs(B.vector.x) > ws_x_max / 2 || std::abs(B.vector.y) > ws_y_max / 2)
             {
 
                 C.vector.x = A.vector.x + (ws_x_max) / 2;
@@ -677,8 +681,7 @@ bool LocalPlanner::calculateLocalGoal2D()
             break;
         }
     }
-
-
+    ROS_INFO("lOCAL GOAL Prev round: %.2f \t %.2f", C.vector.x,C.vector.y);
     //TODO: Mejorar esta chapuza
     while (C.vector.x > (ws_x_max - map_resolution) || C.vector.y > (ws_y_max - map_resolution))
     {
@@ -1001,7 +1004,6 @@ void LocalPlanner::inflateCostMap()
     //Lower boder
     for (int i = 0; i < l; i++)
         localCostMapInflated.data.push_back(100);
-
 }
 //Set to 0 the positions near the local goal in the border
 void LocalPlanner::freeLocalGoal()
