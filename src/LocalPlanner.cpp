@@ -94,7 +94,7 @@ void LocalPlanner::configParams3D()
     ws_x_min = -ws_x_max;
     ws_y_min = -ws_y_max;
 
-    ROS_INFO("PARAMS Workspace: X: [%.2f, %.2f]\t Y: [%.2f, %.2f]\t Z: [%.2f, %.2f]", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
+    ROS_INFO_COND(debug, "PARAMS Workspace: X: [%.2f, %.2f]\t Y: [%.2f, %.2f]\t Z: [%.2f, %.2f]", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
     nh->param("map_resolution", map_resolution, (double)0.05);
     nh->param("map_h_inflaction", map_h_inflaction, (double)0.5);
     nh->param("map_v_inflaction", map_v_inflaction, (double)0.5);
@@ -183,9 +183,9 @@ void LocalPlanner::configParams2D()
 
     nh->param("world_frame", world_frame, (string) "/map");
     nh->param("robot_base_frame", robot_base_frame, (string) "/base_link");
-    nh->param("local_costmap_infl_x", localCostMapInflationX, (float)1.5);
-    nh->param("local_costmap_infl_y", localCostMapInflationY, (float)1.5);
-    nh->param("border_space", border_space, (float)1.5);
+    nh->param("local_costmap_infl_x", localCostMapInflationX, (float)1);
+    nh->param("local_costmap_infl_y", localCostMapInflationY, (float)1);
+    nh->param("border_space", border_space, (float)1);
 
     nh->param("debug", debug, (bool)0);
     nh->param("show_config", showConfig, (bool)0);
@@ -252,7 +252,7 @@ void LocalPlanner::dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t 
 }
 void LocalPlanner::executePathPreemptCB()
 {
-    ROS_INFO("Goal Preempted");
+    ROS_INFO_COND(debug, "Goal Preempted");
     execute_path_srv_ptr->setPreempted(); // set the action state to preempted
     navigate_client_ptr->cancelAllGoals();
     resetFlags();
@@ -292,7 +292,7 @@ void LocalPlanner::configTheta()
 
     if (use3d)
     {
-        ROS_INFO("theta Workspace: X: [%.2f, %.2f]\t Y: [%.2f, %.2f]\t Z: [%.2f, %.2f]", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
+        ROS_INFO_COND(debug, "theta Workspace: X: [%.2f, %.2f]\t Y: [%.2f, %.2f]\t Z: [%.2f, %.2f]", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
         theta3D.init(node_name, world_frame, ws_x_max, ws_y_max, ws_z_max, ws_x_min, ws_y_min, ws_z_min, map_resolution, map_h_inflaction, map_v_inflaction, goal_weight, z_weight_cost, z_not_inflate, nh);
         theta3D.setTimeOut(10);
         theta3D.setTrajectoryParams(traj_dxy_max, traj_dz_max, traj_pos_tol, traj_vxy_m, traj_vz_m, traj_vxy_m_1, traj_vz_m_1, traj_wyaw_m, traj_yaw_tol);
@@ -319,8 +319,8 @@ void LocalPlanner::configTopics()
         local_map_sub = nh->subscribe<nav_msgs::OccupancyGrid>("/custom_costmap_node/costmap/costmap", 1, &LocalPlanner::localCostMapCb, this);
     }
 
-    visMarkersPublisher = nh->advertise<visualization_msgs::Marker>("markers", 30);
-    trajPub = nh->advertise<trajectory_msgs::MultiDOFJointTrajectory>("local_path", 2);
+    visMarkersPublisher = nh->advertise<visualization_msgs::Marker>("markers", 1, true);
+    trajPub = nh->advertise<trajectory_msgs::MultiDOFJointTrajectory>("local_path", 1);
 }
 //Calbacks and publication functions
 void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
@@ -366,15 +366,15 @@ void LocalPlanner::plan()
     }
     else if (navigate_client_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED)
     {
-        ROS_INFO("Goal aborted by path tracker");
+        ROS_INFO_COND(debug, "Goal aborted by path tracker");
         resetFlags();
     }
     else if (navigate_client_ptr->getState() == actionlib::SimpleClientGoalState::PREEMPTED)
     {
-        ROS_INFO("Goal preempted by path tracker");
+        ROS_INFO_COND(debug, "Goal preempted by path tracker");
         resetFlags();
     }
-    ROS_INFO("Before start loop calculation");
+    ROS_INFO_COND(debug, "Before start loop calculation");
 
     if (use3d)
     {
@@ -393,8 +393,9 @@ void LocalPlanner::plan()
 }
 void LocalPlanner::calculatePath2D()
 {
+    ROS_INFO("Calculating");s
     ftime(&startT);
-    if (mapReceived && doPlan)
+    if (mapReceived && doPlan && mapGeometryConfigured)
     {
         ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Global trj received and local costmap received");
         mapReceived = false;
@@ -409,6 +410,7 @@ void LocalPlanner::calculatePath2D()
             {
 
                 ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Goal calculated");
+                freeLocalGoal();
 
                 if (theta2D.setValidFinalPosition(localGoal) || theta2D.searchFinalPosition2d(0.3))
                 {
@@ -430,7 +432,7 @@ void LocalPlanner::calculatePath2D()
                     {
 
                         impossibleCnt++;
-                        //ROS_INFO("Local: +1 impossible");
+                        //ROS_INFO_COND(debug,"Local: +1 impossible");
                         if (impossibleCnt > 2)
                         {
 
@@ -486,7 +488,7 @@ void LocalPlanner::calculatePath2D()
         else if (timesCleaned < 3)
         {
             ++timesCleaned;
-            ROS_INFO("Local:Couldn't find a free point near start point, trying to clean the local costmap");
+            ROS_INFO_COND(debug, "Local:Couldn't find a free point near start point, trying to clean the local costmap");
             std_srvs::Trigger trg;
             costmap_clean_srv.call(trg);
         }
@@ -534,7 +536,7 @@ void LocalPlanner::calculatePath3D()
                     {
 
                         impossibleCnt++;
-                        //ROS_INFO("Local: +1 impossible");
+                        //ROS_INFO_COND(debug,"Local: +1 impossible");
                         if (impossibleCnt > 2)
                         {
                             double dist2goal = euclideanDistance(nav_goal.global_goal.position.x, nav_goal.global_goal.position.y, nav_goal.global_goal.position.z,
@@ -575,6 +577,7 @@ void LocalPlanner::calculatePath3D()
             }
             else if (badGoal < 3)
             {
+                ROS_INFO_COND(debug, "Bad Goal Calculated: [%.2f, %.2f]", localGoal.x, localGoal.y);
                 ++badGoal;
             }
             else
@@ -590,7 +593,7 @@ void LocalPlanner::calculatePath3D()
             navigate_client_ptr->cancelGoal();
             execute_path_srv_ptr->setAborted();
             clearMarkers();
-            ROS_INFO("no initial pose found");
+            ROS_INFO_COND(debug, "no initial pose found");
         }
     }
 }
@@ -614,7 +617,7 @@ void LocalPlanner::publishExecutePathFeedback()
 bool LocalPlanner::calculateLocalGoal2D()
 {
 
-    ROS_INFO("Local goal calculation");
+    ROS_INFO_COND(debug, "Local goal calculation");
     geometry_msgs::Vector3Stamped A, B, C;
 
     trajectory_msgs::MultiDOFJointTrajectory globalTrajBLFrame = globalTrajectory;
@@ -674,6 +677,8 @@ bool LocalPlanner::calculateLocalGoal2D()
             break;
         }
     }
+
+
     //TODO: Mejorar esta chapuza
     while (C.vector.x > (ws_x_max - map_resolution) || C.vector.y > (ws_y_max - map_resolution))
     {
@@ -721,7 +726,7 @@ bool LocalPlanner::calculateLocalGoal3D()
                 currentGoalBl.x = currentGoal.transforms[0].translation.x - robot.transform.translation.x;
                 currentGoalBl.y = currentGoal.transforms[0].translation.y - robot.transform.translation.y;
                 currentGoalBl.z = currentGoal.transforms[0].translation.z - robot.transform.translation.z;
-                ROS_INFO(PRINTF_CYAN "BEF BREAK1");
+                ROS_INFO_COND(debug, PRINTF_CYAN "BEF BREAK1");
                 break;
             }
             else
@@ -732,8 +737,8 @@ bool LocalPlanner::calculateLocalGoal3D()
                 currentGoalBl.x = currentGoal.transforms[0].translation.x - robot.transform.translation.x;
                 currentGoalBl.y = currentGoal.transforms[0].translation.y - robot.transform.translation.y;
                 currentGoalBl.z = currentGoal.transforms[0].translation.z - robot.transform.translation.z;
-                ROS_INFO("i: %d Current goal bl frame: [%.2f, %.2f, %.2f]", i, currentGoalBl.x, currentGoalBl.y, currentGoalBl.z);
-                ROS_INFO("i: %d Local goal map frame: [%.2f, %.2f, %.2f]", i, currentGoal.transforms[0].translation.x, currentGoal.transforms[0].translation.y, currentGoal.transforms[0].translation.z);
+                ROS_INFO_COND(debug, "i: %d Current goal bl frame: [%.2f, %.2f, %.2f]", i, currentGoalBl.x, currentGoalBl.y, currentGoalBl.z);
+                ROS_INFO_COND(debug, "i: %d Local goal map frame: [%.2f, %.2f, %.2f]", i, currentGoal.transforms[0].translation.x, currentGoal.transforms[0].translation.y, currentGoal.transforms[0].translation.z);
 
                 if (!pointInside(currentGoalBl))
                 {
@@ -743,7 +748,7 @@ bool LocalPlanner::calculateLocalGoal3D()
                     currentGoalBl.x = currentGoal.transforms[0].translation.x - robot.transform.translation.x;
                     currentGoalBl.y = currentGoal.transforms[0].translation.y - robot.transform.translation.y;
                     currentGoalBl.z = currentGoal.transforms[0].translation.z - robot.transform.translation.z;
-                    ROS_INFO(PRINTF_CYAN "BEF BREAK2");
+                    ROS_INFO_COND(debug, PRINTF_CYAN "BEF BREAK2");
                     break;
                 }
                 else
@@ -751,17 +756,17 @@ bool LocalPlanner::calculateLocalGoal3D()
                     ++i;
                     if (!goals_vector.empty())
                     {
-                        ROS_INFO("BEF");
+                        ROS_INFO_COND(debug, "BEF");
                         goals_vector.erase(it);
-                        ROS_INFO("AFTER");
+                        ROS_INFO_COND(debug, "AFTER");
                     }
                 }
             }
         }
         localGoal = currentGoalBl;
 
-        ROS_INFO("i: %d Local goal bl frame: [%.2f, %.2f, %.2f]", i, localGoal.x, localGoal.y, localGoal.z);
-        ROS_INFO("Local goalmap frame: [%.2f, %.2f, %.2f]", currentGoal.transforms[0].translation.x, currentGoal.transforms[0].translation.y, currentGoal.transforms[0].translation.z);
+        ROS_INFO_COND(debug, "i: %d Local goal bl frame: [%.2f, %.2f, %.2f]", i, localGoal.x, localGoal.y, localGoal.z);
+        ROS_INFO_COND(debug, "Local goalmap frame: [%.2f, %.2f, %.2f]", currentGoal.transforms[0].translation.x, currentGoal.transforms[0].translation.y, currentGoal.transforms[0].translation.z);
 
         return true;
     }
@@ -773,7 +778,7 @@ bool LocalPlanner::calculateLocalGoal3D()
 bool LocalPlanner::pointInside(geometry_msgs::Vector3 p)
 {
     geometry_msgs::Vector3 robot_pose = getTfMapToRobot().transform.translation;
-    ROS_INFO("Robot pose: [%.2f, %.2f, %.2f]", robot_pose.x, robot_pose.y, robot_pose.z);
+    ROS_INFO_COND(debug, "Robot pose: [%.2f, %.2f, %.2f]", robot_pose.x, robot_pose.y, robot_pose.z);
     if (p.x > ws_x_max || p.x < ws_x_min ||
         p.y > ws_y_max || p.y < ws_y_min ||
         p.z > ws_z_max || p.z < ws_z_min)
@@ -877,7 +882,7 @@ void LocalPlanner::buildAndPubTrayectory2D()
     geometry_msgs::Transform temp1;
     //La trayectoria se obtiene en el frame del local costmap, que tiene la misma orientacion que el map pero esta centrado en el base_link
 
-    ROS_INFO("Clearing local trajectory");
+    ROS_INFO_COND(debug, "Clearing local trajectory");
     localTrajectory.points.clear();
 
     if (number_of_points > 1)
@@ -889,14 +894,14 @@ void LocalPlanner::buildAndPubTrayectory2D()
         getTrajectoryYawFixed(localTrajectory, 0);
     }
 
-    ROS_INFO("Got traj");
+    ROS_INFO_COND(debug, "Got traj");
 
     for (size_t i = 0; i < localTrajectory.points.size(); i++)
     {
         localTrajectory.points[i].transforms[0].translation.x += localCostMapInflated.info.origin.position.x;
         localTrajectory.points[i].transforms[0].translation.y += localCostMapInflated.info.origin.position.y;
     }
-    ROS_INFO("After for loop");
+    ROS_INFO_COND(debug, "After for loop");
     localGoal.x += localCostMapInflated.info.origin.position.x;
     localGoal.y += localCostMapInflated.info.origin.position.y;
 
@@ -916,7 +921,7 @@ void LocalPlanner::buildAndPubTrayectory2D()
 }
 void LocalPlanner::buildAndPubTrayectory3D()
 {
-    ROS_INFO("Clearing local trajectory");
+    ROS_INFO_COND(debug, "Clearing local trajectory");
     localTrajectory.points.clear();
     geometry_msgs::Vector3 dron_pos = getTfMapToRobot().transform.translation;
 
@@ -928,7 +933,7 @@ void LocalPlanner::buildAndPubTrayectory3D()
     {
         getTrajectoryYawFixed(localTrajectory, 0);
     }
-    ROS_INFO("Got traj");
+    ROS_INFO_COND(debug, "Got traj");
 
     for (size_t i = 0; i < localTrajectory.points.size(); i++)
     {
@@ -936,7 +941,7 @@ void LocalPlanner::buildAndPubTrayectory3D()
         localTrajectory.points[i].transforms[0].translation.y += dron_pos.y;
         localTrajectory.points[i].transforms[0].translation.z += dron_pos.z;
     }
-    ROS_INFO("After for loop");
+    ROS_INFO_COND(debug, "After for loop");
 
     localTrajectory.points.push_back(currentGoal);
     localTrajectory.header.stamp = ros::Time::now();
@@ -964,8 +969,8 @@ void LocalPlanner::inflateCostMap()
     localCostMapInflated.header.seq = localCostMap.header.seq;
     localCostMapInflated.header.stamp = ros::Time(0);
 
-    localCostMapInflated.info.height = localCostMap.info.height + 2 * localCostMapInflationY / map_resolution;
-    localCostMapInflated.info.width = localCostMap.info.width + 2 * localCostMapInflationX / map_resolution;
+    localCostMapInflated.info.height = localCostMap.info.height + std::round(2 * localCostMapInflationY / map_resolution);
+    localCostMapInflated.info.width = localCostMap.info.width + std::round(2 * localCostMapInflationX / map_resolution);
 
     localCostMapInflated.info.resolution = map_resolution;
 
@@ -997,7 +1002,6 @@ void LocalPlanner::inflateCostMap()
     for (int i = 0; i < l; i++)
         localCostMapInflated.data.push_back(100);
 
-    freeLocalGoal();
 }
 //Set to 0 the positions near the local goal in the border
 void LocalPlanner::freeLocalGoal()
@@ -1037,6 +1041,7 @@ void LocalPlanner::freeLocalGoal()
     // ! i: Numero de fila
     // ! j: columna
     int st, end;
+    ROS_INFO("Local Goal: [%.2f, %.2f]", localGoal.x, localGoal.y);
     // ROS_INFO_COND(debug, PRINTF_GREEN "1");
     if (localGoal.y > localCostMapInflated.info.height * map_resolution - localCostMapInflationY)
     {
