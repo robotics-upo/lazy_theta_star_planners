@@ -114,6 +114,10 @@ void LocalPlanner::configParams3D()
     nh->param("debug", debug, (bool)0);
     nh->param("show_config", showConfig, (bool)0);
 
+
+    nh->param("initial_search_around", initialSearchAround, (double)0.5);
+    nh->param("final_search_around", finalSearchAround, (double)0.3);
+
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Local Planner 3D Node Configuration:\n");
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* with optim.: goal_weight = [%.2f]", goal_weight);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Trajectory Position Increments = [%.2f], Tolerance: [%.2f]", traj_dxy_max, traj_pos_tol);
@@ -190,6 +194,9 @@ void LocalPlanner::configParams2D()
 
     nh->param("debug", debug, (bool)0);
     nh->param("show_config", showConfig, (bool)0);
+
+    nh->param("initial_search_around", initialSearchAround, (double)0.3);
+    nh->param("final_search_around", finalSearchAround, (double)0.3);
 
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Local Planner Node 2D Configuration:\n");
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* with optim.: goal_weight = [%.2f]", goal_weight);
@@ -393,7 +400,7 @@ void LocalPlanner::calculatePath2D()
         inflateCostMap(); //TODO Gordo arreglar esta chapuza de funcion
         theta2D.getMap(&localCostMapInflated);
 
-        if (theta2D.setValidInitialPosition(local_costmap_center) || theta2D.searchInitialPosition2d(0.3))
+        if (theta2D.setValidInitialPosition(local_costmap_center) || theta2D.searchInitialPosition2d(initialSearchAround))
         {
             ROS_INFO_COND(debug, PRINTF_MAGENTA "Start ok, calculating local goal");
 
@@ -403,7 +410,7 @@ void LocalPlanner::calculatePath2D()
                 ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Goal calculated");
                 freeLocalGoal();
                 theta2D.getMap(&localCostMapInflated);
-                if (theta2D.setValidFinalPosition(localGoal) || theta2D.searchFinalPosition2d(0.3))
+                if (theta2D.setValidFinalPosition(localGoal) || theta2D.searchFinalPosition2d(finalSearchAround))
                 {
                     ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Computing Local Path(2)");
 
@@ -501,7 +508,7 @@ void LocalPlanner::calculatePath3D()
         mapReceived = false;
 
         //TODO : Set to robot pose to the center of the workspace?
-        if (theta3D.setValidInitialPosition(robotPose) || theta3D.searchInitialPosition3d(0.5))
+        if (theta3D.setValidInitialPosition(robotPose) || theta3D.searchInitialPosition3d(initialSearchAround))
         {
             ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner 3D: Calculating local goal");
 
@@ -509,7 +516,7 @@ void LocalPlanner::calculatePath3D()
             {
                 ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner 3D: Local Goal calculated");
 
-                if (theta3D.setValidFinalPosition(localGoal) || theta3D.searchFinalPosition3d(0.3))
+                if (theta3D.setValidFinalPosition(localGoal) || theta3D.searchFinalPosition3d(finalSearchAround))
                 {
                     ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner 3D: Computing Local Path");
 
@@ -553,7 +560,6 @@ void LocalPlanner::calculatePath3D()
                 }
                 else if (occGoalCnt > 2) //!Caso GOAL OCUPADO
                 {                        //If it cant find a free position near local goal, it means that there is something there.
-
                     ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner 3D: Pausing planning, final position busy");
                     planningStatus.data = "Final position Busy, Cancelling goal";
                     //TODO What to tell to the path tracker
