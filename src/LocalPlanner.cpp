@@ -243,7 +243,7 @@ void LocalPlanner::collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg
 void LocalPlanner::pointsSub(const PointCloud::ConstPtr &points)
 {
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Collision Map Received");
-    mapRec = true;
+    mapReceived = true;
     theta3D.updateMap(*points);
 }
 void LocalPlanner::dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t level)
