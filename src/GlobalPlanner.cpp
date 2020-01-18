@@ -72,38 +72,54 @@ void GlobalPlanner::configTopics()
 
     replan_status_pub = nh->advertise<std_msgs::Bool>("replanning_status", 1);
     visMarkersPublisher = nh->advertise<visualization_msgs::Marker>("markers", 2);
+
+    bool useOctomap;
+    nh->param("use_octomap", useOctomap, (bool)false);
+
     if (use3d)
     {
-        sub_map = nh->subscribe<octomap_msgs::Octomap>("/octomap_binary", 0, &GlobalPlanner::collisionMapCallBack, this);
+        if (useOctomap)
+        {
+            sub_map = nh->subscribe<octomap_msgs::Octomap>("/octomap_binary", 1, &GlobalPlanner::collisionMapCallBack, this);
+        }
+        else
+        {
+            sub_map = nh->subscribe<PointCloud>("/points", 1, &GlobalPlanner::pointsSub, this);
+        }
     }
 }
 void GlobalPlanner::collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg)
 {
     map = msg;
     theta3D.updateMap(map);
+    mapRec=true;
     //ROS_INFO_COND(debug, PRINTF_MAGENTA "Collision Map Received");
+}
+void GlobalPlanner::pointsSub(const PointCloud::ConstPtr &points)
+{
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Collision Map Received");
+    mapRec=true;
+    theta3D.updateMap(*points);
 }
 void GlobalPlanner::configServices()
 {
-    if (!use3d)
-    {
-        reset_global_costmap_service = nh->advertiseService("reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
-    }
-
-    rot_in_place_client_ptr.reset(new RotationInPlaceClient("/Recovery_Rotation", true));
     execute_path_client_ptr.reset(new ExecutePathClient("/Execute_Plan", true));
-
-    //TODO: Removed the comments
-    execute_path_client_ptr->waitForServer();
-    rot_in_place_client_ptr->waitForServer();
-    ROS_INFO_COND(debug, "Action client from global planner ready");
-
-    //MakePlan MAIN Server Configuration
     make_plan_server_ptr.reset(new MakePlanServer(*nh, "/Make_Plan", false));
     make_plan_server_ptr->registerGoalCallback(boost::bind(&GlobalPlanner::makePlanGoalCB, this));
     make_plan_server_ptr->registerPreemptCallback(boost::bind(&GlobalPlanner::makePlanPreemptCB, this));
 
     make_plan_server_ptr->start();
+
+    if (!use3d)
+    {
+        reset_global_costmap_service = nh->advertiseService("reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
+        rot_in_place_client_ptr.reset(new RotationInPlaceClient("/Recovery_Rotation", true));
+
+        execute_path_client_ptr->waitForServer();
+        rot_in_place_client_ptr->waitForServer();
+    }
+
+    ROS_INFO_COND(debug, "Action client from global planner ready");
 }
 void GlobalPlanner::dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level)
 {
@@ -151,10 +167,23 @@ void GlobalPlanner::configParams2D()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t World frame: %s, Robot base frame: %s", world_frame.c_str(), robot_base_frame.c_str());
 
     //Line strip marker use member points, only scale.x is used to control linea width
+
+    configMarkers("global_path_2d");
+
+    //Configure map parameters
+    map_resolution = global_costmap_ptr->getCostmap()->getResolution();
+    ws_x_max = global_costmap_ptr->getCostmap()->getSizeInMetersX();
+    ws_y_max = global_costmap_ptr->getCostmap()->getSizeInMetersY();
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: ws_x_max,ws_y_max, map_resolution: [%.2f, %.2f, %.2f]", ws_x_max, ws_y_max, map_resolution);
+    theta2D.loadMapParams(ws_x_max, ws_y_max, map_resolution);
+}
+void GlobalPlanner::configMarkers(std::string ns)
+{
+
+    lineMarker.ns = ns;
     lineMarker.header.frame_id = world_frame;
     lineMarker.header.stamp = ros::Time::now();
     lineMarker.id = rand();
-    lineMarker.ns = "global_path";
     lineMarker.lifetime = ros::Duration(500);
     lineMarker.type = RVizMarker::LINE_STRIP;
     lineMarker.action = RVizMarker::ADD;
@@ -165,9 +194,9 @@ void GlobalPlanner::configParams2D()
     lineMarker.color.a = 1.0;
     lineMarker.scale.x = 0.1;
 
+    waypointsMarker.ns = ns;
     waypointsMarker.header.frame_id = world_frame;
     waypointsMarker.header.stamp = ros::Time::now();
-    waypointsMarker.ns = "global_path";
     waypointsMarker.id = lineMarker.id + 1;
     waypointsMarker.lifetime = ros::Duration(500);
     waypointsMarker.type = RVizMarker::POINTS;
@@ -180,13 +209,6 @@ void GlobalPlanner::configParams2D()
     waypointsMarker.scale.x = 0.15;
     waypointsMarker.scale.y = 0.15;
     waypointsMarker.scale.z = 0.4;
-
-    //Configure map parameters
-    map_resolution = global_costmap_ptr->getCostmap()->getResolution();
-    ws_x_max = global_costmap_ptr->getCostmap()->getSizeInMetersX();
-    ws_y_max = global_costmap_ptr->getCostmap()->getSizeInMetersY();
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: ws_x_max,ws_y_max, map_resolution: [%.2f, %.2f, %.2f]", ws_x_max, ws_y_max, map_resolution);
-    theta2D.loadMapParams(ws_x_max, ws_y_max, map_resolution);
 }
 void GlobalPlanner::configParams3D()
 {
@@ -194,24 +216,26 @@ void GlobalPlanner::configParams3D()
     nbrRotationsExec = 0;
     seq = 0;
     timesReplaned = 0;
+    mapRec = false;
     //Get params from param server. If they dont exist give variables default values
     nh->param("show_config", showConfig, (bool)0);
     nh->param("debug", debug, (bool)0);
-    //! 1 for octomap
-    //! 0 for point cloud
-    nh->param("data_source", data_source, (bool)1);
+
     nh->param("ws_x_max", ws_x_max, (double)30);
     nh->param("ws_y_max", ws_y_max, (double)30);
     nh->param("ws_z_max", ws_z_max, (double)30);
     nh->param("ws_x_min", ws_x_min, (double)0);
     nh->param("ws_y_min", ws_y_min, (double)0);
     nh->param("ws_z_min", ws_z_min, (double)0);
+
     nh->param("map_resolution", map_resolution, (double)0.05);
     nh->param("map_h_inflaction", map_h_inflaction, (double)0.05);
     nh->param("map_v_inflaction", map_v_inflaction, (double)0.05);
+
     nh->param("z_weight_cost", z_weight_cost, (double)1.2);
-    nh->param("z_not_inflate", z_not_inflate, (double)1);
+    nh->param("z_not_inflate", z_not_inflate, (double)8);
     nh->param("goal_weight", goal_weight, (double)1.1);
+
     nh->param("traj_dxy_max", traj_dxy_max, (double)1);
     nh->param("traj_pos_tol", traj_pos_tol, (double)1);
     nh->param("traj_yaw_tol", traj_yaw_tol, (double)0.1);
@@ -221,46 +245,19 @@ void GlobalPlanner::configParams3D()
     nh->param("traj_vxy_m_1", traj_vxy_m_1, (double)1);
     nh->param("traj_vz_m_1", traj_vz_m_1, (double)1);
     nh->param("traj_wyaw_m", traj_wyaw_m, (double)1);
+
     nh->param("world_frame", world_frame, (string) "/map");
     nh->param("robot_base_frame", robot_base_frame, (string) "/base_link");
 
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Global Planner 3D Node Configuration:");
+    ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Workspace = X: [%.2f, %.2f]\t Y: [%.2f, %.2f]\t Z: [%.2f, %.2f]  ", ws_x_max,ws_x_min,ws_y_max,ws_y_min,ws_z_max,ws_z_min);
+
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* with optim.: goal_weight = [%.2f]", goal_weight);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Trajectory Position Increments = [%.2f], Tolerance: [%.2f]", traj_dxy_max, traj_pos_tol);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t World frame: %s, Robot base frame: %s", world_frame.c_str(), robot_base_frame.c_str());
+    
+    configMarkers("global_path_3d");
 
-    //Line strip marker use member points, only scale.x is used to control linea width
-    lineMarker.header.frame_id = world_frame;
-    lineMarker.header.stamp = ros::Time::now();
-    lineMarker.id = rand();
-    lineMarker.ns = "global_path_3d";
-    lineMarker.lifetime = ros::Duration(500);
-    lineMarker.type = RVizMarker::LINE_STRIP;
-    lineMarker.action = RVizMarker::ADD;
-    lineMarker.pose.orientation.w = 1;
-    lineMarker.color.r = 0.0;
-    lineMarker.color.g = 1.0;
-    lineMarker.color.b = 0.0;
-    lineMarker.color.a = 1.0;
-    lineMarker.scale.x = 0.1;
-
-    waypointsMarker.header.frame_id = world_frame;
-    waypointsMarker.header.stamp = ros::Time::now();
-    waypointsMarker.ns = "global_path_3d";
-    waypointsMarker.id = lineMarker.id + 1;
-    waypointsMarker.lifetime = ros::Duration(500);
-    waypointsMarker.type = RVizMarker::POINTS;
-    waypointsMarker.action = RVizMarker::ADD;
-    waypointsMarker.pose.orientation.w = 1;
-    waypointsMarker.color.r = 1.0;
-    waypointsMarker.color.g = 1.0;
-    waypointsMarker.color.b = 0.0;
-    waypointsMarker.color.a = 1.0;
-    waypointsMarker.scale.x = 0.15;
-    waypointsMarker.scale.y = 0.15;
-    waypointsMarker.scale.z = 0.15;
-
-    //Configure map parameters
 }
 void GlobalPlanner::sendPathToLocalPlannerServer()
 {
@@ -399,7 +396,7 @@ void GlobalPlanner::makePlanPreemptCB()
 }
 bool GlobalPlanner::replan()
 {
-    if (use3d)
+    if (!use3d)
     {
         resetGlobalCostmap();
         usleep(1e5);
@@ -469,9 +466,10 @@ void GlobalPlanner::plan()
 
     if (execute_path_client_ptr->getState().isDone())
     {
+        clearMarkers();
+
         if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
         {
-            clearMarkers();
             make_plan_res.finished = true;
             make_plan_res.not_possible = false;
             make_plan_res.replan_number.data = timesReplaned;
@@ -507,6 +505,9 @@ bool GlobalPlanner::calculatePath()
     //so if there is no map received it won't calculate a path
     bool ret = false;
 
+    if(use3d && !mapRec)
+        return ret;
+    
     if (setGoal() && setStart())
     {
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal and start successfull set");
@@ -747,7 +748,12 @@ bool GlobalPlanner::setStart()
     geometry_msgs::Vector3Stamped start;
     start.vector.x = getRobotPose().transform.translation.x;
     start.vector.y = getRobotPose().transform.translation.y;
+
+    
     start.vector.z = getRobotPose().transform.translation.z;
+
+    if(start.vector.z <= ws_z_min)
+        start.vector.z = ws_z_min + map_v_inflaction + map_resolution;
 
     if (use3d)
     {
@@ -762,7 +768,7 @@ bool GlobalPlanner::setStart()
         }
         else
         {
-            ROS_ERROR("Global Planner 3D: Failed to set initial global position(after search around): [%.2f, %.2f]", start.vector.x, start.vector.y);
+            ROS_ERROR("Global Planner 3D: Failed to set initial global position(after search around): [%.2f, %.2f, %.2f]", start.vector.x, start.vector.y,start.vector.z);
         }
     }
     else

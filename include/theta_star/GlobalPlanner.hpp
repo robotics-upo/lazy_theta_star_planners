@@ -93,6 +93,7 @@ private:
     @brief: Loads parameters from ros param server, if they are not present, load defaults ones
             It also configure markers and global map geometry 
     */
+    void configMarkers(std::string ns);
     void configParams2D();
     void configParams3D();
     /*
@@ -116,6 +117,7 @@ private:
     */
     void resetGlobalCostmap();
     void collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg);
+    void pointsSub(const PointCloud::ConstPtr &points);
     void publishTrajectory2D();
     void publishTrajectory3D();
 
@@ -202,6 +204,7 @@ private:
     ros::Time start_time;
 
     //! 3D specific variables
+    bool mapRec;
     ThetaStar3D theta3D;
     bool use3d;
     bool data_source;
