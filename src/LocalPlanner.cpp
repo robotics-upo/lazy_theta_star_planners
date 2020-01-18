@@ -503,17 +503,18 @@ void LocalPlanner::calculatePath3D()
         //TODO : Set to robot pose to the center of the workspace?
         if (theta3D.setValidInitialPosition(robotPose) || theta3D.searchInitialPosition3d(0.5))
         {
-            ROS_INFO_COND(debug, PRINTF_MAGENTA "Start ok, calculating local goal");
+            ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner 3D: Calculating local goal");
+
             if (calculateLocalGoal3D()) //TODO: VER CUAL SERIA EL LOCAL GOAL EN ESTE CASO
             {
-                ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Goal calculated");
+                ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner 3D: Local Goal calculated");
 
                 if (theta3D.setValidFinalPosition(localGoal) || theta3D.searchFinalPosition3d(0.3))
                 {
-                    ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Computing Local Path(2)");
+                    ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner 3D: Computing Local Path");
 
                     number_of_points = theta3D.computePath();
-                    ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Path computed, number %d", number_of_points);
+                    ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner 3D: Path computed, %d points", number_of_points);
                     occGoalCnt = 0;
 
                     if (number_of_points > 0)
@@ -553,7 +554,7 @@ void LocalPlanner::calculatePath3D()
                 else if (occGoalCnt > 2) //!Caso GOAL OCUPADO
                 {                        //If it cant find a free position near local goal, it means that there is something there.
 
-                    ROS_INFO_COND(debug, PRINTF_BLUE "Pausing planning, final position busy");
+                    ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner 3D: Pausing planning, final position busy");
                     planningStatus.data = "Final position Busy, Cancelling goal";
                     //TODO What to tell to the path tracker
                     navigate_client_ptr->cancelGoal();
@@ -568,7 +569,7 @@ void LocalPlanner::calculatePath3D()
             }
             else if (badGoal < 3)
             {
-                ROS_INFO_COND(debug, "Bad Goal Calculated: [%.2f, %.2f]", localGoal.x, localGoal.y);
+                ROS_INFO_COND(debug, "Local Planner 3D: Bad Goal Calculated: [%.2f, %.2f]", localGoal.x, localGoal.y);
                 ++badGoal;
             }
             else
@@ -584,7 +585,7 @@ void LocalPlanner::calculatePath3D()
             navigate_client_ptr->cancelGoal();
             execute_path_srv_ptr->setAborted();
             clearMarkers();
-            ROS_INFO_COND(debug, "no initial pose found");
+            ROS_INFO_COND(debug, "Local Planner 3D: No initial free position found");
         }
     }
 }
