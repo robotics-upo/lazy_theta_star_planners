@@ -85,16 +85,14 @@ void LocalPlanner::configParams3D()
     tf_list.reset(new tf::TransformListener);
     nh->param("arrived_thresh", arrivedThresh, (double)0.25);
 
-    nh->param("data_source", data_source, (bool)1);
-    nh->param("ws_x_max", ws_x_max, (double)10);
-    nh->param("ws_y_max", ws_y_max, (double)10);
-    nh->param("ws_z_max", ws_z_max, (double)10);
-    nh->param("ws_z_min", ws_z_min, (double)-0.2);
+    nh->param("ws_x_max", ws_x_max, (double)5);
+    nh->param("ws_y_max", ws_y_max, (double)5);
+    nh->param("ws_z_max", ws_z_max, (double)5);
 
     ws_x_min = -ws_x_max;
     ws_y_min = -ws_y_max;
+    ws_z_min = -ws_z_max;
 
-    ROS_INFO_COND(debug, "PARAMS Workspace: X: [%.2f, %.2f]\t Y: [%.2f, %.2f]\t Z: [%.2f, %.2f]", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
     nh->param("map_resolution", map_resolution, (double)0.05);
     nh->param("map_h_inflaction", map_h_inflaction, (double)0.5);
     nh->param("map_v_inflaction", map_v_inflaction, (double)0.5);
@@ -123,12 +121,15 @@ void LocalPlanner::configParams3D()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Workspace:\t X:[%.2f, %.2f]\t Y:[%.2f, %.2f]\t Z: [%.2f, %.2f]", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map Resolution: %.2f\t Map H inflaction: %.2f\t Map V Inflaction: %.2f", map_resolution, map_h_inflaction, map_v_inflaction);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Z weight cost: %.2f\t Z not inflate: %.2f", z_weight_cost, z_not_inflate);
-
-    //Line strip marker use member points, only scale.x is used to control linea width
+    configMarkers("local_path_2d");
+   
+}
+void LocalPlanner::configMarkers(std::string ns){
+ //Line strip marker use member points, only scale.x is used to control linea width
     lineMarker.header.frame_id = world_frame;
     lineMarker.header.stamp = ros::Time::now();
     lineMarker.id = rand();
-    lineMarker.ns = "local_path";
+    lineMarker.ns = ns;
     lineMarker.lifetime = ros::Duration(500);
     lineMarker.type = RVizMarker::LINE_STRIP;
     lineMarker.action = RVizMarker::ADD;
@@ -142,7 +143,7 @@ void LocalPlanner::configParams3D()
 
     waypointsMarker.header.frame_id = world_frame;
     waypointsMarker.header.stamp = ros::Time::now();
-    waypointsMarker.ns = "local_path";
+    waypointsMarker.ns = ns;
     waypointsMarker.id = lineMarker.id + 12;
     waypointsMarker.lifetime = ros::Duration(500);
     waypointsMarker.type = RVizMarker::POINTS;
@@ -199,38 +200,8 @@ void LocalPlanner::configParams2D()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Free space around local goal inside borders = [%.2f]", border_space);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Robot base frame: %s, World frame: %s", robot_base_frame.c_str(), world_frame.c_str());
 
-    //Line strip marker use member points, only scale.x is used to control linea width
-    lineMarker.header.frame_id = world_frame;
-    lineMarker.header.stamp = ros::Time::now();
-    lineMarker.id = rand();
-    lineMarker.ns = "local_path";
-    lineMarker.lifetime = ros::Duration(500);
-    lineMarker.type = RVizMarker::LINE_STRIP;
-    lineMarker.action = RVizMarker::ADD;
-    lineMarker.pose.orientation.w = 1;
-    lineMarker.pose.position.z = 0.1;
-    lineMarker.color.r = 1.0;
-    lineMarker.color.g = 0.0;
-    lineMarker.color.b = 0.0;
-    lineMarker.color.a = 1.0;
-    lineMarker.scale.x = 0.1;
+    configMarkers("local_path_3d");
 
-    waypointsMarker.header.frame_id = world_frame;
-    waypointsMarker.header.stamp = ros::Time::now();
-    waypointsMarker.ns = "local_path";
-    waypointsMarker.id = lineMarker.id + 12;
-    waypointsMarker.lifetime = ros::Duration(500);
-    waypointsMarker.type = RVizMarker::POINTS;
-    waypointsMarker.action = RVizMarker::ADD;
-    waypointsMarker.pose.orientation.w = 1;
-    waypointsMarker.pose.position.z = 0.1;
-    waypointsMarker.color.r = 0.0;
-    waypointsMarker.color.g = 0.0;
-    waypointsMarker.color.b = 1.0;
-    waypointsMarker.color.a = 1.0;
-    waypointsMarker.scale.x = 0.15;
-    waypointsMarker.scale.y = 0.15;
-    waypointsMarker.scale.z = 0.4;
 }
 void LocalPlanner::collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg)
 {
@@ -298,7 +269,6 @@ void LocalPlanner::configTheta()
 
     if (use3d)
     {
-        ROS_INFO_COND(debug, "theta Workspace: X: [%.2f, %.2f]\t Y: [%.2f, %.2f]\t Z: [%.2f, %.2f]", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
         theta3D.init(node_name, world_frame, ws_x_max, ws_y_max, ws_z_max, ws_x_min, ws_y_min, ws_z_min, map_resolution, map_h_inflaction, map_v_inflaction, goal_weight, z_weight_cost, z_not_inflate, nh);
         theta3D.setTimeOut(10);
         theta3D.setTrajectoryParams(traj_dxy_max, traj_dz_max, traj_pos_tol, traj_vxy_m, traj_vz_m, traj_vxy_m_1, traj_vz_m_1, traj_wyaw_m, traj_yaw_tol);

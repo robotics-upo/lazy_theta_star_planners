@@ -121,6 +121,8 @@ private:
     void freeLocalGoal();
     void collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg);
     void pointsSub(const PointCloud::ConstPtr &points);
+    void configMarkers(std::string ns);
+    
     inline double euclideanDistance(double x0, double y0, double x, double y)
     {
         return sqrt(pow(x - x0, 2) + pow(y - y0, 2));
