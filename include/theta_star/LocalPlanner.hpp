@@ -120,7 +120,7 @@ private:
     //Set to 0 the positions near the local goal in the border
     void freeLocalGoal();
     void collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg);
-
+    void pointsSub(const PointCloud::ConstPtr &points);
     inline double euclideanDistance(double x0, double y0, double x, double y)
     {
         return sqrt(pow(x - x0, 2) + pow(y - y0, 2));
@@ -132,7 +132,7 @@ private:
     //Variables
     ros::NodeHandlePtr nh;
     ros::ServiceClient costmap_clean_srv;
-    ros::Subscriber local_map_sub, pointcloud_sub;
+    ros::Subscriber local_map_sub;
     ros::Publisher visMarkersPublisher, trajPub;
     std::unique_ptr<tf::TransformListener> tf_list;
 

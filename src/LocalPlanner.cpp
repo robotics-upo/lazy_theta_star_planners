@@ -240,6 +240,12 @@ void LocalPlanner::collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg
     // ROS_INFO_COND(debug, PRINTF_MAGENTA "Collision Map Received");
     theta3D.publishOccupationMarkersMap();
 }
+void LocalPlanner::pointsSub(const PointCloud::ConstPtr &points)
+{
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Collision Map Received");
+    mapRec = true;
+    theta3D.updateMap(*points);
+}
 void LocalPlanner::dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t level)
 {
     this->cost_weight = config.cost_weight;
@@ -312,7 +318,16 @@ void LocalPlanner::configTopics()
 {
     if (use3d)
     {
-        pointcloud_sub = nh->subscribe<octomap_msgs::Octomap>("/octomap_binary_local", 0, &LocalPlanner::collisionMapCallBack, this);
+        bool useOctomap;
+        nh->param("use_octomap", useOctomap, (bool)false);
+        if (useOctomap)
+        {
+            local_map_sub = nh->subscribe<octomap_msgs::Octomap>("/octomap_binary_local", 1, &LocalPlanner::collisionMapCallBack, this);
+        }
+        else
+        {
+            local_map_sub = nh->subscribe<PointCloud>("/points", 1, &LocalPlanner::pointsSub, this);
+        }
     }
     else
     {
@@ -397,8 +412,8 @@ void LocalPlanner::plan()
 void LocalPlanner::calculatePath2D()
 {
     ROS_INFO("Calculating");
-    
-        ftime(&startT);
+
+    ftime(&startT);
     if (mapReceived && doPlan && mapGeometryConfigured)
     {
         ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Global trj received and local costmap received");
@@ -681,7 +696,7 @@ bool LocalPlanner::calculateLocalGoal2D()
             break;
         }
     }
-    ROS_INFO("lOCAL GOAL Prev round: %.2f \t %.2f", C.vector.x,C.vector.y);
+    ROS_INFO("lOCAL GOAL Prev round: %.2f \t %.2f", C.vector.x, C.vector.y);
     //TODO: Mejorar esta chapuza
     while (C.vector.x > (ws_x_max - map_resolution) || C.vector.y > (ws_y_max - map_resolution))
     {
