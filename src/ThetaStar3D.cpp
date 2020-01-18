@@ -73,7 +73,7 @@ void ThetaStar3D::init(std::string plannerName, std::string frame_id, float ws_x
 	ws_z_min_inflated = (ws_z_min - 2 * v_inflation);
 	matrix_size = (abs(ws_x_max_inflated) - ws_x_min_inflated + 1) * (abs(ws_y_max_inflated) - ws_y_min_inflated + 1) * (abs(ws_z_max_inflated) - ws_z_min_inflated + 1);
 	discrete_world.resize(matrix_size);
-	printf("ThetaStar (%s): Occupancy Matrix has %d nodes [%d MB]\n", plannerName.c_str(), matrix_size, (int)(matrix_size * sizeof(ThetaStarNode3D)) / (1024 * 1024));
+	printf("ThetaStar (%s): Occupancy Matrix has %d nodes [%lu MB]\n", plannerName.c_str(), matrix_size, (uint_fast32_t)(matrix_size * sizeof(ThetaStarNode3D)) / (1024 * 1024));
 	Lx = ws_x_max_inflated - ws_x_min_inflated + 1;
 	Ly = ws_y_max_inflated - ws_y_min_inflated + 1;
 	Lz = ws_z_max_inflated - ws_z_min_inflated + 1;
