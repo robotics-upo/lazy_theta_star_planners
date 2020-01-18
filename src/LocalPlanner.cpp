@@ -259,6 +259,8 @@ void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended t
 
     nav_goal.global_goal.position.x = globalTrajectory.points.at(size - 1).transforms[0].translation.x;
     nav_goal.global_goal.position.y = globalTrajectory.points.at(size - 1).transforms[0].translation.y;
+    nav_goal.global_goal.position.z = globalTrajectory.points.at(size - 1).transforms[0].translation.z;
+
     nav_goal.global_goal.orientation = globalTrajectory.points.at(size - 1).transforms[0].rotation;
 
     navigate_client_ptr->sendGoal(nav_goal);
