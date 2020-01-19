@@ -147,6 +147,7 @@ void GlobalPlanner::configParams2D()
     nh->param("show_config", showConfig, (bool)0);
     nh->param("debug", debug, (bool)0);
     nh->param("timeout", timeout, (double)10);
+    nh->param("initial_position_search_dist", initialSearchAround, (double)0.25);
 
     nh->param("min_path_lenght", minPathLenght, (float)0.2);
     nh->param("goal_weight", goal_weight, (double)1.5);
@@ -224,6 +225,7 @@ void GlobalPlanner::configParams3D()
     nh->param("show_config", showConfig, (bool)0);
     nh->param("debug", debug, (bool)0);
     nh->param("timeout", timeout, (double)10);
+    nh->param("initial_position_search_dist", initialSearchAround, (double)1);
 
     nh->param("ws_x_max", ws_x_max, (double)30);
     nh->param("ws_y_max", ws_y_max, (double)30);
@@ -765,7 +767,7 @@ bool GlobalPlanner::setStart()
         {
             ret = true;
         }
-        else if (theta3D.searchInitialPosition2d(0.25))
+        else if (theta3D.searchInitialPosition3d(initialSearchAround))
         {
             ROS_INFO(PRINTF_MAGENTA "Global Planner 3D: Found a free initial position");
             ret = true;
@@ -781,7 +783,7 @@ bool GlobalPlanner::setStart()
         {
             ret = true;
         }
-        else if (theta2D.searchInitialPosition2d(0.25))
+        else if (theta2D.searchInitialPosition2d(initialSearchAround))
         {
             ROS_INFO(PRINTF_MAGENTA "Global Planner 2D: Found a free initial position");
             ret = true;
