@@ -105,8 +105,8 @@ void ThetaStar3D::init(std::string plannerName, std::string frame_id, float ws_x
 	marker.color.g = 1.0;
 	marker.color.b = 0.0;
 	topicPath = plannerName + "/vis_marker_occupancy";
-	
-	occupancy_marker_pub_ = nh->advertise<PointCloud>(topicPath.c_str(), 1);
+
+	occupancy_marker_pub_ = nh->advertise<PointCloud>(topicPath.c_str(), 1, true);
 	occupancy_marker.header.frame_id = frame_id; // "world";
 
 	topicPath = plannerName + "/vis_marker_no_lineOfSight";
@@ -232,6 +232,8 @@ void ThetaStar3D::updateMap(PointCloud cloud)
 	/*
      * Update discrete world with the Point Cloud = ocuppieds cells
      */
+	clearMap();
+
 	BOOST_FOREACH (const pcl::PointXYZ &p, cloud.points)
 	{
 		// Get occupied points
@@ -254,8 +256,8 @@ void ThetaStar3D::updateMap(PointCloud cloud)
 			if (h_inflation >= step || v_inflation >= step)
 			{
 				if (z_w > z_not_inflate)
-					//inflateNodeAsCube(x_, y_, z_);
-					inflateNodeAsCylinder(x_, y_, z_);
+					inflateNodeAsCube(x_, y_, z_);
+					// inflateNodeAsCylinder(x_, y_, z_);
 				else
 					inflateNodeAsXyRectangle(x_, y_, z_);
 			}
@@ -1563,77 +1565,68 @@ bool ThetaStar3D::checkMiddlePosition(Vector3 last_position, Vector3 next_positi
 	/* WARNING: it is necessary to distinguish between if Z has been limited or not: 
 		 *	- If not: The current X Y target are the next position in the path --> the next_position 
 		 *	- If yes: The current X Y target are the proportional to the Z limited --> the current middle_position */
-	switch (Limited_V)
+
+	if (!Limited_V && getHorizontalNorm(next_position.x - last_position.x, next_position.y - last_position.y) > (dxy_max + dxyz_tolerance))
 	{
-	case false:
-		if (getHorizontalNorm(next_position.x - last_position.x, next_position.y - last_position.y) > (dxy_max + dxyz_tolerance))
+		// X and Y to the max (It exists a singularity at DX = 0.0, so if that directly set the known values)
+		if (fabs(next_position.x - last_position.x) >= 0.001)
 		{
-			// X and Y to the max (It exists a singularity at DX = 0.0, so if that directly set the known values)
-			if (fabs(next_position.x - last_position.x) >= 0.001)
-			{
-				DXmax = dxy_max / (sqrt(1.0 + pow(next_position.y - last_position.y, 2) / pow(next_position.x - last_position.x, 2)));
-				DYmax = fabs(next_position.y - last_position.y) / fabs(next_position.x - last_position.x) * DXmax;
-			}
-			else
-			{
-				DXmax = 0.0;
-				DYmax = dxy_max;
-			}
-
-			if (next_position.x - last_position.x > 0.0)
-				middle_position.x = last_position.x + DXmax;
-			else
-				middle_position.x = last_position.x - DXmax;
-
-			if (next_position.y - last_position.y > 0.0)
-				middle_position.y = last_position.y + DYmax;
-			else
-				middle_position.y = last_position.y - DYmax;
-
-			// Z proportional to the XY limited
-			double beta = dxy_max / getHorizontalNorm(next_position.x - last_position.x, next_position.y - last_position.y);
-			middle_position.z = last_position.z + beta * (next_position.z - last_position.z);
-
-			// Exist limitation, so the point is not directly reached
-			pathPointGot = false;
+			DXmax = dxy_max / (sqrt(1.0 + pow(next_position.y - last_position.y, 2) / pow(next_position.x - last_position.x, 2)));
+			DYmax = fabs(next_position.y - last_position.y) / fabs(next_position.x - last_position.x) * DXmax;
+		}
+		else
+		{
+			DXmax = 0.0;
+			DYmax = dxy_max;
 		}
 
-		break;
+		if (next_position.x - last_position.x > 0.0)
+			middle_position.x = last_position.x + DXmax;
+		else
+			middle_position.x = last_position.x - DXmax;
 
-	case true:
-		if (getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) > (dxy_max + dxyz_tolerance))
+		if (next_position.y - last_position.y > 0.0)
+			middle_position.y = last_position.y + DYmax;
+		else
+			middle_position.y = last_position.y - DYmax;
+
+		// Z proportional to the XY limited
+		double beta = dxy_max / getHorizontalNorm(next_position.x - last_position.x, next_position.y - last_position.y);
+		middle_position.z = last_position.z + beta * (next_position.z - last_position.z);
+
+		// Exist limitation, so the point is not directly reached
+		pathPointGot = false;
+	}
+	else if (Limited_V &&getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) > (dxy_max + dxyz_tolerance))
+	{
+		// X and Y to the max (It exists a singularity at DX = 0.0, so if that directly set the known values)
+		if (fabs(middle_position.x - last_position.x) >= 0.001)
 		{
-			// X and Y to the max (It exists a singularity at DX = 0.0, so if that directly set the known values)
-			if (fabs(middle_position.x - last_position.x) >= 0.001)
-			{
-				DXmax = dxy_max / (sqrt(1.0 + pow(middle_position.y - last_position.y, 2) / pow(middle_position.x - last_position.x, 2)));
-				DYmax = fabs(middle_position.y - last_position.y) / fabs(middle_position.x - last_position.x) * DXmax;
-			}
-			else
-			{
-				DXmax = 0.0;
-				DYmax = dxy_max;
-			}
-
-			// Z proportional to the XY limited (it need to be do previous to modificate middle_position.x and .y)
-			double beta = dxy_max / getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y);
-			middle_position.z = last_position.z + beta * (middle_position.z - last_position.z);
-
-			if (next_position.x - last_position.x > 0.0)
-				middle_position.x = last_position.x + DXmax;
-			else
-				middle_position.x = last_position.x - DXmax;
-
-			if (next_position.y - last_position.y > 0.0)
-				middle_position.y = last_position.y + DYmax;
-			else
-				middle_position.y = last_position.y - DYmax;
-
-			// Exist limitation, so the point is not directly reached
-			pathPointGot = false;
+			DXmax = dxy_max / (sqrt(1.0 + pow(middle_position.y - last_position.y, 2) / pow(middle_position.x - last_position.x, 2)));
+			DYmax = fabs(middle_position.y - last_position.y) / fabs(middle_position.x - last_position.x) * DXmax;
+		}
+		else
+		{
+			DXmax = 0.0;
+			DYmax = dxy_max;
 		}
 
-		break;
+		// Z proportional to the XY limited (it need to be do previous to modificate middle_position.x and .y)
+		double beta = dxy_max / getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y);
+		middle_position.z = last_position.z + beta * (middle_position.z - last_position.z);
+
+		if (next_position.x - last_position.x > 0.0)
+			middle_position.x = last_position.x + DXmax;
+		else
+			middle_position.x = last_position.x - DXmax;
+
+		if (next_position.y - last_position.y > 0.0)
+			middle_position.y = last_position.y + DYmax;
+		else
+			middle_position.y = last_position.y - DYmax;
+
+		// Exist limitation, so the point is not directly reached
+		pathPointGot = false;
 	}
 
 	return pathPointGot;
