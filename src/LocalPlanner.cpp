@@ -754,10 +754,13 @@ bool LocalPlanner::calculateLocalGoal3D()
             if (it == goals_vector_bl_frame.end() - 1)
             {
                 currentGoal = *it;
-
-                //currentGoalBl.x = currentGoal.transforms[0].translation.x - robot.transform.translation.x;
-                //currentGoalBl.y = currentGoal.transforms[0].translation.y - robot.transform.translation.y;
-                //currentGoalBl.z = currentGoal.transforms[0].translation.z - robot.transform.translation.z;
+                currentGoalVec.x = currentGoal.transforms[0].translation.x;
+                currentGoalVec.y = currentGoal.transforms[0].translation.y;
+                currentGoalVec.z = currentGoal.transforms[0].translation.z;
+                if (!theta3D.isInside(currentGoalVec))
+                {
+                    last=0;
+                }
                 ROS_INFO_COND(debug, PRINTF_CYAN "Local Planner 3D: End of global trajectory queu");
                 last = i;
                 break;
@@ -766,21 +769,14 @@ bool LocalPlanner::calculateLocalGoal3D()
             {
 
                 currentGoal = *(it + 1);
-
                 currentGoalVec.x = currentGoal.transforms[0].translation.x;
                 currentGoalVec.y = currentGoal.transforms[0].translation.y;
                 currentGoalVec.z = currentGoal.transforms[0].translation.z;
-                //currentGoalBl.x = currentGoal.transforms[0].translation.x - robot.transform.translation.x;
-                //currentGoalBl.y = currentGoal.transforms[0].translation.y - robot.transform.translation.y;
-                //currentGoalBl.z = currentGoal.transforms[0].translation.z - robot.transform.translation.z;
                 ROS_INFO_COND(debug, "Local Planner 3D: i: %d Current goal bl frame: [%.2f, %.2f, %.2f]", i, currentGoalVec.x, currentGoalVec.y, currentGoalVec.z);
                 ROS_INFO_COND(debug, "Local Planner 3D: i: %d Local goal map frame: [%.2f, %.2f, %.2f]", i, currentGoal.transforms[0].translation.x, currentGoal.transforms[0].translation.y, currentGoal.transforms[0].translation.z);
                 if (!theta3D.isInside(currentGoalVec))
                 {
                     currentGoal = *it;
-                    //currentGoalBl.x = currentGoal.transforms[0].translation.x - robot.transform.translation.x;
-                    //currentGoalBl.y = currentGoal.transforms[0].translation.y - robot.transform.translation.y;
-                    //currentGoalBl.z = currentGoal.transforms[0].translation.z - robot.transform.translation.z;
                     ROS_INFO_COND(debug, PRINTF_CYAN "Local Planner 3D: Passing Local Goal: [%.2f, %.2f, %.2f]", currentGoalVec.x, currentGoalVec.y, currentGoalVec.z);
                     last = i;
                     break;
@@ -893,10 +889,10 @@ void LocalPlanner::publishTrajMarker3D() //? DONE 3D
     lineMarker.header.stamp = ros::Time::now();
     waypointsMarker.header.stamp = ros::Time::now();
 
-    geometry_msgs::Transform robot_pos;// = getTfMapToRobot().transform;
-    robot_pos.translation.x=0;
-    robot_pos.translation.y=0;
-    robot_pos.translation.z=0;
+    geometry_msgs::Transform robot_pos; // = getTfMapToRobot().transform;
+    robot_pos.translation.x = 0;
+    robot_pos.translation.y = 0;
+    robot_pos.translation.z = 0;
 
     lineMarker.points.push_back(makePoint(robot_pos.translation));
     waypointsMarker.points.push_back(makePoint(robot_pos.translation));
@@ -958,7 +954,7 @@ void LocalPlanner::buildAndPubTrayectory3D()
 {
     ROS_INFO_COND(debug, "Clearing local trajectory");
     localTrajectory.points.clear();
-    geometry_msgs::Vector3 dron_pos;// = getTfMapToRobot().transform.translation;
+    geometry_msgs::Vector3 dron_pos; // = getTfMapToRobot().transform.translation;
     dron_pos.x = 0;
     dron_pos.y = 0;
     dron_pos.z = 0;
@@ -971,17 +967,7 @@ void LocalPlanner::buildAndPubTrayectory3D()
     {
         getTrajectoryYawFixed(localTrajectory, 0);
     }
-    // ROS_INFO_COND(debug, "Got traj");
 
-    // for (size_t i = 0; i < localTrajectory.points.size(); i++)
-    // {
-    //     localTrajectory.points[i].transforms[0].translation.x += dron_pos.x;
-    //     localTrajectory.points[i].transforms[0].translation.y += dron_pos.y;
-    //     localTrajectory.points[i].transforms[0].translation.z += dron_pos.z;
-    // }
-    //ROS_INFO_COND(debug, "After for loop");
-
-    //localTrajectory.points.push_back(currentGoal);
     localTrajectory.header.stamp = ros::Time::now();
 
     trajPub.publish(localTrajectory);
