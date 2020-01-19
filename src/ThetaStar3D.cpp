@@ -203,9 +203,11 @@ void ThetaStar3D::updateMap(octomap_msgs::OctomapConstPtr message)
 					{
 						if (z_w > z_not_inflate)
 							//inflateNodeAsCube(x_, y_, z_);
-							inflateNodeAsCylinder(x_, y_, z_);
-						else
+							//inflateNodeAsCylinder(x_, y_, z_);
 							inflateNodeAsXyRectangle(x_, y_, z_);
+
+						else
+							inflateNodeAsCylinder(x_, y_, z_);
 					}
 				}
 
@@ -253,13 +255,19 @@ void ThetaStar3D::updateMap(PointCloud cloud)
 			discrete_world[world_index_].notOccupied = false;
 
 			// Inflates nodes
-			if (h_inflation >= step || v_inflation >= step)
+			if (h_inflation * step >= step || v_inflation * step >= step)
 			{
 				if (z_w > z_not_inflate)
+				{
 					inflateNodeAsCube(x_, y_, z_);
-					// inflateNodeAsCylinder(x_, y_, z_);
+					//inflateNodeAsCylinder(x_, y_, z_);
+					// inflateNodeAsXyRectangle(x_, y_, z_);
+				}
 				else
-					inflateNodeAsXyRectangle(x_, y_, z_);
+				{
+					//inflateNodeAsXyRectangle(x_, y_, z_);
+					inflateNodeAsCube(x_, y_, z_);
+				}
 			}
 		}
 	}
@@ -289,13 +297,19 @@ void ThetaStar3D::updateMap(const PointCloud::ConstPtr &map)
 			discrete_world[world_index_].notOccupied = false;
 
 			// Inflates nodes
-			if (h_inflation >= step || v_inflation >= step)
+			if (h_inflation * step >= step || v_inflation * step >= step)
 			{
 				if (z_w > z_not_inflate)
-					//inflateNodeAsCube(x_, y_, z_);
-					inflateNodeAsCylinder(x_, y_, z_);
+				{
+					inflateNodeAsCube(x_, y_, z_);
+					//inflateNodeAsCylinder(x_, y_, z_);
+					// inflateNodeAsXyRectangle(x_, y_, z_);
+				}
 				else
-					inflateNodeAsXyRectangle(x_, y_, z_);
+				{
+					//inflateNodeAsXyRectangle(x_, y_, z_);
+					inflateNodeAsCube(x_, y_, z_);
+				}
 			}
 		}
 	}
@@ -1597,7 +1611,7 @@ bool ThetaStar3D::checkMiddlePosition(Vector3 last_position, Vector3 next_positi
 		// Exist limitation, so the point is not directly reached
 		pathPointGot = false;
 	}
-	else if (Limited_V &&getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) > (dxy_max + dxyz_tolerance))
+	else if (Limited_V && getHorizontalNorm(middle_position.x - last_position.x, middle_position.y - last_position.y) > (dxy_max + dxyz_tolerance))
 	{
 		// X and Y to the max (It exists a singularity at DX = 0.0, so if that directly set the known values)
 		if (fabs(middle_position.x - last_position.x) >= 0.001)
