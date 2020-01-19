@@ -760,6 +760,7 @@ bool LocalPlanner::calculateLocalGoal3D()
                 if (!theta3D.isInside(currentGoalVec))
                 {
                     last=0;
+                    execute_path_srv_ptr->setPreempted();
                 }
                 ROS_INFO_COND(debug, PRINTF_CYAN "Local Planner 3D: End of global trajectory queu");
                 last = i;
