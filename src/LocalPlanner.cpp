@@ -21,6 +21,7 @@ LocalPlanner::LocalPlanner(tf2_ros::Buffer *tfBuffer_)
         configParams2D();
     }
 
+    tf_list_ptr.reset(new tf::TransformListener(ros::Duration(5)));
     tfBuffer = tfBuffer_;
 
     configTopics();
@@ -43,19 +44,18 @@ void LocalPlanner::clearMarkers()
 }
 void LocalPlanner::configServices()
 {
-    if (!use3d)
-    {
-        costmap_clean_srv = nh->serviceClient<std_srvs::Trigger>("/custom_costmap_node/reset_costmap");
-    }
 
     execute_path_srv_ptr.reset(new ExecutePathServer(*nh, "/Execute_Plan", false));
     execute_path_srv_ptr->registerGoalCallback(boost::bind(&LocalPlanner::executePathGoalServerCB, this));
     execute_path_srv_ptr->registerPreemptCallback(boost::bind(&LocalPlanner::executePathPreemptCB, this));
     execute_path_srv_ptr->start();
 
-    navigate_client_ptr.reset(new NavigateClient("/Navigation", true));
-
-    navigate_client_ptr->waitForServer();
+    if (!use3d)
+    {
+        costmap_clean_srv = nh->serviceClient<std_srvs::Trigger>("/custom_costmap_node/reset_costmap");
+        navigate_client_ptr.reset(new NavigateClient("/Navigation", true));
+        navigate_client_ptr->waitForServer();
+    }
 }
 void LocalPlanner::resetFlags()
 {
@@ -66,6 +66,7 @@ void LocalPlanner::resetFlags()
     startIter = 1;
     timesCleaned = 0;
     badGoal = 0;
+    last = 0;
 }
 void LocalPlanner::configParams3D()
 {
@@ -73,7 +74,7 @@ void LocalPlanner::configParams3D()
     mapReceived = false;
     mapGeometryConfigured = false;
     doPlan = true;
-
+    last = 0;
     impossibleCnt = 0;
     occGoalCnt = 0;
 
@@ -84,7 +85,7 @@ void LocalPlanner::configParams3D()
     nh.reset(new ros::NodeHandle("~"));
     tf_list.reset(new tf::TransformListener);
     nh->param("arrived_thresh", arrivedThresh, (double)0.25);
-
+    nh->param("timeout", timeout, (double)20);
     nh->param("ws_x_max", ws_x_max, (double)5);
     nh->param("ws_y_max", ws_y_max, (double)5);
     nh->param("ws_z_max", ws_z_max, (double)5);
@@ -114,7 +115,6 @@ void LocalPlanner::configParams3D()
     nh->param("debug", debug, (bool)0);
     nh->param("show_config", showConfig, (bool)0);
 
-
     nh->param("initial_search_around", initialSearchAround, (double)0.5);
     nh->param("final_search_around", finalSearchAround, (double)0.3);
 
@@ -125,12 +125,12 @@ void LocalPlanner::configParams3D()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Workspace:\t X:[%.2f, %.2f]\t Y:[%.2f, %.2f]\t Z: [%.2f, %.2f]", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map Resolution: %.2f\t Map H inflaction: %.2f\t Map V Inflaction: %.2f", map_resolution, map_h_inflaction, map_v_inflaction);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Z weight cost: %.2f\t Z not inflate: %.2f", z_weight_cost, z_not_inflate);
-    configMarkers("local_path_2d");
-   
+    configMarkers("local_path_3d", robot_base_frame);
 }
-void LocalPlanner::configMarkers(std::string ns){
- //Line strip marker use member points, only scale.x is used to control linea width
-    lineMarker.header.frame_id = world_frame;
+void LocalPlanner::configMarkers(std::string ns, std::string frame)
+{
+    //Line strip marker use member points, only scale.x is used to control linea width
+    lineMarker.header.frame_id = frame;
     lineMarker.header.stamp = ros::Time::now();
     lineMarker.id = rand();
     lineMarker.ns = ns;
@@ -145,7 +145,7 @@ void LocalPlanner::configMarkers(std::string ns){
     lineMarker.color.a = 1.0;
     lineMarker.scale.x = 0.1;
 
-    waypointsMarker.header.frame_id = world_frame;
+    waypointsMarker.header.frame_id = frame;
     waypointsMarker.header.stamp = ros::Time::now();
     waypointsMarker.ns = ns;
     waypointsMarker.id = lineMarker.id + 12;
@@ -176,6 +176,7 @@ void LocalPlanner::configParams2D()
     startIter = 1;
 
     nh->param("arrived_thresh", arrivedThresh, (double)0.25);
+    nh->param("timeout", timeout, (double)2);
 
     nh->param("goal_weight", goal_weight, (double)1.5);
     nh->param("cost_weight", cost_weight, (float)0.2);
@@ -207,8 +208,7 @@ void LocalPlanner::configParams2D()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Free space around local goal inside borders = [%.2f]", border_space);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Robot base frame: %s, World frame: %s", robot_base_frame.c_str(), world_frame.c_str());
 
-    configMarkers("local_path_3d");
-
+    configMarkers("local_path_2d", world_frame);
 }
 void LocalPlanner::collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg)
 {
@@ -220,9 +220,12 @@ void LocalPlanner::collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg
 }
 void LocalPlanner::pointsSub(const PointCloud::ConstPtr &points)
 {
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Collision Map Received");
+    // ROS_INFO_COND(debug, PRINTF_MAGENTA "Collision Map Received");
     mapReceived = true;
+    PointCloud out;
+    pcl_ros::transformPointCloud(robot_base_frame, *points, out, *tf_list_ptr);
     theta3D.updateMap(*points);
+    theta3D.publishOccupationMarkersMap();
 }
 void LocalPlanner::dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t level)
 {
@@ -238,39 +241,42 @@ void LocalPlanner::executePathPreemptCB()
 {
     ROS_INFO_COND(debug, "Goal Preempted");
     execute_path_srv_ptr->setPreempted(); // set the action state to preempted
-    navigate_client_ptr->cancelAllGoals();
+    if (!use3d)
+        navigate_client_ptr->cancelAllGoals();
+
     resetFlags();
     clearMarkers();
 }
 void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended to exe here
 {
+    resetFlags();
+    clearMarkers();
+    start_time = ros::Time::now();
+
     ROS_INFO_COND(debug, "Local Planner Goal received in action server mode");
     //upo_actions::ExecutePathGoalConstPtr path_shared_ptr;
     auto path_shared_ptr = execute_path_srv_ptr->acceptNewGoal();
-
     globalTrajectory = path_shared_ptr->path;
+    auto size = globalTrajectory.points.size();
 
-    resetFlags();
-    clearMarkers();
-
-    if (!use3d)
+    if (use3d)
     {
+
+        goals_vector = globalTrajectory.points;
+    }
+    else
+    {
+
+        nav_goal.global_goal.position.x = globalTrajectory.points.at(size - 1).transforms[0].translation.x;
+        nav_goal.global_goal.position.y = globalTrajectory.points.at(size - 1).transforms[0].translation.y;
+        nav_goal.global_goal.position.z = globalTrajectory.points.at(size - 1).transforms[0].translation.z;
+        nav_goal.global_goal.orientation = globalTrajectory.points.at(size - 1).transforms[0].rotation;
         std_srvs::Trigger trg;
         costmap_clean_srv.call(trg);
         usleep(1e5);
+        navigate_client_ptr->sendGoal(nav_goal);
     }
-
-    start_time = ros::Time::now();
-
-    auto size = globalTrajectory.points.size();
-
-    nav_goal.global_goal.position.x = globalTrajectory.points.at(size - 1).transforms[0].translation.x;
-    nav_goal.global_goal.position.y = globalTrajectory.points.at(size - 1).transforms[0].translation.y;
-    nav_goal.global_goal.position.z = globalTrajectory.points.at(size - 1).transforms[0].translation.z;
-
-    nav_goal.global_goal.orientation = globalTrajectory.points.at(size - 1).transforms[0].rotation;
-
-    navigate_client_ptr->sendGoal(nav_goal);
+    ROS_INFO_COND(debug, "Local Planner: Processed goal message");
 }
 void LocalPlanner::configTheta()
 {
@@ -278,8 +284,8 @@ void LocalPlanner::configTheta()
 
     if (use3d)
     {
-        theta3D.init(node_name, world_frame, ws_x_max, ws_y_max, ws_z_max, ws_x_min, ws_y_min, ws_z_min, map_resolution, map_h_inflaction, map_v_inflaction, goal_weight, z_weight_cost, z_not_inflate, nh);
-        theta3D.setTimeOut(10);
+        theta3D.init(node_name, robot_base_frame, ws_x_max, ws_y_max, ws_z_max, ws_x_min, ws_y_min, ws_z_min, map_resolution, map_h_inflaction, map_v_inflaction, goal_weight, z_weight_cost, z_not_inflate, nh);
+        theta3D.setTimeOut(timeout);
         theta3D.setTrajectoryParams(traj_dxy_max, traj_dz_max, traj_pos_tol, traj_vxy_m, traj_vz_m, traj_vxy_m_1, traj_vz_m_1, traj_wyaw_m, traj_yaw_tol);
         theta3D.confPrintRosWarn(true);
         mapGeometryConfigured = true;
@@ -287,7 +293,7 @@ void LocalPlanner::configTheta()
     else
     {
         theta2D.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, nh);
-        theta2D.setTimeOut(1);
+        theta2D.setTimeOut(timeout);
         theta2D.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
     }
 
@@ -353,6 +359,15 @@ void LocalPlanner::plan()
         clearMarkers();
         return;
     }
+    else if (use3d)
+    {
+        calculatePath3D();
+        seconds = finishT.time - startT.time - 1;
+        milliseconds = (1000 - startT.millitm) + finishT.millitm;
+        publishExecutePathFeedback();
+
+        return;
+    }
     else if (navigate_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
     {
         clearMarkers();
@@ -373,14 +388,7 @@ void LocalPlanner::plan()
     }
     ROS_INFO_COND(debug, "Before start loop calculation");
 
-    if (use3d)
-    {
-        calculatePath3D();
-    }
-    else
-    {
-        calculatePath2D();
-    }
+    calculatePath2D();
 
     seconds = finishT.time - startT.time - 1;
     milliseconds = (1000 - startT.millitm) + finishT.millitm;
@@ -406,7 +414,6 @@ void LocalPlanner::calculatePath2D()
 
             if (calculateLocalGoal2D())
             {
-
                 ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Goal calculated");
                 freeLocalGoal();
                 theta2D.getMap(&localCostMapInflated);
@@ -545,12 +552,10 @@ void LocalPlanner::calculatePath3D()
                                 clearMarkers();
                                 action_result.arrived = true;
                                 execute_path_srv_ptr->setSucceeded(action_result);
-                                navigate_client_ptr->cancelGoal();
                                 ROS_ERROR("LocalPlanner: Goal Succed");
                             }
                             else
                             {
-                                navigate_client_ptr->cancelGoal();
                                 execute_path_srv_ptr->setAborted();
                                 planningStatus.data = "Requesting new global path, navigation cancelled";
                                 impossibleCnt = 0;
@@ -563,7 +568,6 @@ void LocalPlanner::calculatePath3D()
                     ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner 3D: Pausing planning, final position busy");
                     planningStatus.data = "Final position Busy, Cancelling goal";
                     //TODO What to tell to the path tracker
-                    navigate_client_ptr->cancelGoal();
                     execute_path_srv_ptr->setAborted();
                     //In order to resume planning, someone must call the pause/resume planning Service that will change the flag to true
                     occGoalCnt = 0;
@@ -580,7 +584,6 @@ void LocalPlanner::calculatePath3D()
             }
             else
             {
-                navigate_client_ptr->cancelGoal();
                 execute_path_srv_ptr->setAborted();
                 badGoal = 0;
             }
@@ -588,7 +591,6 @@ void LocalPlanner::calculatePath3D()
         else
         {
             planningStatus.data = "No initial position found...";
-            navigate_client_ptr->cancelGoal();
             execute_path_srv_ptr->setAborted();
             clearMarkers();
             ROS_INFO_COND(debug, "Local Planner 3D: No initial free position found");
@@ -705,62 +707,90 @@ bool LocalPlanner::calculateLocalGoal3D()
     //Okey we have our std queu with the global waypoints
     //? 1. Take front and calculate if it inside the workspace
     //? 2. if it
-    geometry_msgs::Vector3 currentGoalBl;
-    geometry_msgs::TransformStamped robot = getTfMapToRobot();
+    geometry_msgs::Vector3 currentGoalVec;
+    //geometry_msgs::TransformStamped robot = getTfMapToRobot();
+    goals_vector_bl_frame = goals_vector;
+    geometry_msgs::PoseStamped pose, poseout;
+    pose.header.frame_id = world_frame;
+    poseout.header.frame_id = robot_base_frame;
+    pose.header.stamp = ros::Time::now();
+    pose.header.seq = rand();
 
+    tf_list_ptr->waitForTransform(robot_base_frame, world_frame, ros::Time::now(), ros::Duration(1));
+
+    for (auto &it : goals_vector_bl_frame)
+    {
+        pose.pose.position.x = it.transforms[0].translation.x;
+        pose.pose.position.y = it.transforms[0].translation.y;
+        pose.pose.position.z = it.transforms[0].translation.z;
+
+        pose.pose.orientation.x = it.transforms[0].rotation.x;
+        pose.pose.orientation.y = it.transforms[0].rotation.y;
+        pose.pose.orientation.z = it.transforms[0].rotation.z;
+        pose.pose.orientation.w = it.transforms[0].rotation.w;
+        tf_list_ptr->transformPose(robot_base_frame, pose, poseout);
+
+        it.transforms[0].translation.x = poseout.pose.position.x;
+        it.transforms[0].translation.y = poseout.pose.position.y;
+        it.transforms[0].translation.z = poseout.pose.position.z;
+
+        it.transforms[0].rotation.x = poseout.pose.orientation.x;
+        it.transforms[0].rotation.y = poseout.pose.orientation.y;
+        it.transforms[0].rotation.z = poseout.pose.orientation.z;
+        it.transforms[0].rotation.w = poseout.pose.orientation.w;
+
+        ROS_INFO_COND(debug, PRINTF_RED "Point Transformed: [%.2f,%.2f,%.2f]", poseout.pose.position.x, poseout.pose.position.y, poseout.pose.position.z);
+    }
     int i = 0;
 
-    if (!goals_vector.empty())
+    if (!goals_vector_bl_frame.empty())
     {
-        for (auto it = goals_vector.begin(); it != goals_vector.end(); it++)
+        for (auto it = goals_vector_bl_frame.begin(); it != goals_vector_bl_frame.end(); it++)
         {
             ++i;
-            if (it == goals_vector.end() - 1)
+            if (i < last)
+                continue;
+
+            if (it == goals_vector_bl_frame.end() - 1)
             {
                 currentGoal = *it;
 
-                //tf2::doTransform(currentGoal.transforms[0].translation, currentGoalBl, robot);
-                currentGoalBl.x = currentGoal.transforms[0].translation.x - robot.transform.translation.x;
-                currentGoalBl.y = currentGoal.transforms[0].translation.y - robot.transform.translation.y;
-                currentGoalBl.z = currentGoal.transforms[0].translation.z - robot.transform.translation.z;
-                ROS_INFO_COND(debug, PRINTF_CYAN "BEF BREAK1");
+                //currentGoalBl.x = currentGoal.transforms[0].translation.x - robot.transform.translation.x;
+                //currentGoalBl.y = currentGoal.transforms[0].translation.y - robot.transform.translation.y;
+                //currentGoalBl.z = currentGoal.transforms[0].translation.z - robot.transform.translation.z;
+                ROS_INFO_COND(debug, PRINTF_CYAN "Local Planner 3D: End of global trajectory queu");
+                last = i;
                 break;
             }
             else
             {
 
                 currentGoal = *(it + 1);
-                //tf2::doTransform(currentGoal.transforms[0].translation, currentGoalBl, robot);
-                currentGoalBl.x = currentGoal.transforms[0].translation.x - robot.transform.translation.x;
-                currentGoalBl.y = currentGoal.transforms[0].translation.y - robot.transform.translation.y;
-                currentGoalBl.z = currentGoal.transforms[0].translation.z - robot.transform.translation.z;
-                ROS_INFO_COND(debug, "i: %d Current goal bl frame: [%.2f, %.2f, %.2f]", i, currentGoalBl.x, currentGoalBl.y, currentGoalBl.z);
-                ROS_INFO_COND(debug, "i: %d Local goal map frame: [%.2f, %.2f, %.2f]", i, currentGoal.transforms[0].translation.x, currentGoal.transforms[0].translation.y, currentGoal.transforms[0].translation.z);
 
-                if (!pointInside(currentGoalBl))
+                currentGoalVec.x = currentGoal.transforms[0].translation.x;
+                currentGoalVec.y = currentGoal.transforms[0].translation.y;
+                currentGoalVec.z = currentGoal.transforms[0].translation.z;
+                //currentGoalBl.x = currentGoal.transforms[0].translation.x - robot.transform.translation.x;
+                //currentGoalBl.y = currentGoal.transforms[0].translation.y - robot.transform.translation.y;
+                //currentGoalBl.z = currentGoal.transforms[0].translation.z - robot.transform.translation.z;
+                ROS_INFO_COND(debug, "Local Planner 3D: i: %d Current goal bl frame: [%.2f, %.2f, %.2f]", i, currentGoalVec.x, currentGoalVec.y, currentGoalVec.z);
+                ROS_INFO_COND(debug, "Local Planner 3D: i: %d Local goal map frame: [%.2f, %.2f, %.2f]", i, currentGoal.transforms[0].translation.x, currentGoal.transforms[0].translation.y, currentGoal.transforms[0].translation.z);
+                if (!theta3D.isInside(currentGoalVec))
                 {
                     currentGoal = *it;
-
-                    //tf2::doTransform(currentGoal.transforms[0].translation, currentGoalBl, robot);
-                    currentGoalBl.x = currentGoal.transforms[0].translation.x - robot.transform.translation.x;
-                    currentGoalBl.y = currentGoal.transforms[0].translation.y - robot.transform.translation.y;
-                    currentGoalBl.z = currentGoal.transforms[0].translation.z - robot.transform.translation.z;
-                    ROS_INFO_COND(debug, PRINTF_CYAN "BEF BREAK2");
+                    //currentGoalBl.x = currentGoal.transforms[0].translation.x - robot.transform.translation.x;
+                    //currentGoalBl.y = currentGoal.transforms[0].translation.y - robot.transform.translation.y;
+                    //currentGoalBl.z = currentGoal.transforms[0].translation.z - robot.transform.translation.z;
+                    ROS_INFO_COND(debug, PRINTF_CYAN "Local Planner 3D: Passing Local Goal: [%.2f, %.2f, %.2f]", currentGoalVec.x, currentGoalVec.y, currentGoalVec.z);
+                    last = i;
                     break;
-                }
-                else
-                {
-                    ++i;
-                    if (!goals_vector.empty())
-                    {
-                        ROS_INFO_COND(debug, "BEF");
-                        goals_vector.erase(it);
-                        ROS_INFO_COND(debug, "AFTER");
-                    }
                 }
             }
         }
-        localGoal = currentGoalBl;
+
+        localGoal.x = currentGoal.transforms[0].translation.x;
+        localGoal.y = currentGoal.transforms[0].translation.y;
+        localGoal.z = currentGoal.transforms[0].translation.z;
 
         ROS_INFO_COND(debug, "i: %d Local goal bl frame: [%.2f, %.2f, %.2f]", i, localGoal.x, localGoal.y, localGoal.z);
         ROS_INFO_COND(debug, "Local goalmap frame: [%.2f, %.2f, %.2f]", currentGoal.transforms[0].translation.x, currentGoal.transforms[0].translation.y, currentGoal.transforms[0].translation.z);
@@ -863,6 +893,14 @@ void LocalPlanner::publishTrajMarker3D() //? DONE 3D
     lineMarker.header.stamp = ros::Time::now();
     waypointsMarker.header.stamp = ros::Time::now();
 
+    geometry_msgs::Transform robot_pos;// = getTfMapToRobot().transform;
+    robot_pos.translation.x=0;
+    robot_pos.translation.y=0;
+    robot_pos.translation.z=0;
+
+    lineMarker.points.push_back(makePoint(robot_pos.translation));
+    waypointsMarker.points.push_back(makePoint(robot_pos.translation));
+
     for (auto it : localTrajectory.points)
     {
         lineMarker.points.push_back(makePoint(it.transforms[0].translation));
@@ -920,7 +958,10 @@ void LocalPlanner::buildAndPubTrayectory3D()
 {
     ROS_INFO_COND(debug, "Clearing local trajectory");
     localTrajectory.points.clear();
-    geometry_msgs::Vector3 dron_pos = getTfMapToRobot().transform.translation;
+    geometry_msgs::Vector3 dron_pos;// = getTfMapToRobot().transform.translation;
+    dron_pos.x = 0;
+    dron_pos.y = 0;
+    dron_pos.z = 0;
 
     if (number_of_points > 1)
     {
@@ -930,17 +971,17 @@ void LocalPlanner::buildAndPubTrayectory3D()
     {
         getTrajectoryYawFixed(localTrajectory, 0);
     }
-    ROS_INFO_COND(debug, "Got traj");
+    // ROS_INFO_COND(debug, "Got traj");
 
-    for (size_t i = 0; i < localTrajectory.points.size(); i++)
-    {
-        localTrajectory.points[i].transforms[0].translation.x += dron_pos.x;
-        localTrajectory.points[i].transforms[0].translation.y += dron_pos.y;
-        localTrajectory.points[i].transforms[0].translation.z += dron_pos.z;
-    }
-    ROS_INFO_COND(debug, "After for loop");
+    // for (size_t i = 0; i < localTrajectory.points.size(); i++)
+    // {
+    //     localTrajectory.points[i].transforms[0].translation.x += dron_pos.x;
+    //     localTrajectory.points[i].transforms[0].translation.y += dron_pos.y;
+    //     localTrajectory.points[i].transforms[0].translation.z += dron_pos.z;
+    // }
+    //ROS_INFO_COND(debug, "After for loop");
 
-    localTrajectory.points.push_back(currentGoal);
+    //localTrajectory.points.push_back(currentGoal);
     localTrajectory.header.stamp = ros::Time::now();
 
     trajPub.publish(localTrajectory);

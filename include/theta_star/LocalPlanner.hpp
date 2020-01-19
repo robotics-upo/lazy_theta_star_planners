@@ -49,6 +49,8 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <octomap_msgs/Octomap.h>
 #include <pcl_ros/point_cloud.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl_ros/transforms.h>
 
 namespace PathPlanners
 {
@@ -121,7 +123,7 @@ private:
     void freeLocalGoal();
     void collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg);
     void pointsSub(const PointCloud::ConstPtr &points);
-    void configMarkers(std::string ns);
+    void configMarkers(std::string ns, std::string frame);
 
     inline double euclideanDistance(double x0, double y0, double x, double y)
     {
@@ -229,7 +231,10 @@ private:
     bool mapReceived;
 
     trajectory_msgs::MultiDOFJointTrajectoryPoint currentGoal;
-    std::vector<trajectory_msgs::MultiDOFJointTrajectoryPoint> goals_vector;
+    std::vector<trajectory_msgs::MultiDOFJointTrajectoryPoint> goals_vector,goals_vector_bl_frame;
+    int last;
+    std::unique_ptr<tf::TransformListener> tf_list_ptr;
+    double timeout;
 };
 
 } // namespace PathPlanners
