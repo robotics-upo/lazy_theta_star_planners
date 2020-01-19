@@ -14,7 +14,7 @@ map_h_inflaction: 0.6
 map_v_inflaction: 0.2
 z_weight_cost: 1
 z_not_inflate: 3
-goal_weight: 1.2
+goal_weight: 1.3
 traj_dxy_max: 1
 traj_pos_tol: 1
 traj_yaw_tol: 0.1

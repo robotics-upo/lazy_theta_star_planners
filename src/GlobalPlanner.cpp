@@ -56,14 +56,14 @@ void GlobalPlanner::configTheta()
     if (use3d)
     {
         theta3D.init(node_name, world_frame, ws_x_max, ws_y_max, ws_z_max, ws_x_min, ws_y_min, ws_z_min, map_resolution, map_h_inflaction, map_v_inflaction, goal_weight, z_weight_cost, z_not_inflate, nh);
-        theta3D.setTimeOut(10);
+        theta3D.setTimeOut(timeout);
         theta3D.setTrajectoryParams(traj_dxy_max, traj_dz_max, traj_pos_tol, traj_vxy_m, traj_vz_m, traj_vxy_m_1, traj_vz_m_1, traj_wyaw_m, traj_yaw_tol);
         theta3D.confPrintRosWarn(false);
     }
     else
     {
         theta2D.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, nh);
-        theta2D.setTimeOut(10);
+        theta2D.setTimeOut(timeout);
         theta2D.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
     }
 }
@@ -93,13 +93,15 @@ void GlobalPlanner::collisionMapCallBack(const octomap_msgs::OctomapConstPtr &ms
     map = msg;
     theta3D.updateMap(map);
     mapRec=true;
+
     //ROS_INFO_COND(debug, PRINTF_MAGENTA "Collision Map Received");
 }
 void GlobalPlanner::pointsSub(const PointCloud::ConstPtr &points)
 {
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Collision Map Received");
+    // ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 3D: Collision Map Received");
     mapRec=true;
     theta3D.updateMap(*points);
+    theta3D.publishOccupationMarkersMap();
 }
 void GlobalPlanner::configServices()
 {
@@ -119,7 +121,7 @@ void GlobalPlanner::configServices()
         rot_in_place_client_ptr->waitForServer();
     }
 
-    ROS_INFO_COND(debug, "Action client from global planner ready");
+    ROS_INFO_COND(debug, "Global Planner 3D: Action client from global planner ready");
 }
 void GlobalPlanner::dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level)
 {
@@ -144,6 +146,7 @@ void GlobalPlanner::configParams2D()
     //Get params from param server. If they dont exist give variables default values
     nh->param("show_config", showConfig, (bool)0);
     nh->param("debug", debug, (bool)0);
+    nh->param("timeout", timeout, (double)10);
 
     nh->param("min_path_lenght", minPathLenght, (float)0.2);
     nh->param("goal_weight", goal_weight, (double)1.5);
@@ -174,7 +177,7 @@ void GlobalPlanner::configParams2D()
     map_resolution = global_costmap_ptr->getCostmap()->getResolution();
     ws_x_max = global_costmap_ptr->getCostmap()->getSizeInMetersX();
     ws_y_max = global_costmap_ptr->getCostmap()->getSizeInMetersY();
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: ws_x_max,ws_y_max, map_resolution: [%.2f, %.2f, %.2f]", ws_x_max, ws_y_max, map_resolution);
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 2D: ws_x_max,ws_y_max, map_resolution: [%.2f, %.2f, %.2f]", ws_x_max, ws_y_max, map_resolution);
     theta2D.loadMapParams(ws_x_max, ws_y_max, map_resolution);
 }
 void GlobalPlanner::configMarkers(std::string ns)
@@ -220,6 +223,7 @@ void GlobalPlanner::configParams3D()
     //Get params from param server. If they dont exist give variables default values
     nh->param("show_config", showConfig, (bool)0);
     nh->param("debug", debug, (bool)0);
+    nh->param("timeout", timeout, (double)10);
 
     nh->param("ws_x_max", ws_x_max, (double)30);
     nh->param("ws_y_max", ws_y_max, (double)30);
@@ -369,11 +373,11 @@ void GlobalPlanner::makePlanGoalCB()
         lock.unlock();
     }
 
-    ROS_INFO_COND(debug, "Called make plan srv");
+    ROS_INFO_COND(debug, "Global Planner: Called Make Plan");
 
     if (calculatePath())
     {
-        ROS_INFO_COND(debug, "Succesfully calculated path");
+        ROS_INFO_COND(debug, "Global Planner: Succesfully calculated path");
         sendPathToLocalPlannerServer();
     }
     else
@@ -390,7 +394,7 @@ void GlobalPlanner::makePlanPreemptCB()
     make_plan_res.time_spent = travel_time;
 
     make_plan_server_ptr->setPreempted(make_plan_res, "Goal Preempted by User");
-    ROS_INFO("Make plan preempt cb: cancelling");
+    ROS_INFO("Global Planner: Make plan preempt cb: cancelling");
     execute_path_client_ptr->cancelAllGoals();
     clearMarkers();
 }
@@ -414,7 +418,7 @@ bool GlobalPlanner::replan()
     if (calculatePath())
     {
         ++timesReplaned;
-        ROS_INFO_COND(debug, "Succesfully calculated path");
+        ROS_INFO_COND(debug, "Global Planner: Succesfully calculated path");
         sendPathToLocalPlannerServer();
         return true;
     }
@@ -479,21 +483,21 @@ void GlobalPlanner::plan()
 
         if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED)
         {
-            ROS_INFO("Path execution aborted by local planner...");
+            ROS_INFO("Global Planner: Path execution aborted by local planner...");
             replan();
         } //!It means that local planner couldn t find a local solution
 
         if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::PREEMPTED)
         { //!Maybe when the goal is inside the local workspace and occupied
 
-            ROS_INFO("Path execution preempted by local planner");
+            ROS_INFO("Global Planner: Path execution preempted by local planner");
             replan();
             //Decide What to do next....
         }
         if (execute_path_client_ptr->getState() == actionlib::SimpleClientGoalState::REJECTED)
         { //!Maybe when the goal is inside the local workspace and occupied
 
-            ROS_INFO("Path execution rejected by local planner");
+            ROS_INFO("Global Planner: Path execution rejected by local planner");
             replan();
             //Decide What to do next....
         }
@@ -510,7 +514,7 @@ bool GlobalPlanner::calculatePath()
     
     if (setGoal() && setStart())
     {
-        ROS_INFO_COND(debug, PRINTF_MAGENTA "Goal and start successfull set");
+        ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Goal and start successfull set");
         // Path calculation
 
         ftime(&start);
@@ -527,12 +531,12 @@ bool GlobalPlanner::calculatePath()
         seconds = finish.time - start.time - 1;
         milliseconds = (1000 - start.millitm) + finish.millitm;
 
-        ROS_INFO(PRINTF_YELLOW "Time Spent in Global Path Calculation: %.1f ms", milliseconds + seconds * 1000);
-        ROS_INFO(PRINTF_YELLOW "Number of points: %d", number_of_points);
+        ROS_INFO(PRINTF_YELLOW "Global Planner: Time Spent in Global Path Calculation: %.1f ms", milliseconds + seconds * 1000);
+        ROS_INFO(PRINTF_YELLOW "Global Planner: Number of points: %d", number_of_points);
 
         if (number_of_points > 0)
         {
-            ROS_INFO_COND(debug, PRINTF_MAGENTA "Publishing trajectory, %d", number_of_points);
+            ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Publishing trajectory");
             if (use3d)
             {
                 publishTrajectory3D();
@@ -601,7 +605,7 @@ void GlobalPlanner::publishTrajectory2D()
     trajectory.header.seq = ++seq;
     trajectory.points.clear();
 
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Trajectory calculation...");
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 2D: Trajectory calculation...");
 
     geometry_msgs::TransformStamped transform_robot_pose = getRobotPose();
 
@@ -660,7 +664,7 @@ void GlobalPlanner::publishTrajectory3D()
     trajectory.header.seq = ++seq;
     trajectory.points.clear();
 
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Trajectory calculation...");
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 3D: Trajectory calculation...");
 
     geometry_msgs::TransformStamped transform_robot_pose = getRobotPose();
 
@@ -725,7 +729,7 @@ bool GlobalPlanner::setGoal()
         }
         else
         {
-            ROS_ERROR("Global Planner: Failed to set final global position: [%.2f, %.2f] ", goal.vector.x, goal.vector.y);
+            ROS_ERROR("Global Planner: Failed to set final global position: [%.2f, %.2f, %.2f] ", goal.vector.x, goal.vector.y, goal.vector.z);
         }
     }
     else

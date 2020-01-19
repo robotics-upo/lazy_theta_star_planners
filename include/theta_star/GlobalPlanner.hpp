@@ -232,6 +232,7 @@ private:
     double traj_wyaw_m;
     double traj_pos_tol;
     double traj_yaw_tol;
+    double timeout;
 }; //class GlobalPlanner
 
 } //namespace PathPlanners
