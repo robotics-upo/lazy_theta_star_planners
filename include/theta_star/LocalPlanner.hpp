@@ -195,7 +195,7 @@ private:
     ros::Time start_time;
     std_msgs::Float32 d2goal;
     //action client to navigate
-    std::unique_ptr<NavigateClient> navigate_client_ptr;
+    std::unique_ptr<NavigateClient> navigation_client_2d_ptr;
     upo_actions::NavigateGoal nav_goal;
 
     //!
