@@ -14,8 +14,10 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <memory>
 #include <theta_star/ThetaStar2D.hpp>
 #include <theta_star/ThetaStar3D.hpp>
+
 #include <std_srvs/Trigger.h>
 #include <std_srvs/Empty.h>
+
 #include <visualization_msgs/Marker.h>
 
 #include <geometry_msgs/PoseStamped.h>
@@ -41,7 +43,6 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <upo_actions/ExecutePathAction.h>
 #include <upo_actions/MakePlanAction.h>
 #include <upo_actions/RotationInPlaceAction.h>
-
 
 #include <sensor_msgs/PointCloud2.h>
 #include <octomap_msgs/Octomap.h>
@@ -77,11 +78,12 @@ public:
 private:
     void clearMarkers();
     void sendPathToLocalPlannerServer();
+    void publishMakePlanFeedback();
 
     //Action server
     void makePlanPreemptCB();
     void makePlanGoalCB();
-    void publishMakePlanFeedback();
+
     int getClosestWaypoint();
     bool replan();
     
@@ -116,8 +118,15 @@ private:
     @brief: Lock and reset costmap layers
     */
     void resetGlobalCostmap();
+    
+    /*
+    @brief: 
+    */
     void collisionMapCallBack(const octomap_msgs::OctomapConstPtr &msg);
     void pointsSub(const PointCloud::ConstPtr &points);
+    /*
+    @brief: 
+    */
     void publishTrajectory2D();
     void publishTrajectory3D();
 
@@ -130,7 +139,13 @@ private:
     */
     bool setGoal();
     bool setStart();
+
+    /*
+    @brief: 
+    */
     void calculatePathLength();
+    
+    
     /*              Class Variables                 */
     ros::NodeHandlePtr nh;
 
