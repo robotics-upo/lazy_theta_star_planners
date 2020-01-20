@@ -69,7 +69,7 @@ add_dependencies(local_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXP
 
 add_executable(custom_costmap_node src/custom_costmap_node.cpp)
 target_link_libraries(custom_costmap_node ${catkin_LIBRARIES})
-add_dependencies(local_planner_node ${catkin_EXPORTED_TARGETS})
+add_dependencies(custom_costmap_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 
 add_executable(action_goal_interface_node src/action_goal_interface_node.cpp)
