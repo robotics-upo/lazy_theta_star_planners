@@ -111,13 +111,14 @@ void GlobalPlanner::configServices()
     make_plan_server_ptr->registerPreemptCallback(boost::bind(&GlobalPlanner::makePlanPreemptCB, this));
 
     make_plan_server_ptr->start();
-
+    execute_path_client_ptr->waitForServer();
+    
     if (!use3d)
     {
         reset_global_costmap_service = nh->advertiseService("reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
         rot_in_place_client_ptr.reset(new RotationInPlaceClient("/Recovery_Rotation", true));
 
-        execute_path_client_ptr->waitForServer();
+        
         rot_in_place_client_ptr->waitForServer();
     }
 
