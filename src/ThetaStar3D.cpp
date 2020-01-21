@@ -998,13 +998,15 @@ bool ThetaStar3D::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw
 
 	// entire path loop
 	int i = 0;
+	ROS_INFO("n_path: %d", n_path);
 	while (i < n_path)
 	{
 		// get next path position
 		next_position = last_path[i];
-
+		ROS_INFO("Next Position: [%.2f, %.2f, %.2f]", next_position.x, next_position.y, next_position.z);
 		// trajectory middle waypoints
 		middle_position = last_position;
+		ROS_INFO("Middle Position: [%.2f, %.2f, %.2f]", middle_position.x, middle_position.y, middle_position.z);
 
 		// two path points loop
 		pathPointGot = false;
@@ -1061,7 +1063,7 @@ bool ThetaStar3D::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw
 	}
 
 	//print actual trajectory vector state
-	//printfTrajectory(trajectory, "Trajectory_state_1");
+	printfTrajectory(trajectory, "Trajectory_state_1");
 
 	return true;
 }

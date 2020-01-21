@@ -955,11 +955,14 @@ void LocalPlanner::buildAndPubTrayectory3D()
 
     if (number_of_points > 1)
     {
-        theta3D.getTrajectoryYawInAdvance(localTrajectory, getTfMapToRobot().transform);
+        ROS_INFO_COND(debug,"Yaw in Advance");
+        geometry_msgs::Transform tf;
+        theta3D.getTrajectoryYawInAdvance(localTrajectory, tf);
     }
     else
     {
-        getTrajectoryYawFixed(localTrajectory, 0);
+        ROS_INFO_COND(debug,"Yaw fixed");
+        theta3D.getTrajectoryYawFixed(localTrajectory, 0);
     }
 
     localTrajectory.header.stamp = ros::Time::now();
