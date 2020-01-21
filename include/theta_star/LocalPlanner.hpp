@@ -144,7 +144,6 @@ private:
 
     bool showConfig;
     bool mapGeometryConfigured;
-    bool doPlan;
     //Flow control flags
     //To calculate planning time
     struct timeb startT, finishT;

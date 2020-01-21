@@ -61,7 +61,6 @@ void LocalPlanner::configServices()
 void LocalPlanner::resetFlags()
 {
     mapReceived = false;
-    doPlan = true;
     impossibleCnt = 0;
     occGoalCnt = 0;
     startIter = 1;
@@ -394,7 +393,7 @@ void LocalPlanner::calculatePath2D()
     ROS_INFO("Calculating");
 
     ftime(&startT);
-    if (mapReceived && doPlan && mapGeometryConfigured)
+    if (mapReceived && mapGeometryConfigured)
     {
         ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Global trj received and local costmap received");
         mapReceived = false;
@@ -502,7 +501,7 @@ void LocalPlanner::calculatePath2D()
 }
 void LocalPlanner::calculatePath3D()
 {
-    if (mapReceived && doPlan)
+    if (mapReceived)
     {
         ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner 3D: Global trj received and pointcloud received");
         mapReceived = false;
