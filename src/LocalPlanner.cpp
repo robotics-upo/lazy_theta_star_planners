@@ -56,6 +56,9 @@ void LocalPlanner::configServices()
         costmap_clean_srv = nh->serviceClient<std_srvs::Trigger>("/custom_costmap_node/reset_costmap");
         navigation_client_2d_ptr.reset(new NavigateClient("/Navigation", true));
         navigation_client_2d_ptr->waitForServer();
+    }else{
+        navigation3DClient.reset(new Navigate3DClient("/Navigation3D", true));
+        navigation3DClient->waitForServer();
     }
 }
 void LocalPlanner::resetFlags()
@@ -235,8 +238,11 @@ void LocalPlanner::executePathPreemptCB()
     ROS_INFO_COND(debug, "Goal Preempted");
     execute_path_srv_ptr->setPreempted(); // set the action state to preempted
 
-    if (!use3d)
+    if (use3d){
+        navigation3DClient->cancelAllGoals();
+    }else{
         navigation_client_2d_ptr->cancelAllGoals();
+    }
 
     resetFlags();
     clearMarkers();
@@ -256,6 +262,11 @@ void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended t
     if (use3d)
     {
         goals_vector = globalTrajectory.points;
+        goal3D.global_goal.point.x = globalTrajectory.points.at(globalTrajectory.points.size()-1).transforms[0].translation.x;
+        goal3D.global_goal.point.y = globalTrajectory.points.at(globalTrajectory.points.size()-1).transforms[0].translation.y;
+        goal3D.global_goal.point.z = globalTrajectory.points.at(globalTrajectory.points.size()-1).transforms[0].translation.z;
+        
+        navigation3DClient->sendGoal(goal3D);
     }
     else
     {
@@ -347,21 +358,26 @@ void LocalPlanner::plan()
 {
     number_of_points = 0; //Reset variable
 
+
     if (!execute_path_srv_ptr->isActive())
     {
         clearMarkers();
         return;
     }
-    else if (use3d)
-    {
-        calculatePath3D();
-        seconds = finishT.time - startT.time - 1;
-        milliseconds = (1000 - startT.millitm) + finishT.millitm;
-        publishExecutePathFeedback();
 
-        return;
+    if(use3d){
+        calculatePath3D();
+        state.reset(new actionlib::SimpleClientGoalState(navigation3DClient->getState()));
+    }else{
+        calculatePath2D();
+        state.reset(new actionlib::SimpleClientGoalState(navigation_client_2d_ptr->getState()));
     }
-    else if (navigation_client_2d_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
+
+    seconds = finishT.time - startT.time - 1;
+    milliseconds = (1000 - startT.millitm) + finishT.millitm;
+    publishExecutePathFeedback();
+    
+    if (*state == actionlib::SimpleClientGoalState::SUCCEEDED)
     {
         clearMarkers();
         action_result.arrived = true;
@@ -369,24 +385,19 @@ void LocalPlanner::plan()
         ROS_ERROR("LocalPlanner: Goal Succed");
         return;
     }
-    else if (navigation_client_2d_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED)
+    else if (*state == actionlib::SimpleClientGoalState::ABORTED)
     {
         ROS_INFO_COND(debug, "Goal aborted by path tracker");
         resetFlags();
     }
-    else if (navigation_client_2d_ptr->getState() == actionlib::SimpleClientGoalState::PREEMPTED)
+    else if (*state == actionlib::SimpleClientGoalState::PREEMPTED)
     {
         ROS_INFO_COND(debug, "Goal preempted by path tracker");
         resetFlags();
     }
     ROS_INFO_COND(debug, "Before start loop calculation");
 
-    calculatePath2D();
-
-    seconds = finishT.time - startT.time - 1;
-    milliseconds = (1000 - startT.millitm) + finishT.millitm;
-
-    publishExecutePathFeedback();
+    
 }
 void LocalPlanner::calculatePath2D()
 {
@@ -446,7 +457,6 @@ void LocalPlanner::calculatePath2D()
                             else
                             {
                                 navigation_client_2d_ptr->cancelGoal();
-
                                 planningStatus.data = "Requesting new global path, navigation cancelled";
                                 execute_path_srv_ptr->setAborted();
                                 impossibleCnt = 0;
@@ -544,11 +554,13 @@ void LocalPlanner::calculatePath3D()
                                 clearMarkers();
                                 action_result.arrived = true;
                                 execute_path_srv_ptr->setSucceeded(action_result);
+                                navigation3DClient->cancelAllGoals();
                                 ROS_ERROR("LocalPlanner: Goal Succed");
                             }
                             else
                             {
                                 execute_path_srv_ptr->setAborted();
+                                navigation3DClient->cancelAllGoals();
                                 planningStatus.data = "Requesting new global path, navigation cancelled";
                                 impossibleCnt = 0;
                             }
@@ -572,10 +584,12 @@ void LocalPlanner::calculatePath3D()
             else if (badGoal < 3)
             {
                 ROS_INFO_COND(debug, "Local Planner 3D: Bad Goal Calculated: [%.2f, %.2f]", localGoal.x, localGoal.y);
+
                 ++badGoal;
             }
             else
             {
+                navigation3DClient->cancelAllGoals();
                 execute_path_srv_ptr->setAborted();
                 badGoal = 0;
             }
@@ -584,6 +598,8 @@ void LocalPlanner::calculatePath3D()
         {
             planningStatus.data = "No initial position found...";
             execute_path_srv_ptr->setAborted();
+            navigation3DClient->cancelAllGoals();
+
             clearMarkers();
             ROS_INFO_COND(debug, "Local Planner 3D: No initial free position found");
         }

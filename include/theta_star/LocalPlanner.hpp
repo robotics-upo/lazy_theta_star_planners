@@ -41,6 +41,7 @@
 
 #include <upo_actions/ExecutePathAction.h>
 #include <upo_actions/NavigateAction.h>
+#include <upo_actions/Navigate3DAction.h>
 
 #include <std_srvs/Empty.h>
 #include <std_msgs/Float32.h>
@@ -58,6 +59,8 @@ class LocalPlanner : public ThetaStar3D
 {
     typedef actionlib::SimpleActionServer<upo_actions::ExecutePathAction> ExecutePathServer;
     typedef actionlib::SimpleActionClient<upo_actions::NavigateAction> NavigateClient;
+    typedef actionlib::SimpleActionClient<upo_actions::Navigate3DAction> Navigate3DClient;
+
 
 public:
     /*
@@ -196,6 +199,11 @@ private:
     //action client to navigate
     std::unique_ptr<NavigateClient> navigation_client_2d_ptr;
     upo_actions::NavigateGoal nav_goal;
+
+    std::unique_ptr<Navigate3DClient> navigation3DClient;
+    upo_actions::Navigate3DGoal goal3D;
+    std::unique_ptr<actionlib::SimpleClientGoalState> state;
+    
 
     //!
     //Theta star algorithm parameters
