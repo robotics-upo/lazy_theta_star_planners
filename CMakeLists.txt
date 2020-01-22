@@ -16,7 +16,6 @@ find_package(catkin REQUIRED COMPONENTS
   trajectory_msgs
   octomap_msgs
   octomap_ros
-  moveit_msgs
   pcl_conversions
   pcl_ros
 )
