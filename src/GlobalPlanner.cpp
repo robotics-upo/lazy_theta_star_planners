@@ -93,6 +93,7 @@ void GlobalPlanner::collisionMapCallBack(const octomap_msgs::OctomapConstPtr &ms
     map = msg;
     theta3D.updateMap(map);
     mapRec=true;
+    sub_map.shutdown();
 
     //ROS_INFO_COND(debug, PRINTF_MAGENTA "Collision Map Received");
 }
@@ -102,6 +103,7 @@ void GlobalPlanner::pointsSub(const PointCloud::ConstPtr &points)
     mapRec=true;
     theta3D.updateMap(*points);
     theta3D.publishOccupationMarkersMap();
+    sub_map.shutdown();
 }
 void GlobalPlanner::configServices()
 {
