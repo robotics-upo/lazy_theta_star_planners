@@ -964,10 +964,6 @@ void LocalPlanner::buildAndPubTrayectory3D()
 {
     ROS_INFO_COND(debug, "Clearing local trajectory");
     localTrajectory.points.clear();
-    geometry_msgs::Vector3 dron_pos; // = getTfMapToRobot().transform.translation;
-    dron_pos.x = 0;
-    dron_pos.y = 0;
-    dron_pos.z = 0;
 
     if (number_of_points > 1)
     {
@@ -982,8 +978,9 @@ void LocalPlanner::buildAndPubTrayectory3D()
     }
     else
     {
+        double yaw=atan2(localGoal.y,localGoal.x);
         ROS_INFO_COND(debug,"Yaw fixed");
-        theta3D.getTrajectoryYawFixed(localTrajectory, 0);
+        theta3D.getTrajectoryYawFixed(localTrajectory, yaw);
     }
 
     localTrajectory.header.stamp = ros::Time::now();
