@@ -973,6 +973,11 @@ void LocalPlanner::buildAndPubTrayectory3D()
     {
         ROS_INFO_COND(debug,"Yaw in Advance");
         geometry_msgs::Transform tf;
+        tf.rotation.w = 1;
+        tf.translation.x = 0;
+        tf.translation.y = 0;
+        tf.translation.z = 0;
+
         theta3D.getTrajectoryYawInAdvance(localTrajectory, tf);
     }
     else
