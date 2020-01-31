@@ -547,23 +547,13 @@ void LocalPlanner::calculatePath3D()
                         //ROS_INFO_COND(debug,"Local: +1 impossible");
                         if (impossibleCnt > 2)
                         {
-                            double dist2goal = euclideanDistance(nav_goal.global_goal.position.x, nav_goal.global_goal.position.y, nav_goal.global_goal.position.z,
-                                                                 getTfMapToRobot().transform.translation.x, getTfMapToRobot().transform.translation.y, getTfMapToRobot().transform.translation.z);
-                            if (dist2goal < arrivedThresh)
-                            {
-                                clearMarkers();
-                                action_result.arrived = true;
-                                execute_path_srv_ptr->setSucceeded(action_result);
-                                navigation3DClient->cancelAllGoals();
-                                ROS_ERROR("LocalPlanner: Goal Succed");
-                            }
-                            else
-                            {
-                                execute_path_srv_ptr->setAborted();
-                                navigation3DClient->cancelAllGoals();
-                                planningStatus.data = "Requesting new global path, navigation cancelled";
-                                impossibleCnt = 0;
-                            }
+                      
+                            clearMarkers();
+                            execute_path_srv_ptr->setAborted();
+                            navigation3DClient->cancelAllGoals();
+                            planningStatus.data = "Requesting new global path, navigation cancelled";
+                            impossibleCnt = 0;
+                        
                         }
                     }
                 }
