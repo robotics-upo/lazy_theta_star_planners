@@ -152,7 +152,7 @@ void GlobalPlanner::configParams2D()
     nh->param("timeout", timeout, (double)10);
     nh->param("initial_position_search_dist", initialSearchAround, (double)0.25);
 
-    nh->param("min_path_lenght", minPathLenght, (float)0.2);
+    nh->param("min_path_lenght", minPathLenght, (float)0.1);
     nh->param("goal_weight", goal_weight, (double)1.5);
     nh->param("cost_weight", cost_weight, (float)0.2);
     nh->param("lof_distance", lof_distance, (float)0.2);
@@ -554,7 +554,7 @@ bool GlobalPlanner::calculatePath()
             if (pathLength < minPathLenght)
             {
                 execute_path_client_ptr->cancelAllGoals();
-                make_plan_server_ptr->setPreempted();
+                make_plan_server_ptr->setSucceeded();
             }
             //Reset the counter of the number of times the planner tried to calculate a path without success
             countImpossible = 0;
