@@ -110,6 +110,7 @@ private:
     bool calculateLocalGoal2D();
     void calculatePath2D();
     void buildAndPubTrayectory3D();
+    bool transformTrajectoryToFrame(std::string dest_frame);
     void publishTrajMarker3D();
     void configParams3D();
     bool calculateLocalGoal3D();
@@ -172,7 +173,7 @@ private:
     bool debug;
     float seconds, milliseconds;
 
-    string robot_base_frame, world_frame;
+    string robot_base_frame, world_frame,traj_dest_frame;
     nav_msgs::OccupancyGrid localCostMap, localCostMapInflated;
     trajectory_msgs::MultiDOFJointTrajectory globalTrajectory, localTrajectory;
     //Markers

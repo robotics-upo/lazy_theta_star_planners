@@ -56,7 +56,9 @@ void LocalPlanner::configServices()
         costmap_clean_srv = nh->serviceClient<std_srvs::Trigger>("/custom_costmap_node/reset_costmap");
         navigation_client_2d_ptr.reset(new NavigateClient("/Navigation", true));
         navigation_client_2d_ptr->waitForServer();
-    }else{
+    }
+    else
+    {
         navigation3DClient.reset(new Navigate3DClient("/Navigation3D", true));
         navigation3DClient->waitForServer();
     }
@@ -111,6 +113,7 @@ void LocalPlanner::configParams3D()
     nh->param("traj_wyaw_m", traj_wyaw_m, (double)1);
     nh->param("world_frame", world_frame, (string) "/map");
     nh->param("robot_base_frame", robot_base_frame, (string) "/siar/base_link");
+    nh->param("traj_dest_frame", traj_dest_frame, (string) "/siar/odom");
 
     nh->param("debug", debug, (bool)0);
     nh->param("show_config", showConfig, (bool)0);
@@ -125,7 +128,7 @@ void LocalPlanner::configParams3D()
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Workspace:\t X:[%.2f, %.2f]\t Y:[%.2f, %.2f]\t Z: [%.2f, %.2f]", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Map Resolution: %.2f\t Map H inflaction: %.2f\t Map V Inflaction: %.2f", map_resolution, map_h_inflaction, map_v_inflaction);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Z weight cost: %.2f\t Z not inflate: %.2f", z_weight_cost, z_not_inflate);
-    configMarkers("local_path_3d", robot_base_frame);
+    configMarkers("local_path_3d", traj_dest_frame);
 }
 void LocalPlanner::configMarkers(std::string ns, std::string frame)
 {
@@ -238,9 +241,12 @@ void LocalPlanner::executePathPreemptCB()
     ROS_INFO_COND(debug, "Goal Preempted");
     execute_path_srv_ptr->setPreempted(); // set the action state to preempted
 
-    if (use3d){
+    if (use3d)
+    {
         navigation3DClient->cancelAllGoals();
-    }else{
+    }
+    else
+    {
         navigation_client_2d_ptr->cancelAllGoals();
     }
 
@@ -262,10 +268,10 @@ void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended t
     if (use3d)
     {
         goals_vector = globalTrajectory.points;
-        goal3D.global_goal.point.x = globalTrajectory.points.at(globalTrajectory.points.size()-1).transforms[0].translation.x;
-        goal3D.global_goal.point.y = globalTrajectory.points.at(globalTrajectory.points.size()-1).transforms[0].translation.y;
-        goal3D.global_goal.point.z = globalTrajectory.points.at(globalTrajectory.points.size()-1).transforms[0].translation.z;
-        
+        goal3D.global_goal.point.x = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].translation.x;
+        goal3D.global_goal.point.y = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].translation.y;
+        goal3D.global_goal.point.z = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].translation.z;
+
         navigation3DClient->sendGoal(goal3D);
     }
     else
@@ -358,17 +364,19 @@ void LocalPlanner::plan()
 {
     number_of_points = 0; //Reset variable
 
-
     if (!execute_path_srv_ptr->isActive())
     {
         clearMarkers();
         return;
     }
 
-    if(use3d){
+    if (use3d)
+    {
         calculatePath3D();
         state.reset(new actionlib::SimpleClientGoalState(navigation3DClient->getState()));
-    }else{
+    }
+    else
+    {
         calculatePath2D();
         state.reset(new actionlib::SimpleClientGoalState(navigation_client_2d_ptr->getState()));
     }
@@ -376,7 +384,7 @@ void LocalPlanner::plan()
     seconds = finishT.time - startT.time - 1;
     milliseconds = (1000 - startT.millitm) + finishT.millitm;
     publishExecutePathFeedback();
-    
+
     if (*state == actionlib::SimpleClientGoalState::SUCCEEDED)
     {
         clearMarkers();
@@ -396,8 +404,6 @@ void LocalPlanner::plan()
         resetFlags();
     }
     ROS_INFO_COND(debug, "Before start loop calculation");
-
-    
 }
 void LocalPlanner::calculatePath2D()
 {
@@ -547,13 +553,12 @@ void LocalPlanner::calculatePath3D()
                         //ROS_INFO_COND(debug,"Local: +1 impossible");
                         if (impossibleCnt > 2)
                         {
-                      
+
                             clearMarkers();
                             execute_path_srv_ptr->setAborted();
                             navigation3DClient->cancelAllGoals();
                             planningStatus.data = "Requesting new global path, navigation cancelled";
                             impossibleCnt = 0;
-                        
                         }
                     }
                 }
@@ -714,8 +719,15 @@ bool LocalPlanner::calculateLocalGoal3D()
     pose.header.stamp = ros::Time::now();
     pose.header.seq = rand();
 
+    try{
     tf_list_ptr->waitForTransform(robot_base_frame, world_frame, ros::Time::now(), ros::Duration(1));
 
+    }catch(tf::TransformException &ex){
+        ROS_ERROR("Transform exception : %s", ex.what());
+    }
+    
+    //TRansform the global trajectory to base link
+    ROS_INFO(PRINTF_CYAN "Calculating local goal 3D");
     for (auto &it : goals_vector_bl_frame)
     {
         pose.pose.position.x = it.transforms[0].translation.x;
@@ -726,6 +738,7 @@ bool LocalPlanner::calculateLocalGoal3D()
         pose.pose.orientation.y = it.transforms[0].rotation.y;
         pose.pose.orientation.z = it.transforms[0].rotation.z;
         pose.pose.orientation.w = it.transforms[0].rotation.w;
+
         tf_list_ptr->transformPose(robot_base_frame, pose, poseout);
 
         it.transforms[0].translation.x = poseout.pose.position.x;
@@ -759,7 +772,7 @@ bool LocalPlanner::calculateLocalGoal3D()
                 {
                     last = 0;
                     action_result.arrived = false;
-                    execute_path_srv_ptr->setPreempted(action_result,"Preempted goal because global path does not fit into local workspace");
+                    execute_path_srv_ptr->setPreempted(action_result, "Preempted goal because global path does not fit into local workspace");
                 }
                 ROS_INFO_COND(debug, PRINTF_CYAN "Local Planner 3D: End of global trajectory queu");
                 last = i;
@@ -894,6 +907,23 @@ void LocalPlanner::publishTrajMarker3D() //? DONE 3D
     robot_pos.translation.y = 0;
     robot_pos.translation.z = 0;
 
+    if (traj_dest_frame != robot_base_frame)
+    {
+        try{
+            geometry_msgs::PoseStamped pose;
+            pose.header.frame_id=robot_base_frame;
+            pose.pose.orientation.w=1;
+            tf_list_ptr->waitForTransform(traj_dest_frame, robot_base_frame, ros::Time::now(), ros::Duration(1));
+            tf_list_ptr->transformPose(traj_dest_frame, pose, pose);
+            robot_pos.translation.x = pose.pose.position.x;
+            robot_pos.translation.y = pose.pose.position.y;
+            robot_pos.translation.z = pose.pose.position.z;
+        }catch(tf::TransformException &ex){
+            ROS_ERROR("Couldn't transform points %s", ex.what());
+        }
+        
+    }
+
     lineMarker.points.push_back(makePoint(robot_pos.translation));
     waypointsMarker.points.push_back(makePoint(robot_pos.translation));
 
@@ -957,7 +987,7 @@ void LocalPlanner::buildAndPubTrayectory3D()
 
     if (number_of_points > 1)
     {
-        ROS_INFO_COND(debug,"Yaw in Advance");
+        ROS_INFO_COND(debug, "Yaw in Advance");
         geometry_msgs::Transform tf;
         tf.rotation.w = 1;
         tf.translation.x = 0;
@@ -968,15 +998,73 @@ void LocalPlanner::buildAndPubTrayectory3D()
     }
     else
     {
-        double yaw=atan2(localGoal.y,localGoal.x);
-        ROS_INFO_COND(debug,"Yaw fixed");
+        double yaw = atan2(localGoal.y, localGoal.x);
+        ROS_INFO_COND(debug, "Yaw fixed");
         theta3D.getTrajectoryYawFixed(localTrajectory, yaw);
     }
 
     localTrajectory.header.stamp = ros::Time::now();
 
+    if (traj_dest_frame != robot_base_frame)
+    {
+        if (!transformTrajectoryToFrame(traj_dest_frame))
+        {
+            ROS_ERROR("Local Planner 3D: Impossible to transform trajectory to frame %s", traj_dest_frame.c_str());
+            return;
+        }
+    }
+
     trajPub.publish(localTrajectory);
     publishTrajMarker3D();
+}
+bool LocalPlanner::transformTrajectoryToFrame(std::string dest_frame)
+{
+    geometry_msgs::PoseStamped in, out;
+    trajectory_msgs::MultiDOFJointTrajectory odom_traj;
+    odom_traj.header = localTrajectory.header;
+
+    odom_traj.points.clear();
+    trajectory_msgs::MultiDOFJointTrajectoryPoint point;
+    point.transforms.resize(1);
+    try
+    {
+        for (auto it : localTrajectory.points)
+        {
+
+            in.header.frame_id = robot_base_frame;
+            in.header.stamp = ros::Time::now();
+            in.pose.position.x = it.transforms[0].translation.x;
+            in.pose.position.y = it.transforms[0].translation.y;
+            in.pose.position.z = it.transforms[0].translation.z;
+
+            in.pose.orientation.x = it.transforms[0].rotation.x;
+            in.pose.orientation.y = it.transforms[0].rotation.y;
+            in.pose.orientation.z = it.transforms[0].rotation.z;
+            in.pose.orientation.w = it.transforms[0].rotation.w;
+            ROS_INFO("IN: [%.2f, %.2f, %.2f]", it.transforms[0].translation.x, it.transforms[0].translation.y, it.transforms[0].translation.z);
+            tf_list_ptr->transformPose(dest_frame, in, out);
+
+            point.transforms[0].translation.x = out.pose.position.x;
+            point.transforms[0].translation.y = out.pose.position.y;
+            point.transforms[0].translation.z = out.pose.position.z;
+
+            point.transforms[0].rotation.x = out.pose.orientation.x;
+            point.transforms[0].rotation.y = out.pose.orientation.y;
+            point.transforms[0].rotation.z = out.pose.orientation.z;
+            point.transforms[0].rotation.w = out.pose.orientation.w;
+            odom_traj.points.push_back(point);
+            ROS_INFO("IN: [%.2f, %.2f, %.2f]", point.transforms[0].translation.x, point.transforms[0].translation.y, point.transforms[0].translation.z);
+        }
+        localTrajectory = odom_traj;
+        localTrajectory.header.frame_id = traj_dest_frame;
+    }
+    catch (tf::TransformException &ex)
+    {
+        ROS_ERROR("Impossible to transfrom trajectory from %s to %s: %s", robot_base_frame.c_str(), dest_frame.c_str(), ex.what());
+        return false;
+    }
+
+    return true;
 }
 //Auxiliar functions
 void LocalPlanner::showTime(string message, struct timeb st, struct timeb ft)
