@@ -398,6 +398,7 @@ public:
 		int z_ = v.z * step_inv;
 		return isInside(x_, y_, z_);
 	}
+	void setMinObstacleRadius(double minR_);
 
 protected:
 	/**	
@@ -502,7 +503,6 @@ protected:
 		   @param Set true to publish it instantly or false to simply push back at the marker array to publish later
 		**/
 	void publishMarker(ThetaStarNode3D &s, bool publish);
-
 	/** Inline Functions **/
 
 	/**
@@ -890,6 +890,7 @@ protected:
 	RVizMarker marker_no_los; // Explored nodes with no lineOfSight
 	ros::Publisher no_los_marker_pub_;
 
+	double minR;
 	// Trajectory parameters
 	float dxy_max; // Maximum increment between wps [meters]
 	float dz_max;

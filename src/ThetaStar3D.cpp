@@ -50,7 +50,7 @@ void ThetaStar3D::init(std::string plannerName, std::string frame_id, float ws_x
 	// Not target initially
 	disc_initial = NULL;
 	disc_final = NULL;
-
+	minR=0;
 	// by default ~not timeout
 	timeout = 100;
 	// Init asymetric and inflated occupancy matrix
@@ -235,7 +235,8 @@ void ThetaStar3D::updateMap(PointCloud cloud)
      * Update discrete world with the Point Cloud = ocuppieds cells
      */
 	clearMap();
-
+	double dist=0;
+	
 	BOOST_FOREACH (const pcl::PointXYZ &p, cloud.points)
 	{
 		// Get occupied points
@@ -252,8 +253,14 @@ void ThetaStar3D::updateMap(PointCloud cloud)
 		if (isInside(x_, y_, z_))
 		{
 			unsigned int world_index_ = getWorldIndex(x_, y_, z_);
-			discrete_world[world_index_].notOccupied = false;
-
+			dist=sqrt(p.x*p.x+p.y*p.y+p.z*p.z);
+			if(dist < minR){
+				discrete_world[world_index_].notOccupied = true;
+				continue;
+			}
+			else
+				discrete_world[world_index_].notOccupied = false;
+			
 			// Inflates nodes
 			if (h_inflation * step >= step || v_inflation * step >= step)
 			{
@@ -1688,6 +1695,9 @@ void ThetaStar3D::printfTrajectory(Trajectory trajectory, string trajectory_name
 	}
 
 	printf(PRINTF_REGULAR);
+}
+void ThetaStar3D::setMinObstacleRadius(double minR_){
+	minR=minR_;
 }
 
 void ThetaStar3D::confPrintRosWarn(bool print)

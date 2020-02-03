@@ -113,6 +113,7 @@ void LocalPlanner::configParams3D()
     nh->param("traj_wyaw_m", traj_wyaw_m, (double)1);
     nh->param("world_frame", world_frame, (string) "/map");
     nh->param("robot_base_frame", robot_base_frame, (string) "/siar/base_link");
+
     nh->param("traj_dest_frame", traj_dest_frame, (string) "/siar/odom");
 
     nh->param("debug", debug, (bool)0);
@@ -220,7 +221,7 @@ void LocalPlanner::pointsSub(const PointCloud::ConstPtr &points)
     mapReceived = true;
     PointCloud out;
     pcl_ros::transformPointCloud(robot_base_frame, *points, out, *tf_list_ptr);
-    theta3D.updateMap(*points);
+    theta3D.updateMap(out);
     theta3D.publishOccupationMarkersMap();
 }
 void LocalPlanner::dynRecCb(theta_star_2d::LocalPlannerConfig &config, uint32_t level)
@@ -298,6 +299,10 @@ void LocalPlanner::configTheta()
         theta3D.setTimeOut(timeout);
         theta3D.setTrajectoryParams(traj_dxy_max, traj_dz_max, traj_pos_tol, traj_vxy_m, traj_vz_m, traj_vxy_m_1, traj_vz_m_1, traj_wyaw_m, traj_yaw_tol);
         theta3D.confPrintRosWarn(true);
+        double min_r;
+        nh->param("min_r_obstacle", min_r, 0.8);
+        theta3D.setMinObstacleRadius(min_r);
+        
         mapGeometryConfigured = true;
     }
     else
@@ -719,13 +724,15 @@ bool LocalPlanner::calculateLocalGoal3D()
     pose.header.stamp = ros::Time::now();
     pose.header.seq = rand();
 
-    try{
-    tf_list_ptr->waitForTransform(robot_base_frame, world_frame, ros::Time::now(), ros::Duration(1));
-
-    }catch(tf::TransformException &ex){
+    try
+    {
+        tf_list_ptr->waitForTransform(robot_base_frame, world_frame, ros::Time::now(), ros::Duration(1));
+    }
+    catch (tf::TransformException &ex)
+    {
         ROS_ERROR("Transform exception : %s", ex.what());
     }
-    
+
     //TRansform the global trajectory to base link
     ROS_INFO(PRINTF_CYAN "Calculating local goal 3D");
     for (auto &it : goals_vector_bl_frame)
@@ -909,19 +916,21 @@ void LocalPlanner::publishTrajMarker3D() //? DONE 3D
 
     if (traj_dest_frame != robot_base_frame)
     {
-        try{
+        try
+        {
             geometry_msgs::PoseStamped pose;
-            pose.header.frame_id=robot_base_frame;
-            pose.pose.orientation.w=1;
+            pose.header.frame_id = robot_base_frame;
+            pose.pose.orientation.w = 1;
             tf_list_ptr->waitForTransform(traj_dest_frame, robot_base_frame, ros::Time::now(), ros::Duration(1));
             tf_list_ptr->transformPose(traj_dest_frame, pose, pose);
             robot_pos.translation.x = pose.pose.position.x;
             robot_pos.translation.y = pose.pose.position.y;
             robot_pos.translation.z = pose.pose.position.z;
-        }catch(tf::TransformException &ex){
+        }
+        catch (tf::TransformException &ex)
+        {
             ROS_ERROR("Couldn't transform points %s", ex.what());
         }
-        
     }
 
     lineMarker.points.push_back(makePoint(robot_pos.translation));
