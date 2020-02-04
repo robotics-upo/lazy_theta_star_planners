@@ -31,6 +31,7 @@ GlobalPlanner::GlobalPlanner(string node_name_)
     }
     else
     {
+        tf_list_ptr.reset(new tf::TransformListener(ros::Duration(5)));
         configParams3D();
     }
 
@@ -92,18 +93,42 @@ void GlobalPlanner::collisionMapCallBack(const octomap_msgs::OctomapConstPtr &ms
 {
     map = msg;
     theta3D.updateMap(map);
-    mapRec=true;
+    mapRec = true;
     sub_map.shutdown();
 
     //ROS_INFO_COND(debug, PRINTF_MAGENTA "Collision Map Received");
 }
 void GlobalPlanner::pointsSub(const PointCloud::ConstPtr &points)
 {
-    // ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 3D: Collision Map Received");
-    mapRec=true;
-    theta3D.updateMap(*points);
-    theta3D.publishOccupationMarkersMap();
-    sub_map.shutdown();
+    if (points->header.frame_id != world_frame)
+    {
+        PointCloud out;
+        try
+        {
+            tf_list_ptr->waitForTransform(points->header.frame_id, world_frame, ros::Time::now(), ros::Duration(2));
+            pcl_ros::transformPointCloud(world_frame, *points, out, *tf_list_ptr);
+            mapRec = true;
+            theta3D.updateMap(out);
+        }
+        catch (tf::TransformException &ex)
+        {
+            ROS_WARN("Transform exception: %s", ex.what());
+        }
+
+        ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 3D: Collision Map Received after transform from %s to %s", points->header.frame_id.c_str(), world_frame.c_str());
+    }
+    else
+    {
+        theta3D.updateMap(*points);
+        mapRec = true;
+        ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 3D: Collision Map Received");
+    }
+
+    if (mapRec)
+    {
+        theta3D.publishOccupationMarkersMap();
+        sub_map.shutdown();
+    }
 }
 void GlobalPlanner::configServices()
 {
@@ -114,13 +139,12 @@ void GlobalPlanner::configServices()
 
     make_plan_server_ptr->start();
     execute_path_client_ptr->waitForServer();
-    
+
     if (!use3d)
     {
         reset_global_costmap_service = nh->advertiseService("reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
         rot_in_place_client_ptr.reset(new RotationInPlaceClient("/Recovery_Rotation", true));
 
-        
         rot_in_place_client_ptr->waitForServer();
     }
 
@@ -259,14 +283,13 @@ void GlobalPlanner::configParams3D()
     nh->param("robot_base_frame", robot_base_frame, (string) "/base_link");
 
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Global Planner 3D Node Configuration:");
-    ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Workspace = X: [%.2f, %.2f]\t Y: [%.2f, %.2f]\t Z: [%.2f, %.2f]  ", ws_x_max,ws_x_min,ws_y_max,ws_y_min,ws_z_max,ws_z_min);
+    ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Workspace = X: [%.2f, %.2f]\t Y: [%.2f, %.2f]\t Z: [%.2f, %.2f]  ", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
 
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Lazy Theta* with optim.: goal_weight = [%.2f]", goal_weight);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Trajectory Position Increments = [%.2f], Tolerance: [%.2f]", traj_dxy_max, traj_pos_tol);
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t World frame: %s, Robot base frame: %s", world_frame.c_str(), robot_base_frame.c_str());
-    
-    configMarkers("global_path_3d");
 
+    configMarkers("global_path_3d");
 }
 void GlobalPlanner::sendPathToLocalPlannerServer()
 {
@@ -514,9 +537,9 @@ bool GlobalPlanner::calculatePath()
     //so if there is no map received it won't calculate a path
     bool ret = false;
 
-    if(use3d && !mapRec)
+    if (use3d && !mapRec)
         return ret;
-    
+
     if (setGoal() && setStart())
     {
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Goal and start successfull set");
@@ -758,10 +781,9 @@ bool GlobalPlanner::setStart()
     start.vector.x = getRobotPose().transform.translation.x;
     start.vector.y = getRobotPose().transform.translation.y;
 
-    
     start.vector.z = getRobotPose().transform.translation.z;
 
-    if(start.vector.z <= ws_z_min)
+    if (start.vector.z <= ws_z_min)
         start.vector.z = ws_z_min + map_v_inflaction + map_resolution;
 
     if (use3d)
@@ -777,7 +799,7 @@ bool GlobalPlanner::setStart()
         }
         else
         {
-            ROS_ERROR("Global Planner 3D: Failed to set initial global position(after search around): [%.2f, %.2f, %.2f]", start.vector.x, start.vector.y,start.vector.z);
+            ROS_ERROR("Global Planner 3D: Failed to set initial global position(after search around): [%.2f, %.2f, %.2f]", start.vector.x, start.vector.y, start.vector.z);
         }
     }
     else

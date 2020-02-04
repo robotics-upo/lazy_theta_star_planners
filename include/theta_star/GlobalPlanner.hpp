@@ -47,6 +47,7 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <sensor_msgs/PointCloud2.h>
 #include <octomap_msgs/Octomap.h>
 #include <pcl_ros/point_cloud.h>
+#include <pcl_ros/transforms.h>
 
 namespace PathPlanners
 {
