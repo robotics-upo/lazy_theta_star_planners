@@ -536,7 +536,14 @@ void LocalPlanner::calculatePath3D()
             {
                 ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Planner 3D: Local Goal calculated");
 
-                if (theta3D.setValidFinalPosition(localGoal) || theta3D.searchFinalPosition3d(finalSearchAround))
+                if(!theta3D.isInside(localGoal)){
+                    ROS_INFO("Returning, not inside :(");
+                    execute_path_srv_ptr->setAborted();
+                    navigation3DClient->cancelAllGoals();
+                    return;    
+                }
+
+                if (theta3D.setValidFinalPosition(localGoal) || theta3D.searchFinalPosition3dAheadHorizontalPrior(finalSearchAround))
                 {
                     ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner 3D: Computing Local Path");
 
@@ -592,6 +599,7 @@ void LocalPlanner::calculatePath3D()
                 navigation3DClient->cancelAllGoals();
                 execute_path_srv_ptr->setAborted();
                 badGoal = 0;
+                ROS_INFO("Bad goal calculated 3 times");
             }
         }
         else
@@ -757,7 +765,7 @@ bool LocalPlanner::calculateLocalGoal3D()
         it.transforms[0].rotation.z = poseout.pose.orientation.z;
         it.transforms[0].rotation.w = poseout.pose.orientation.w;
 
-        ROS_INFO_COND(debug, PRINTF_RED "Point Transformed: [%.2f,%.2f,%.2f]", poseout.pose.position.x, poseout.pose.position.y, poseout.pose.position.z);
+        //ROS_INFO_COND(debug, PRINTF_RED "Point Transformed: [%.2f,%.2f,%.2f]", poseout.pose.position.x, poseout.pose.position.y, poseout.pose.position.z);
     }
     int i = 0;
 
@@ -781,7 +789,7 @@ bool LocalPlanner::calculateLocalGoal3D()
                     action_result.arrived = false;
                     execute_path_srv_ptr->setPreempted(action_result, "Preempted goal because global path does not fit into local workspace");
                 }
-                ROS_INFO_COND(debug, PRINTF_CYAN "Local Planner 3D: End of global trajectory queu");
+                //ROS_INFO_COND(debug, PRINTF_CYAN "Local Planner 3D: End of global trajectory queu");
                 last = i;
                 break;
             }
@@ -792,12 +800,12 @@ bool LocalPlanner::calculateLocalGoal3D()
                 currentGoalVec.x = currentGoal.transforms[0].translation.x;
                 currentGoalVec.y = currentGoal.transforms[0].translation.y;
                 currentGoalVec.z = currentGoal.transforms[0].translation.z;
-                ROS_INFO_COND(debug, "Local Planner 3D: i: %d Current goal bl frame: [%.2f, %.2f, %.2f]", i, currentGoalVec.x, currentGoalVec.y, currentGoalVec.z);
-                ROS_INFO_COND(debug, "Local Planner 3D: i: %d Local goal map frame: [%.2f, %.2f, %.2f]", i, currentGoal.transforms[0].translation.x, currentGoal.transforms[0].translation.y, currentGoal.transforms[0].translation.z);
+                //ROS_INFO_COND(debug, "Local Planner 3D: i: %d Current goal bl frame: [%.2f, %.2f, %.2f]", i, currentGoalVec.x, currentGoalVec.y, currentGoalVec.z);
+                //ROS_INFO_COND(debug, "Local Planner 3D: i: %d Local goal map frame: [%.2f, %.2f, %.2f]", i, currentGoal.transforms[0].translation.x, currentGoal.transforms[0].translation.y, currentGoal.transforms[0].translation.z);
                 if (!theta3D.isInside(currentGoalVec))
                 {
                     currentGoal = *it;
-                    ROS_INFO_COND(debug, PRINTF_CYAN "Local Planner 3D: Passing Local Goal: [%.2f, %.2f, %.2f]", currentGoalVec.x, currentGoalVec.y, currentGoalVec.z);
+                    //ROS_INFO_COND(debug, PRINTF_CYAN "Local Planner 3D: Passing Local Goal: [%.2f, %.2f, %.2f]", currentGoalVec.x, currentGoalVec.y, currentGoalVec.z);
                     last = i;
                     break;
                 }
@@ -808,8 +816,8 @@ bool LocalPlanner::calculateLocalGoal3D()
         localGoal.y = currentGoal.transforms[0].translation.y;
         localGoal.z = currentGoal.transforms[0].translation.z;
 
-        ROS_INFO_COND(debug, "i: %d Local goal bl frame: [%.2f, %.2f, %.2f]", i, localGoal.x, localGoal.y, localGoal.z);
-        ROS_INFO_COND(debug, "Local goalmap frame: [%.2f, %.2f, %.2f]", currentGoal.transforms[0].translation.x, currentGoal.transforms[0].translation.y, currentGoal.transforms[0].translation.z);
+        //ROS_INFO_COND(debug, "i: %d Local goal bl frame: [%.2f, %.2f, %.2f]", i, localGoal.x, localGoal.y, localGoal.z);
+        //ROS_INFO_COND(debug, "Local goalmap frame: [%.2f, %.2f, %.2f]", currentGoal.transforms[0].translation.x, currentGoal.transforms[0].translation.y, currentGoal.transforms[0].translation.z);
 
         return true;
     }
@@ -821,7 +829,7 @@ bool LocalPlanner::calculateLocalGoal3D()
 bool LocalPlanner::pointInside(geometry_msgs::Vector3 p)
 {
     geometry_msgs::Vector3 robot_pose = getTfMapToRobot().transform.translation;
-    ROS_INFO_COND(debug, "Robot pose: [%.2f, %.2f, %.2f]", robot_pose.x, robot_pose.y, robot_pose.z);
+   // ROS_INFO_COND(debug, "Robot pose: [%.2f, %.2f, %.2f]", robot_pose.x, robot_pose.y, robot_pose.z);
     if (p.x > ws_x_max || p.x < ws_x_min ||
         p.y > ws_y_max || p.y < ws_y_min ||
         p.z > ws_z_max || p.z < ws_z_min)
@@ -993,25 +1001,26 @@ void LocalPlanner::buildAndPubTrayectory3D()
 {
     ROS_INFO_COND(debug, "Clearing local trajectory");
     localTrajectory.points.clear();
+    double yaw = atan2(localGoal.y, localGoal.x);
+    ROS_INFO_COND(debug, "Yaw fixed");
+    theta3D.getTrajectoryYawFixed(localTrajectory, yaw);
 
-    if (number_of_points > 1)
-    {
-        ROS_INFO_COND(debug, "Yaw in Advance");
-        geometry_msgs::Transform tf;
-        tf.rotation.w = 1;
-        tf.translation.x = 0;
-        tf.translation.y = 0;
-        tf.translation.z = 0;
-
-        theta3D.getTrajectoryYawInAdvance(localTrajectory, tf);
-    }
-    else
-    {
-        double yaw = atan2(localGoal.y, localGoal.x);
-        ROS_INFO_COND(debug, "Yaw fixed");
-        theta3D.getTrajectoryYawFixed(localTrajectory, yaw);
-    }
-
+    //if (number_of_points > 1)
+    //{
+    //    ROS_INFO_COND(debug, "Yaw in Advance");
+    //    geometry_msgs::Transform tf;
+    //    tf.rotation.w = 1;
+    //    tf.translation.x = 0;
+    //    tf.translation.y = 0;
+    //    tf.translation.z = 0;
+//
+    //    theta3D.getTrajectoryYawInAdvance(localTrajectory, tf);
+    //}
+    //else
+    //{
+    //   
+    //}
+//
     localTrajectory.header.stamp = ros::Time::now();
 
     if (traj_dest_frame != robot_base_frame)
