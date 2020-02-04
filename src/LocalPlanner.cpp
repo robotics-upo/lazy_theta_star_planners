@@ -114,7 +114,7 @@ void LocalPlanner::configParams3D()
     nh->param("world_frame", world_frame, (string) "/map");
     nh->param("robot_base_frame", robot_base_frame, (string) "/siar/base_link");
 
-    nh->param("traj_dest_frame", traj_dest_frame, (string) "/siar/odom");
+    nh->param("traj_dest_frame", traj_dest_frame, (string) "/siar/base_link");
 
     nh->param("debug", debug, (bool)0);
     nh->param("show_config", showConfig, (bool)0);
