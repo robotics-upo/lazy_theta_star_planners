@@ -86,8 +86,8 @@ void LocalPlanner::configParams3D()
     nh.reset(new ros::NodeHandle("~"));
     tf_list.reset(new tf::TransformListener);
 
+    nh->param("timeout", timeout, (double)0.5);
     nh->param("arrived_thresh", arrivedThresh, (double)0.25);
-    nh->param("timeout", timeout, (double)20);
     nh->param("ws_x_max", ws_x_max, (double)5);
     nh->param("ws_y_max", ws_y_max, (double)5);
     nh->param("ws_z_max", ws_z_max, (double)5);
