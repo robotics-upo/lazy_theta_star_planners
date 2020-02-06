@@ -432,7 +432,7 @@ bool GlobalPlanner::replan()
     if (!use3d)
     {
         resetGlobalCostmap();
-        usleep(1e5);
+        usleep(5e5);
         boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
         theta2D.getMap(global_costmap_ptr->getCostmap()->getCharMap());
         lock.unlock();
@@ -540,6 +540,8 @@ bool GlobalPlanner::calculatePath()
 
     if (use3d && !mapRec)
         return ret;
+
+    
 
     if (setGoal() && setStart())
     {
