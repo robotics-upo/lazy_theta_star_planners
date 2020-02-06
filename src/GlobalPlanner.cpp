@@ -100,12 +100,22 @@ void GlobalPlanner::collisionMapCallBack(const octomap_msgs::OctomapConstPtr &ms
 }
 void GlobalPlanner::pointsSub(const PointCloud::ConstPtr &points)
 {
+    if(mapRec){
+        return;
+    }
+        
+    std::string *error;
+    if(!tf_list_ptr->canTransform(world_frame, points->header.frame_id,ros::Time::now(), error)){
+        ROS_ERROR("Can't transform map: %s", error->c_str());
+        return;
+    }
+    
     if (points->header.frame_id != world_frame)
     {
         PointCloud out;
         try
         {
-            tf_list_ptr->waitForTransform(points->header.frame_id, world_frame, ros::Time(0), ros::Duration(5));
+            tf_list_ptr->waitForTransform(points->header.frame_id, world_frame, ros::Time::now(), ros::Duration(5));
             pcl_ros::transformPointCloud(world_frame, *points, out, *tf_list_ptr);
             ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 3D: Collision Map Received after transform from %s to %s", points->header.frame_id.c_str(), world_frame.c_str());
         }
@@ -124,12 +134,9 @@ void GlobalPlanner::pointsSub(const PointCloud::ConstPtr &points)
         mapRec = true;
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 3D: Collision Map Received");
     }
+    theta3D.publishOccupationMarkersMap();
 
-    if (mapRec)
-    {
-        theta3D.publishOccupationMarkersMap();
-        //sub_map.shutdown();
-    }
+
 }
 void GlobalPlanner::configServices()
 {
