@@ -754,7 +754,28 @@ bool LocalPlanner::calculateLocalGoal3D()
         pose.pose.orientation.z = it.transforms[0].rotation.z;
         pose.pose.orientation.w = it.transforms[0].rotation.w;
 
-        tf_list_ptr->transformPose(robot_base_frame, pose, poseout);
+        double norm=pose.pose.orientation.x*pose.pose.orientation.x +  
+        pose.pose.orientation.y *  pose.pose.orientation.y  + 
+        pose.pose.orientation.z*pose.pose.orientation.z +
+        pose.pose.orientation.w*pose.pose.orientation.w;
+        norm=sqrt(norm);
+        if(norm < 1e-2){
+            ROS_ERROR("Error, norm to small ");
+            return false;
+        }
+        
+        pose.pose.orientation.x /= norm;
+        pose.pose.orientation.y /= norm;
+        pose.pose.orientation.z /= norm;
+        pose.pose.orientation.w /= norm;
+
+        try{    
+            tf_list_ptr->transformPose(robot_base_frame, pose, poseout);
+        }catch(tf2::TransformException &ex)
+        {
+            ROS_ERROR("Tf error: %s", ex.what());
+            return false;
+        }
 
         it.transforms[0].translation.x = poseout.pose.position.x;
         it.transforms[0].translation.y = poseout.pose.position.y;
