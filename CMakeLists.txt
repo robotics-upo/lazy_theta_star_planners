@@ -73,6 +73,10 @@ add_dependencies(custom_costmap_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catki
 
 add_executable(action_goal_interface_node src/action_goal_interface_node.cpp)
 
+add_executable(goal_publisher_node src/goal_publisher.cpp)
+target_link_libraries(goal_publisher_node ${catkin_LIBRARIES})
+add_dependencies(goal_publisher_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 target_link_libraries( action_goal_interface_node
   ${catkin_LIBRARIES}
 )
