@@ -420,7 +420,7 @@ void GlobalPlanner::makePlanGoalCB()
     { // What if it isnt possible to calculate path?
         make_plan_res.not_possible = true;
         make_plan_res.finished = false;
-        make_plan_server_ptr->setPreempted(make_plan_res, "Impossible to calculate a solution");
+        make_plan_server_ptr->setAborted(make_plan_res, "Impossible to calculate a solution");
     }
 }
 void GlobalPlanner::makePlanPreemptCB()
@@ -467,7 +467,7 @@ bool GlobalPlanner::replan()
         flg_replan_status.data = false;
         replan_status_pub.publish(flg_replan_status);
 
-        make_plan_server_ptr->setPreempted(make_plan_res, "Tried to replan and aborted after replanning 2 times");
+        make_plan_server_ptr->setAborted(make_plan_res, "Tried to replan and aborted after replanning 2 times");
         execute_path_client_ptr->cancelAllGoals();
         return false;
     }
@@ -615,7 +615,7 @@ void GlobalPlanner::calculatePathLength()
     {
         x = trajectory.points[it].transforms[0].translation.x - trajectory.points[it + 1].transforms[0].translation.x;
         y = trajectory.points[it].transforms[0].translation.y - trajectory.points[it + 1].transforms[0].translation.y;
-        y = trajectory.points[it].transforms[0].translation.z - trajectory.points[it + 1].transforms[0].translation.z;
+        z = trajectory.points[it].transforms[0].translation.z - trajectory.points[it + 1].transforms[0].translation.z;
 
         pathLength += sqrtf(x * x + y * y + z * z);
     }
