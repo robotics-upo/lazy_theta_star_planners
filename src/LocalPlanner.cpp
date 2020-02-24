@@ -60,7 +60,7 @@ void LocalPlanner::configServices()
     else
     {
         navigation3DClient.reset(new Navigate3DClient("/Navigation3D", true));
-        navigation3DClient->waitForServer();
+       navigation3DClient->waitForServer();
     }
 }
 void LocalPlanner::resetFlags()
@@ -269,9 +269,14 @@ void LocalPlanner::executePathGoalServerCB() // Note: "Action" is not appended t
     if (use3d)
     {
         goals_vector = globalTrajectory.points;
-        goal3D.global_goal.point.x = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].translation.x;
-        goal3D.global_goal.point.y = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].translation.y;
-        goal3D.global_goal.point.z = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].translation.z;
+        goal3D.global_goal.pose.position.x = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].translation.x;
+        goal3D.global_goal.pose.position.y = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].translation.y;
+        goal3D.global_goal.pose.position.z = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].translation.z;
+        
+        goal3D.global_goal.pose.orientation.x = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].rotation.x;
+        goal3D.global_goal.pose.orientation.y = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].rotation.y;
+        goal3D.global_goal.pose.orientation.z = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].rotation.z;
+        goal3D.global_goal.pose.orientation.w = globalTrajectory.points.at(globalTrajectory.points.size() - 1).transforms[0].rotation.w;
 
         navigation3DClient->sendGoal(goal3D);
     }
@@ -1042,6 +1047,7 @@ void LocalPlanner::buildAndPubTrayectory3D()
     localTrajectory.points.clear();
     double yaw = atan2(localGoal.y, localGoal.x);
     ROS_INFO_COND(debug, "Yaw fixed");
+
     theta3D.getTrajectoryYawFixed(localTrajectory, yaw);
 
     //if (number_of_points > 1)
