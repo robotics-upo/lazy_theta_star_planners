@@ -178,6 +178,7 @@ void GlobalPlanner::configParams2D()
     nbrRotationsExec = 0;
     seq = 0;
     timesReplaned = 0;
+    minPathLenght=0;
     //Get params from param server. If they dont exist give variables default values
     nh->param("show_config", showConfig, (bool)0);
     nh->param("debug", debug, (bool)0);
@@ -256,6 +257,8 @@ void GlobalPlanner::configParams3D()
     seq = 0;
     timesReplaned = 0;
     mapRec = false;
+    minPathLenght=0;
+
     //Get params from param server. If they dont exist give variables default values
     nh->param("show_config", showConfig, (bool)0);
     nh->param("debug", debug, (bool)0);
@@ -584,11 +587,11 @@ bool GlobalPlanner::calculatePath()
                 publishTrajectory2D();
             }
 
-            if (pathLength < minPathLenght)
+            /*if (pathLength < minPathLenght)
             {
                 execute_path_client_ptr->cancelAllGoals();
                 make_plan_server_ptr->setSucceeded();
-            }
+            }*/
             //Reset the counter of the number of times the planner tried to calculate a path without success
             countImpossible = 0;
             //If it was replanning before, reset flag
@@ -619,6 +622,8 @@ void GlobalPlanner::calculatePathLength()
 
         pathLength += sqrtf(x * x + y * y + z * z);
     }
+    ROS_ERROR("Global path lenght: %f, number of points: %d", pathLength, (int)trajectory.points.size());
+
 }
 geometry_msgs::TransformStamped GlobalPlanner::getRobotPose()
 {
