@@ -546,7 +546,8 @@ void LocalPlanner::calculatePath3D()
                 if (!theta3D.isInside(localGoal))
                 {
                     ROS_INFO("Returning, not inside :(");
-                    execute_path_srv_ptr->setAborted();
+                    action_result.arrived=false;
+                    execute_path_srv_ptr->setAborted(action_result, "Not inside after second check");
                     navigation3DClient->cancelAllGoals();
                     return;
                 }
@@ -575,7 +576,8 @@ void LocalPlanner::calculatePath3D()
                         {
 
                             clearMarkers();
-                            execute_path_srv_ptr->setAborted();
+                            action_result.arrived=false;
+                            execute_path_srv_ptr->setAborted(action_result, "Requesting new global path, navigation cancelled");
                             navigation3DClient->cancelAllGoals();
                             planningStatus.data = "Requesting new global path, navigation cancelled";
                             impossibleCnt = 0;
@@ -587,7 +589,8 @@ void LocalPlanner::calculatePath3D()
                     ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner 3D: Pausing planning, final position busy");
                     planningStatus.data = "Final position Busy, Cancelling goal";
                     //TODO What to tell to the path tracker
-                    execute_path_srv_ptr->setAborted();
+                    action_result.arrived=false;
+                    execute_path_srv_ptr->setAborted(action_result, "Local goal occupied");
                     //In order to resume planning, someone must call the pause/resume planning Service that will change the flag to true
                     occGoalCnt = 0;
                 }
@@ -605,7 +608,8 @@ void LocalPlanner::calculatePath3D()
             else
             {
                 navigation3DClient->cancelAllGoals();
-                execute_path_srv_ptr->setAborted();
+                action_result.arrived=false;
+                execute_path_srv_ptr->setAborted(action_result,"Bad goal calculated 3 times");
                 badGoal = 0;
                 ROS_INFO("Bad goal calculated 3 times");
             }
@@ -613,7 +617,8 @@ void LocalPlanner::calculatePath3D()
         else
         {
             planningStatus.data = "No initial position found...";
-            execute_path_srv_ptr->setAborted();
+            action_result.arrived=false;
+            execute_path_srv_ptr->setAborted(action_result,"No initial position found");
             navigation3DClient->cancelAllGoals();
 
             clearMarkers();
@@ -820,12 +825,12 @@ bool LocalPlanner::calculateLocalGoal3D()
                 currentGoalVec.z = currentGoal.transforms[0].translation.z;
                 if (!theta3D.isInside(currentGoalVec))
                 {
-                    /*last = 0;
+                    last = 0;
                     action_result.arrived = false;
                     execute_path_srv_ptr->setAborted(action_result, "Preempted goal because global path does not fit into local workspace");
                     navigation3DClient->cancelAllGoals();
-                    */
-                    if(goals_vector_bl_frame.size()==1)
+                    
+                    /*if(goals_vector_bl_frame.size()==1)
                         return false;
 
                     currentGoal = *(it-1);//TODO COMPROBAR QUE NO ES UNA TRAYECTORIA DE UN UNICO PUNTO
@@ -833,6 +838,7 @@ bool LocalPlanner::calculateLocalGoal3D()
 
                 }else{
                     last=i;
+                }*/
                 }
                 //ROS_INFO_COND(debug, PRINTF_CYAN "Local Planner 3D: End of global trajectory queu");
                 break;
