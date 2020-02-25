@@ -461,7 +461,7 @@ bool GlobalPlanner::replan()
         sendPathToLocalPlannerServer();
         return true;
     }
-    else if (timesReplaned > 2)
+    else if (timesReplaned > 5)
     {
         timesReplaned = 0;
         make_plan_res.finished = false;
@@ -470,7 +470,7 @@ bool GlobalPlanner::replan()
         flg_replan_status.data = false;
         replan_status_pub.publish(flg_replan_status);
 
-        make_plan_server_ptr->setAborted(make_plan_res, "Tried to replan and aborted after replanning 2 times");
+        make_plan_server_ptr->setAborted(make_plan_res, "Tried to replan and aborted after replanning 5 times");
         execute_path_client_ptr->cancelAllGoals();
         return false;
     }
