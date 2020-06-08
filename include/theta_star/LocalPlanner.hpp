@@ -141,7 +141,7 @@ private:
     ros::NodeHandlePtr nh;
     ros::ServiceClient costmap_clean_srv;
     ros::Subscriber local_map_sub;
-    ros::Publisher visMarkersPublisher, trajPub;
+    ros::Publisher visMarkersPublisher, trajPub, costmap_inflated_pub_;
     std::unique_ptr<tf::TransformListener> tf_list;
 
     //Flags publishers

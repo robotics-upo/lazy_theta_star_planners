@@ -65,7 +65,7 @@ void LocalPlanner::configServices()
 }
 void LocalPlanner::resetFlags()
 {
-    mapReceived = false;
+    // mapReceived = false;
     impossibleCnt = 0;
     occGoalCnt = 0;
     startIter = 1;
@@ -193,7 +193,7 @@ void LocalPlanner::configParams2D()
     nh->param("debug", debug, (bool)0);
     nh->param("show_config", showConfig, (bool)0);
 
-    nh->param("initial_search_around", initialSearchAround, (double)0.3);
+    nh->param("initial_search_around", initialSearchAround, (double)0.4);
     nh->param("final_search_around", finalSearchAround, (double)0.3);
 
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Local Planner Node 2D Configuration:\n");
@@ -314,6 +314,7 @@ void LocalPlanner::configTheta()
     {
         theta2D.initAuto(node_name, world_frame, goal_weight, cost_weight, lof_distance, nh);
         theta2D.setTimeOut(timeout);
+        theta2D.confPrintRosWarn(true);
         theta2D.setTrajectoryParams(traj_dxy_max, traj_pos_tol, traj_yaw_tol);
     }
 
@@ -337,6 +338,7 @@ void LocalPlanner::configTopics()
     else
     {
         local_map_sub = nh->subscribe<nav_msgs::OccupancyGrid>("/custom_costmap_node/costmap/costmap", 1, &LocalPlanner::localCostMapCb, this);
+        costmap_inflated_pub_ = nh->advertise<nav_msgs::OccupancyGrid>("/inflated_costmap_debug", 1,true);
     }
 
     visMarkersPublisher = nh->advertise<visualization_msgs::Marker>("markers", 1, true);
@@ -426,7 +428,7 @@ void LocalPlanner::calculatePath2D()
         mapReceived = false;
         inflateCostMap(); //TODO Gordo arreglar esta chapuza de funcion
         theta2D.getMap(&localCostMapInflated);
-
+        ROS_INFO("Initial Point: %.2f, %.2f", local_costmap_center.x, local_costmap_center.y);
         if (theta2D.setValidInitialPosition(local_costmap_center) || theta2D.searchInitialPosition2d(initialSearchAround))
         {
             ROS_INFO_COND(debug, PRINTF_MAGENTA "Start ok, calculating local goal");
@@ -436,6 +438,8 @@ void LocalPlanner::calculatePath2D()
                 ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Goal calculated");
                 freeLocalGoal();
                 theta2D.getMap(&localCostMapInflated);
+                costmap_inflated_pub_.publish(localCostMapInflated);
+
                 if (theta2D.setValidFinalPosition(localGoal) || theta2D.searchFinalPosition2d(finalSearchAround))
                 {
                     ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Computing Local Path(2)");
@@ -504,6 +508,7 @@ void LocalPlanner::calculatePath2D()
             else
             {
                 navigation_client_2d_ptr->cancelGoal();
+                ROS_INFO("Bad goal, aborting");
                 execute_path_srv_ptr->setAborted();
                 badGoal = 0;
             }
@@ -519,6 +524,7 @@ void LocalPlanner::calculatePath2D()
         {
             planningStatus.data = "Tried to clean costmap but no initial position found...";
             navigation_client_2d_ptr->cancelGoal();
+            ROS_INFO("Tried to clean costmap but no intiial position found...");
             execute_path_srv_ptr->setAborted();
             clearMarkers();
         }
