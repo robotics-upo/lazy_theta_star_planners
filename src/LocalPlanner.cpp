@@ -435,6 +435,7 @@ void LocalPlanner::calculatePath2D()
 
             if (calculateLocalGoal2D())
             {
+               
                 ROS_INFO_COND(debug, PRINTF_MAGENTA "Local Goal calculated");
                 freeLocalGoal();
                 theta2D.getMap(&localCostMapInflated);
@@ -458,13 +459,13 @@ void LocalPlanner::calculatePath2D()
                     }
                     else if (number_of_points == 0) //!Esto es lo que devuelve el algoritmo cuando NO HAY SOLUCION
                     {
-
+                        
                         impossibleCnt++;
                         //ROS_INFO_COND(debug,"Local: +1 impossible");
                         if (impossibleCnt > 2)
                         {
+                            double dist2goal = euclideanDistance(nav_goal.global_goal.position.x, nav_goal.global_goal.position.y, getTfMapToRobot().transform.translation.x, getTfMapToRobot().transform.translation.y);
 
-                            double dist2goal = euclideanDistance(nav_goal.global_goal.position.x, getTfMapToRobot().transform.translation.x, nav_goal.global_goal.position.y, getTfMapToRobot().transform.translation.y);
                             if (dist2goal < arrivedThresh)
                             {
 
