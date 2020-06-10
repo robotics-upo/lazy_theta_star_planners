@@ -353,7 +353,7 @@ void LocalPlanner::localCostMapCb(const nav_msgs::OccupancyGrid::ConstPtr &lcp)
     //First time the map is received, configure the geometric params
     if (!mapGeometryConfigured)
     {
-        map_resolution = round(100 * (lcp->info.resolution)) / 100; //Because sometimes the map server shows not exact long numbers as 0.0500003212
+        map_resolution = round(1000 * (lcp->info.resolution)) / 1000; //Because sometimes the map server shows not exact long numbers as 0.0500003212
 
         ws_x_max = lcp->info.width * map_resolution + 2 * localCostMapInflationX;
         ws_y_max = lcp->info.height * map_resolution + 2 * localCostMapInflationY;
