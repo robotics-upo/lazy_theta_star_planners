@@ -8,12 +8,24 @@
 #include <tf/transform_listener.h>
 #include <tf2_ros/transform_listener.h>
 #include <theta_star_2d/checkObstacles.h>
+#include <theta_star_2d/addObstacle.h>
 
 std::unique_ptr<costmap_2d::Costmap2DROS> costmap_ptr;
 typedef unsigned int uint;
 int n_max;
 double robot_radius;
 
+void setObstacleCallback(const theta_star_2d::addObstacleConstPtr &obstacle_coord)
+{
+    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_ptr->getCostmap()->getMutex()));
+
+    unsigned int mx, my;
+
+    for (size_t i = 0; i < obstacle_coord->data.size() - 1; ++i)
+        if (costmap_ptr->getCostmap()->worldToMap(obstacle_coord->data[i], obstacle_coord->data[i+1], mx, my))
+            costmap_ptr->getCostmap()->setCost(mx, my, costmap_2d::LETHAL_OBSTACLE);
+    
+}
 bool resetCostmapSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
 {
 
@@ -23,38 +35,35 @@ bool resetCostmapSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &r
 }
 bool checkEnvSrv(theta_star_2d::checkObstaclesRequest &req, theta_star_2d::checkObstaclesResponse &rep)
 {
-    // boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_ptr->getCostmap()->getMutex()));
-    // costmap_ptr->resetLayers();
-    // lock.unlock();
-    
+    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_ptr->getCostmap()->getMutex()));
+
     static float res = costmap_ptr->getCostmap()->getResolution();
 
     static uint s_x = costmap_ptr->getCostmap()->getSizeInCellsX() / 2;
     static uint s_y = costmap_ptr->getCostmap()->getSizeInCellsY() / 2;
-    static int robot_r_disc = static_cast<int>(robot_radius/res);
-    
+    static int robot_r_disc = static_cast<int>(robot_radius / res);
+
     double th;
     uint count = 0;
     int x, y;
-    
-    for (int i = -1*robot_r_disc; i < robot_r_disc ; ++i)
+
+    for (int i = -1 * robot_r_disc; i < robot_r_disc; ++i)
     {
-        for (int j = -1*robot_r_disc; j < robot_r_disc ; ++j)
+        for (int j = -1 * robot_r_disc; j < robot_r_disc; ++j)
         {
             th = atan2(j * res, i * res);
             x = floor(s_x + robot_r_disc * cos(th));
             y = floor(s_y + robot_r_disc * sin(th));
 
-            if (i < x && j < y && costmap_ptr->getCostmap()->getCost(i+s_x, j+s_y) == costmap_2d::INSCRIBED_INFLATED_OBSTACLE) //Check if the point is inside a circle centered at the robot
+            if (i < x && j < y && costmap_ptr->getCostmap()->getCost(i + s_x, j + s_y) == costmap_2d::INSCRIBED_INFLATED_OBSTACLE) //Check if the point is inside a circle centered at the robot
                 ++count;
         }
     }
 
     int max_obst = req.thresh.data;
-    if( max_obst == 0)
-        max_obst=n_max;
+    if (max_obst == 0)
+        max_obst = n_max;
 
-        
     if (count > max_obst)
     {
         rep.message = "Too much obstacles: " + std::to_string(count);
@@ -75,11 +84,11 @@ int main(int argc, char **argv)
     ros::NodeHandle n("~");
 
     n.param("n_max", n_max, (int)100);
-    n.param("costmap/robot_radius", robot_radius, (double)0.35);
-    robot_radius+=0.05;
+    n.param("check_radius", robot_radius, (double)0.6);
+    robot_radius += 0.05;
     ros::ServiceServer reset_costmap_svr = n.advertiseService("reset_costmap", resetCostmapSrv);
     ros::ServiceServer check_env = n.advertiseService("check_env", &checkEnvSrv);
-
+    ros::Subscriber add_obstacle_sub = n.subscribe<theta_star_2d::addObstacle>("add_obstacle", 1, &setObstacleCallback);
 #ifdef MELODIC
     tf2_ros::Buffer buffer(ros::Duration(5));
     tf2_ros::TransformListener tf(buffer);
