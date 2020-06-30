@@ -1,10 +1,13 @@
 #include <ros/ros.h>
 #include <costmap_2d/costmap_2d.h>
 #include <costmap_2d/costmap_2d_ros.h>
+
 #include <iostream>
 #include <string>
 
 #include <std_srvs/Trigger.h>
+#include <std_srvs/Empty.h>
+
 #include <tf/transform_listener.h>
 #include <tf2_ros/transform_listener.h>
 #include <theta_star_2d/checkObstacles.h>
@@ -14,23 +17,44 @@ std::unique_ptr<costmap_2d::Costmap2DROS> costmap_ptr;
 typedef unsigned int uint;
 int n_max;
 double robot_radius;
+bool use_grid_map = false;
 
 void setObstacleCallback(const theta_star_2d::addObstacleConstPtr &obstacle_coord)
 {
+    if (!use_grid_map)
+        return;
+
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_ptr->getCostmap()->getMutex()));
 
     unsigned int mx, my;
 
     for (size_t i = 0; i < obstacle_coord->data.size() - 1; ++i)
-        if (costmap_ptr->getCostmap()->worldToMap(obstacle_coord->data[i], obstacle_coord->data[i+1], mx, my))
+        if (costmap_ptr->getCostmap()->worldToMap(obstacle_coord->data[i], obstacle_coord->data[i + 1], mx, my))
             costmap_ptr->getCostmap()->setCost(mx, my, costmap_2d::LETHAL_OBSTACLE);
-    
 }
 bool resetCostmapSrv(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &rep)
 {
 
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_ptr->getCostmap()->getMutex()));
     costmap_ptr->resetLayers();
+    return true;
+}
+bool switchInput(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &rep)
+{
+    //boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_ptr->getCostmap()->getMutex()));
+    //costmap_ptr->resetLayers();
+
+    if (use_grid_map)
+    {
+        use_grid_map = false;
+        std::system("rosrun dynamic_reconfigure dynparam set /custom_costmap_node/costmap/obstacle_layer enabled true &");
+    }
+    else
+    {
+        use_grid_map = true;
+        std::system("rosrun dynamic_reconfigure dynparam set /custom_costmap_node/costmap/obstacle_layer enabled false &");
+    }
+
     return true;
 }
 bool checkEnvSrv(theta_star_2d::checkObstaclesRequest &req, theta_star_2d::checkObstaclesResponse &rep)
@@ -87,6 +111,8 @@ int main(int argc, char **argv)
     n.param("check_radius", robot_radius, (double)0.6);
     robot_radius += 0.05;
     ros::ServiceServer reset_costmap_svr = n.advertiseService("reset_costmap", resetCostmapSrv);
+    ros::ServiceServer switch_input_svr = n.advertiseService("switch_input", switchInput);
+
     ros::ServiceServer check_env = n.advertiseService("check_env", &checkEnvSrv);
     ros::Subscriber add_obstacle_sub = n.subscribe<theta_star_2d::addObstacle>("add_obstacle", 1, &setObstacleCallback);
 #ifdef MELODIC
