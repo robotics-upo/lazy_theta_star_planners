@@ -466,7 +466,7 @@ void LocalPlanner::calculatePath2D()
                         {
                             double dist2goal = euclideanDistance(nav_goal.global_goal.position.x, nav_goal.global_goal.position.y, getTfMapToRobot().transform.translation.x, getTfMapToRobot().transform.translation.y);
 
-                            if (dist2goal < arrivedThresh)
+                            /*if (dist2goal < arrivedThresh)
                             {
 
                                 clearMarkers();
@@ -474,9 +474,9 @@ void LocalPlanner::calculatePath2D()
                                 execute_path_srv_ptr->setSucceeded(action_result);
                                 ROS_ERROR("LocalPlanner: Goal Succed");
                                 navigation_client_2d_ptr->cancelGoal();
-                            }
-                            else
-                            {
+                            }*/
+                            //else
+                            if( dist2goal > arrivedThresh ){
                                 navigation_client_2d_ptr->cancelGoal();
                                 planningStatus.data = "Requesting new global path, navigation cancelled";
                                 execute_path_srv_ptr->setAborted();
