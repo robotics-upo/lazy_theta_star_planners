@@ -48,11 +48,15 @@ bool switchInput(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &rep)
     {
         use_grid_map = false;
         std::system("rosrun dynamic_reconfigure dynparam set /custom_costmap_node/costmap/obstacle_layer enabled true &");
+        std::system("rosrun dynamic_reconfigure dynparam set /global_planner_node/global_costmap/obstacle_layer enabled true &");
+    
     }
     else
     {
         use_grid_map = true;
         std::system("rosrun dynamic_reconfigure dynparam set /custom_costmap_node/costmap/obstacle_layer enabled false &");
+        std::system("rosrun dynamic_reconfigure dynparam set /global_planner_node/global_costmap/obstacle_layer enabled false &");
+
     }
 
     return true;
@@ -107,7 +111,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "custom_costmap_node");
     ros::NodeHandle n("~");
 
-    n.param("n_max", n_max, (int)100);
+    n.param("n_max", n_max, (int)700);
     n.param("check_radius", robot_radius, (double)0.6);
     robot_radius += 0.05;
     ros::ServiceServer reset_costmap_svr = n.advertiseService("reset_costmap", resetCostmapSrv);
