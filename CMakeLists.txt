@@ -23,12 +23,12 @@ find_package(Boost REQUIRED COMPONENTS system)
 # Generate messages in the 'msg' folder
 add_message_files(
   FILES
-  addObstacle.msg
+  # addObstacle.msg
 )
 add_service_files(
   FILES
   SaveMission.srv
-  checkObstacles.srv
+  # checkObstacles.srv
 )
 
 generate_messages(

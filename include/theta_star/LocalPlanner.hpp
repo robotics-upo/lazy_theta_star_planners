@@ -35,7 +35,7 @@
 
 #include <dynamic_reconfigure/server.h>
 #include <theta_star_2d/LocalPlannerConfig.h>
-#include <theta_star_2d/checkObstacles.h>
+#include <nix_common/CheckObstacles.h>
 #include <actionlib/server/simple_action_server.h>
 #include <actionlib/client/simple_action_client.h>
 

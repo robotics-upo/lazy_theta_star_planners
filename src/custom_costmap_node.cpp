@@ -10,8 +10,8 @@
 
 #include <tf/transform_listener.h>
 #include <tf2_ros/transform_listener.h>
-#include <theta_star_2d/checkObstacles.h>
-#include <theta_star_2d/addObstacle.h>
+#include <nix_common/CheckObstacles.h>
+#include <nix_common/AddObstacles.h>
 
 std::unique_ptr<costmap_2d::Costmap2DROS> costmap_ptr;
 typedef unsigned int uint;
@@ -19,7 +19,7 @@ int n_max;
 double robot_radius;
 bool use_grid_map = false;
 
-void setObstacleCallback(const theta_star_2d::addObstacleConstPtr &obstacle_coord)
+void setObstacleCallback(const nix_common::AddObstaclesConstPtr &obstacle_coord)
 {
     if (!use_grid_map)
         return;
@@ -61,7 +61,7 @@ bool switchInput(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &rep)
 
     return true;
 }
-bool checkEnvSrv(theta_star_2d::checkObstaclesRequest &req, theta_star_2d::checkObstaclesResponse &rep)
+bool checkEnvSrv(nix_common::CheckObstaclesRequest &req, nix_common::CheckObstaclesResponse &rep)
 {
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_ptr->getCostmap()->getMutex()));
 
@@ -118,7 +118,7 @@ int main(int argc, char **argv)
     ros::ServiceServer switch_input_svr = n.advertiseService("switch_input", switchInput);
 
     ros::ServiceServer check_env = n.advertiseService("check_env", &checkEnvSrv);
-    ros::Subscriber add_obstacle_sub = n.subscribe<theta_star_2d::addObstacle>("add_obstacle", 1, &setObstacleCallback);
+    ros::Subscriber add_obstacle_sub = n.subscribe<nix_common::AddObstacles>("add_obstacle", 1, &setObstacleCallback);
 #ifdef MELODIC
     tf2_ros::Buffer buffer(ros::Duration(5));
     tf2_ros::TransformListener tf(buffer);
