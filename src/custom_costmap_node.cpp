@@ -22,13 +22,13 @@ bool use_grid_map = false;
 void setObstacleCallback(const nix_common::AddObstaclesConstPtr &obstacle_coord)
 {
     if (!use_grid_map)
-        return;
+       return;
 
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_ptr->getCostmap()->getMutex()));
 
     unsigned int mx, my;
 
-    for (size_t i = 0; i < obstacle_coord->data.size() - 1; ++i)
+    for (size_t i = 0; i < obstacle_coord->data.size() ; ++i)
         if (costmap_ptr->getCostmap()->worldToMap(obstacle_coord->data[i], obstacle_coord->data[i + 1], mx, my))
             costmap_ptr->getCostmap()->setCost(mx, my, costmap_2d::LETHAL_OBSTACLE);
 }
@@ -115,10 +115,10 @@ int main(int argc, char **argv)
     n.param("check_radius", robot_radius, (double)0.6);
     robot_radius += 0.05;
     ros::ServiceServer reset_costmap_svr = n.advertiseService("reset_costmap", resetCostmapSrv);
-    ros::ServiceServer switch_input_svr = n.advertiseService("switch_input", switchInput);
+    // ros::ServiceServer switch_input_svr = n.advertiseService("switch_input", switchInput);
 
     ros::ServiceServer check_env = n.advertiseService("check_env", &checkEnvSrv);
-    ros::Subscriber add_obstacle_sub = n.subscribe<nix_common::AddObstacles>("add_obstacle", 1, &setObstacleCallback);
+    // ros::Subscriber add_obstacle_sub = n.subscribe<nix_common::AddObstacles>("add_obstacle", 1, &setObstacleCallback);
 #ifdef MELODIC
     tf2_ros::Buffer buffer(ros::Duration(5));
     tf2_ros::TransformListener tf(buffer);
