@@ -49,6 +49,7 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
 
+#include <nix_common/CheckOccupied.h>
 namespace PathPlanners
 {
 class GlobalPlanner : public ThetaStar3D
@@ -87,6 +88,8 @@ private:
 
     int getClosestWaypoint();
     bool replan();
+    bool isOccupiedSrvCb(nix_common::CheckOccupiedRequest &req,nix_common::CheckOccupiedResponse &resp);
+
     
     /*
     @brief: Calls the resetLayers() costmap_2d member function in order to clean old obstacles 
@@ -161,7 +164,7 @@ private:
     ros::Subscriber goal_sub, sub_map;
 
     //Services servers
-    ros::ServiceServer global_replanning_service, reset_global_costmap_service, plan_request_service;
+    ros::ServiceServer global_replanning_service, reset_global_costmap_service, plan_request_service, is_occupied_srv_;
     ros::ServiceClient recovery_rot_srv_client;
     //ThetaStar object
     ThetaStar2D theta2D;

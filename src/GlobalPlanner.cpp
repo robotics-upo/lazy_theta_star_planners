@@ -45,6 +45,20 @@ bool GlobalPlanner::resetCostmapSrvCb(std_srvs::EmptyRequest &req, std_srvs::Emp
     resetGlobalCostmap();
     return true;
 }
+bool GlobalPlanner::isOccupiedSrvCb(nix_common::CheckOccupiedRequest &req,nix_common::CheckOccupiedResponse &resp){
+
+    uint x_cell,y_cell;
+    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
+    global_costmap_ptr->getCostmap()->worldToMap(req.x.data, req.y.data, x_cell, y_cell);
+
+    if(global_costmap_ptr->getCostmap()->getCost(x_cell, y_cell) == costmap_2d::LETHAL_OBSTACLE){
+        resp.occupied = true;
+    }else{
+        resp.occupied = false;
+    }
+
+    return true;
+}
 void GlobalPlanner::resetGlobalCostmap()
 {
     //Lock costmap so others threads cannot modify it
@@ -151,6 +165,7 @@ void GlobalPlanner::configServices()
     if (!use3d)
     {
         reset_global_costmap_service = nh->advertiseService("reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
+        is_occupied_srv_ = nh->advertiseService("is_occupied", &GlobalPlanner::isOccupiedSrvCb, this);
         rot_in_place_client_ptr.reset(new RotationInPlaceClient("/Recovery_Rotation", true));
 
         rot_in_place_client_ptr->waitForServer();
