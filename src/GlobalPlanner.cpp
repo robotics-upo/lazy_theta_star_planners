@@ -51,7 +51,7 @@ bool GlobalPlanner::isOccupiedSrvCb(nix_common::CheckOccupiedRequest &req,nix_co
     boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_ptr->getCostmap()->getMutex()));
     global_costmap_ptr->getCostmap()->worldToMap(req.x.data, req.y.data, x_cell, y_cell);
 
-    if(global_costmap_ptr->getCostmap()->getCost(x_cell, y_cell) == costmap_2d::LETHAL_OBSTACLE){
+    if(static_cast<int>(global_costmap_ptr->getCostmap()->getCost(x_cell, y_cell)) == costmap_2d::INSCRIBED_INFLATED_OBSTACLE){
         resp.occupied = true;
     }else{
         resp.occupied = false;
