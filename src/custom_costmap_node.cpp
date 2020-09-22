@@ -72,7 +72,7 @@ bool checkEnvSrv(nix_common::CheckObstaclesRequest &req, nix_common::CheckObstac
     static int robot_r_disc = static_cast<int>(robot_radius / res);
 
     double th;
-    uint count = 0;
+    int count = 0;
     int x, y;
 
     for (int i = -1 * robot_r_disc; i < robot_r_disc; ++i)
