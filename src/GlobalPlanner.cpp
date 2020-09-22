@@ -74,6 +74,9 @@ void GlobalPlanner::configTheta()
         theta3D.setTimeOut(timeout);
         theta3D.setTrajectoryParams(traj_dxy_max, traj_dz_max, traj_pos_tol, traj_vxy_m, traj_vz_m, traj_vxy_m_1, traj_vz_m_1, traj_wyaw_m, traj_yaw_tol);
         theta3D.confPrintRosWarn(false);
+        double cost_weight;
+        nh->param("cost_weight", cost_weight, (double)0.4);
+        theta3D.set3DCostWeight(cost_weight);
     }
     else
     {

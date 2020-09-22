@@ -34,8 +34,9 @@ ThetaStar3D::ThetaStar3D()
 }
 
 // Constructor with arguments
-ThetaStar3D::ThetaStar3D(std::string plannerName, std::string frame_id, float ws_x_max_, float ws_y_max_, float ws_z_max_, float ws_x_min_, float ws_y_min_, float ws_z_min_, float step_, float h_inflation_, float v_inflation_, float goal_weight_, float z_weight_cost_, float z_not_inflate_, ros::NodeHandlePtr n)
-{
+ThetaStar3D::ThetaStar3D(std::string plannerName, std::string frame_id, float ws_x_max_, float ws_y_max_,
+float ws_z_max_, float ws_x_min_, float ws_y_min_, float ws_z_min_, float step_, float h_inflation_, float v_inflation_, float goal_weight_,
+float z_weight_cost_, float z_not_inflate_, ros::NodeHandlePtr n){
 	// Call to initialization
 	init(plannerName, frame_id, ws_x_max_, ws_y_max_, ws_z_max_, ws_x_min_, ws_y_min_, ws_z_min_, step_, h_inflation_, v_inflation_, goal_weight_, z_weight_cost_, z_not_inflate_, n);
 }
@@ -1396,14 +1397,15 @@ float ThetaStar3D::distanceBetween2nodes(ThetaStarNode3D &n1, ThetaStarNode3D &n
 				pow(n1.point.y - n2.point.y, 2) +
 				pow(n1.point.z - n2.point.z, 2));
 }
-
+//!Aqui hay que meter el coste
 float ThetaStar3D::weightedDistanceBetween2nodes(ThetaStarNode3D &n1, ThetaStarNode3D &n2)
 {
-	return sqrt(pow(n1.point.x - n2.point.x, 2) +
-				pow(n1.point.y - n2.point.y, 2) +
-				z_weight_cost * pow(n1.point.z - n2.point.z, 2));
-}
+	double cost = m_grid3d.getProbabilityFromPoint(n2.point.x, n2.point.y, n2.point.z);
 
+	return cost * cost_weight * (sqrt(pow(n1.point.x - n2.point.x, 2) +
+				pow(n1.point.y - n2.point.y, 2) +
+				z_weight_cost * pow(n1.point.z - n2.point.z, 2)));
+}
 float ThetaStar3D::distanceFromInitialPoint(ThetaStarNode3D node, ThetaStarNode3D parent)
 {
 	float res;
@@ -1420,17 +1422,19 @@ float ThetaStar3D::distanceFromInitialPoint(ThetaStarNode3D node, ThetaStarNode3
 
 	return res;
 }
-
+//!Aqui tambien hay que meter el coste
 float ThetaStar3D::weightedDistanceFromInitialPoint(ThetaStarNode3D node, ThetaStarNode3D parent)
 {
 	float res;
+	double cost = m_grid3d.getProbabilityFromPoint(node.point.x, node.point.y, node.point.z);
+
 	if (isOccupied(node))
 		res = std::numeric_limits<float>::max();
 	else if (parent.distanceFromInitialPoint == std::numeric_limits<float>::max())
 		res = parent.distanceFromInitialPoint;
 	else
 	{
-		res = parent.distanceFromInitialPoint + (sqrt(pow(node.point.x - parent.point.x, 2) +
+		res = parent.distanceFromInitialPoint + cost * cost_weight * (sqrt(pow(node.point.x - parent.point.x, 2) +
 													  pow(node.point.y - parent.point.y, 2) +
 													  z_weight_cost * pow(node.point.z - parent.point.z, 2)));
 	}
@@ -1703,6 +1707,9 @@ void ThetaStar3D::setMinObstacleRadius(double minR_){
 void ThetaStar3D::confPrintRosWarn(bool print)
 {
 	PRINT_WARNINGS = print;
+}
+void ThetaStar3D::set3DCostWeight(double cost){
+	cost_weight = cost;
 }
 
 } // namespace PathPlanners

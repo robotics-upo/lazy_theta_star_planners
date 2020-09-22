@@ -35,6 +35,8 @@
 
 #include <boost/foreach.hpp>
 
+#include "theta_star/grid3d.hpp"
+
 #define PRINTF_REGULAR "\x1B[0m"
 #define PRINTF_RED "\x1B[31m"
 #define PRINTF_GREEN "\x1B[32m"
@@ -399,6 +401,9 @@ public:
 		return isInside(x_, y_, z_);
 	}
 	void setMinObstacleRadius(double minR_);
+
+	void set3DCostWeight(double cost);
+
 
 protected:
 	/**	
@@ -905,6 +910,9 @@ protected:
 
 	// Flag to print the ROS_WARN()
 	bool PRINT_WARNINGS;
+
+	Grid3d m_grid3d;
+	double cost_weight;
 };
 
 } /* namespace PathPlanners */
