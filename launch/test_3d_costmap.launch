@@ -32,6 +32,6 @@
     <node pkg="rqt_publisher" name="rqt_publisher" type="rqt_publisher"/>
     <node pkg="rqt_reconfigure" name="rqt_reconfigure" type="rqt_reconfigure"/>
 
-    <node pkg="rviz" name="rviz" type="rviz"/>
+    <node pkg="rviz" name="rviz" type="rviz" args="-d $(find theta_star_2d)/viz/3dcost_test.rviz"/>
 
 </launch>
