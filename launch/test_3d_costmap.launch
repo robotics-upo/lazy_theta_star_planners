@@ -11,7 +11,7 @@
         <param name="z_weight_cost"          value="1"/>
         <param name="goal_weight"            value="1.2"/>
         <param name="cost_weight"            value="0.5"/>
-        <param name="line_of_sight_distance" value="1"/>
+        <param name="line_of_sight_distance" value="5"/>
         <param name="publish_point_cloud"    value="true"/>
         <remap from="points" to="/grid3d/map_point_cloud"/>
         <param name="ws_x_max"   value="110"/>
@@ -25,6 +25,7 @@
         <param name="world_frame" value="map"/>
         <param name="robot_base_frame" value="base_link"/>
         <param name="wait_for_servers" value="false"/>
+        <param name="timeout"   value="100"/>
     </node>
 
     <node pkg="static_tf_dyncfg" name="static_tf_dyncfg_node" type="static_tf_dyncfg_node" args="map base_link 102 106 3 0 0 0"/>
