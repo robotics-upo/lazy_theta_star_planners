@@ -192,7 +192,7 @@ private:
     Trajectory trajectory;
 
     //These two flags can be configured as parameters
-    bool showConfig, debug;
+    bool showConfig, debug, wait_for_servers_;
 
     int countImpossible = 0;
 

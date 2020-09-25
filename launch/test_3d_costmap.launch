@@ -1,0 +1,36 @@
+<launch>
+    <arg name="use_sim_time" default="false"/>
+
+    <param name="use_sim_time" value="$(arg use_sim_time)"/>
+    <node pkg="theta_star_2d" type="global_planner_node" name="global_planner_node" output="screen">
+        <param name="map_path"               value="$(find theta_star_2d)/octomap_full.bt"/>
+        <param name="mode3d"                 value="true"/>
+        <param name="map_resolution"         value="0.1"/>
+        <param name="map_h_inflaction"       value="0.3"/>
+        <param name="map_v_inflaction"       value="0.3"/>
+        <param name="z_weight_cost"          value="1"/>
+        <param name="goal_weight"            value="1.2"/>
+        <param name="cost_weight"            value="0.5"/>
+        <param name="line_of_sight_distance" value="1"/>
+        <param name="publish_point_cloud"    value="true"/>
+        <remap from="points" to="/grid3d/map_point_cloud"/>
+        <param name="ws_x_max"   value="110"/>
+        <param name="ws_x_min"   value="75"/>
+        <param name="ws_y_max"   value="140"/>
+        <param name="ws_y_min"   value="100"/>
+        <param name="ws_z_max"   value="10"/>
+        <param name="ws_z_min"   value="0"/>
+        <param name="show_config" value="true"/>
+        <param name="debug" value="true"/>
+        <param name="world_frame" value="map"/>
+        <param name="robot_base_frame" value="base_link"/>
+        <param name="wait_for_servers" value="false"/>
+    </node>
+
+    <node pkg="static_tf_dyncfg" name="static_tf_dyncfg_node" type="static_tf_dyncfg_node" args="map base_link 102 106 3 0 0 0"/>
+    <node pkg="rqt_publisher" name="rqt_publisher" type="rqt_publisher"/>
+    <node pkg="rqt_reconfigure" name="rqt_reconfigure" type="rqt_reconfigure"/>
+
+    <node pkg="rviz" name="rviz" type="rviz"/>
+
+</launch>

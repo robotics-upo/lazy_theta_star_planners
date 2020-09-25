@@ -14,7 +14,7 @@
 #include <nav_msgs/OccupancyGrid.h>
 #include <std_msgs/Float32.h>
 #include <stdio.h> 
-
+#include <theta_star_2d/Prob.h>
 // PCL
 #include <pcl/point_cloud.h>
 #include <pcl/kdtree/kdtree_flann.h>
@@ -27,6 +27,7 @@ private:
 	
 	// Ros parameters
 	ros::NodeHandle m_nh;
+	ros::ServiceServer getProb_server;
 	bool m_saveGrid, m_publishPc;
 	std::string m_mapPath, m_nodeName;
 	std::string m_globalFrameId;
@@ -74,7 +75,8 @@ private:
 public:
 	Grid3d(): m_cloud(new pcl::PointCloud<pcl::PointXYZ>)
 	{
-	  
+		ROS_INFO("Constructor1	");
+		
 		// Load paraeters
 		double value;
 		ros::NodeHandle lnh("~");
@@ -84,7 +86,7 @@ public:
 		if(!lnh.getParam("map_path", m_mapPath))
 			m_mapPath = "map.ot";
 		if(!lnh.getParam("publish_point_cloud", m_publishPc))
-			m_publishPc = false;
+			m_publishPc = true;
 		if(!lnh.getParam("publish_point_cloud_rate", m_publishPointCloudRate))
 			m_publishPointCloudRate = 0.2;	
 		if(!lnh.getParam("publish_grid_slice", value))
@@ -98,8 +100,9 @@ public:
 
 		lnh.param("cost_scaling_factor", cost_scaling_factor, 0.8);		
 		lnh.param("robot_radius", robot_radius, 0.4);		
-		lnh.param("use_costmap_function", use_costmap_function, (bool)false);		
-
+		lnh.param("use_costmap_function", use_costmap_function, (bool)true);		
+		
+		getProb_server = lnh.advertiseService("get_cell_probability", &Grid3d::getCellProbability,this);
 		// Load octomap 
 		m_octomap = NULL;
 		m_grid = NULL;
@@ -111,9 +114,9 @@ public:
 			// Try to load tha associated grid-map from file
 			std::string path;
 			if(m_mapPath.compare(m_mapPath.length()-3, 3, ".bt") == 0)
-				path = m_mapPath.substr(0,m_mapPath.find(".bt"))+".grid";
+				path = m_mapPath.substr(0,m_mapPath.find(".bt"))+".gridm";
 			if(m_mapPath.compare(m_mapPath.length()-3, 3, ".ot") == 0)
-				path = m_mapPath.substr(0,m_mapPath.find(".ot"))+".grid";
+				path = m_mapPath.substr(0,m_mapPath.find(".ot"))+".gridm";
 			if(!loadGrid(path))
 			{						
 				// Compute the gridMap using kdtree search over the point-cloud
@@ -145,7 +148,8 @@ public:
 	}
 	Grid3d(std::string &node_name, std::string &map_path) : m_cloud(new pcl::PointCloud<pcl::PointXYZ>)
 	{
-	  
+		
+		ROS_INFO("Constructor2");
 		// Load paraeters
 		double value;
 		ros::NodeHandle lnh("~");
@@ -169,9 +173,9 @@ public:
 			// Try to load tha associated grid-map from file
 			std::string path;
 			if(m_mapPath.compare(m_mapPath.length()-3, 3, ".bt") == 0)
-				path = m_mapPath.substr(0,m_mapPath.find(".bt"))+".grid";
+				path = m_mapPath.substr(0,m_mapPath.find(".bt"))+".gridm";
 			if(m_mapPath.compare(m_mapPath.length()-3, 3, ".ot") == 0)
-				path = m_mapPath.substr(0,m_mapPath.find(".ot"))+".grid";
+				path = m_mapPath.substr(0,m_mapPath.find(".ot"))+".gridm";
 			if(!loadGrid(path))
 			{						
 				// Compute the gridMap using kdtree search over the point-cloud
@@ -193,7 +197,12 @@ public:
 		if(m_grid != NULL)
 			delete []m_grid;
 	}
+	bool getCellProbability(theta_star_2d::ProbRequest &req, theta_star_2d::ProbResponse &rep){
 
+		rep.probability.data = getProbabilityFromPoint((double)req.x.data, (double)req.y.data, (double)req.z.data);
+
+		return true;
+	}
 	float computeCloudWeight(std::vector<pcl::PointXYZ> &points)
 	{
 		float weight = 0.;
@@ -451,7 +460,7 @@ protected:
 					ROS_INFO_THROTTLE(0.5,"Progress: %lf %%", percent);	
 					if(percent > percent_msg.data + 0.5){
 						percent_msg.data = percent;
-						percent_computed_pub_.publish(percent_msg);
+						// percent_computed_pub_.publish(percent_msg);
 					}
 					
 					if(m_kdtree.nearestKSearch(searchPoint, 1, pointIdxNKNSearch, pointNKNSquaredDistance) > 0)
@@ -461,7 +470,9 @@ protected:
 						if(!use_costmap_function){
 							m_grid[index].prob = gaussConst1*exp(-dist*dist*gaussConst2);
 						}else{
-							m_grid[index].prob = (253-1)*exp(-cost_scaling_factor*(dist - robot_radius));
+							double prob =  100*exp(-cost_scaling_factor*std::fabs((dist - robot_radius)));
+							ROS_INFO("[%f, %f, %f] Dist: %f Probability: %f", searchPoint.x, searchPoint.y, searchPoint.z, dist, prob);
+							m_grid[index].prob = prob;
 						}
 					}
 					else
@@ -474,7 +485,7 @@ protected:
 			}
 		}
 		percent_msg.data = 100;
-		percent_computed_pub_.publish(percent_msg);
+		// percent_computed_pub_.publish(percent_msg);
 	}
 	
 	void buildGridSliceMsg(float z)

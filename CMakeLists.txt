@@ -28,6 +28,7 @@ add_message_files(
 add_service_files(
   FILES
   SaveMission.srv
+  Prob.srv
   # checkObstacles.srv
 )
 
@@ -44,7 +45,7 @@ generate_dynamic_reconfigure_options(
 
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS roscpp upo_actions message_runtime octomap_msgs octomap_ros pcl_conversions pcl_ros
+  CATKIN_DEPENDS roscpp std_msgs upo_actions message_runtime octomap_msgs octomap_ros pcl_conversions pcl_ros
   DEPENDS octomap_msgs octomap_ros
 )
 ###########

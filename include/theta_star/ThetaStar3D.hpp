@@ -403,6 +403,8 @@ public:
 	void setMinObstacleRadius(double minR_);
 
 	void set3DCostWeight(double cost);
+	
+	void set3DMaxLineOfSightDist(double dist);
 
 
 protected:
@@ -912,7 +914,7 @@ protected:
 	bool PRINT_WARNINGS;
 
 	Grid3d m_grid3d;
-	double cost_weight;
+	double cost_weight, line_of_sight;
 };
 
 } /* namespace PathPlanners */

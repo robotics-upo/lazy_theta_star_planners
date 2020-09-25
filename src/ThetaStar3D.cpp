@@ -24,7 +24,7 @@ namespace PathPlanners
 //#define PRINT_OCTREE_STATS
 // Uncomment to printf if setVertex() fails at no-LofS
 //#define PRINT_SETVERTEX_FAILS
-
+#define TESTING_FUNC
 //*****************************************************************
 // 				ThetaStar Algorithm Class Definitions
 //*****************************************************************
@@ -543,6 +543,12 @@ bool ThetaStar3D::lineofsight(ThetaStarNode3D &p1, ThetaStarNode3D &p2)
 
 	if (isOccupied(p1) || isOccupied(p2))
 		return false;
+
+    if (distanceBetween2nodes(p1, p2) > line_of_sight ){
+        ROS_INFO("Dist %f > %f, skipping ", distanceBetween2nodes(p1, p2), line_of_sight);
+		return false;
+		
+	}
 
 	float base = distanceBetween2nodes(p1, p2);
 	for (int x = x0; x <= x1; x++)
@@ -1400,8 +1406,10 @@ float ThetaStar3D::distanceBetween2nodes(ThetaStarNode3D &n1, ThetaStarNode3D &n
 //!Aqui hay que meter el coste
 float ThetaStar3D::weightedDistanceBetween2nodes(ThetaStarNode3D &n1, ThetaStarNode3D &n2)
 {
-	double cost = m_grid3d.getProbabilityFromPoint(n2.point.x, n2.point.y, n2.point.z);
-
+	double cost = m_grid3d.getProbabilityFromPoint(n2.point.x*step, n2.point.y*step, n2.point.z*step);
+	cout<<"Prob: "<<cost<<endl;
+	ROS_INFO("Node: [%f, %f, %f, %lf], Cost w: %f", n2.point.x*step,n2.point.y*step, n2.point.z*step, cost, cost_weight);
+	
 	return cost * cost_weight * (sqrt(pow(n1.point.x - n2.point.x, 2) +
 				pow(n1.point.y - n2.point.y, 2) +
 				z_weight_cost * pow(n1.point.z - n2.point.z, 2)));
@@ -1710,6 +1718,9 @@ void ThetaStar3D::confPrintRosWarn(bool print)
 }
 void ThetaStar3D::set3DCostWeight(double cost){
 	cost_weight = cost;
+}
+void ThetaStar3D::set3DMaxLineOfSightDist(double dist){
+	line_of_sight = dist;
 }
 
 } // namespace PathPlanners

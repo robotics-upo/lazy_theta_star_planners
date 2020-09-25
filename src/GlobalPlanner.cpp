@@ -13,7 +13,9 @@ GlobalPlanner::GlobalPlanner(string node_name_)
     node_name = node_name_;
 
     nh.reset(new ros::NodeHandle("~"));
-    nh->param("mode3d", use3d, (bool)false);
+    nh->param("mode3d", use3d, (bool)true);
+    if(use3d)
+        ROS_INFO_COND(showConfig, PRINTF_GREEN "Mode 3D Enabled");
 
     tfBuffer.reset(new tf2_ros::Buffer);
     tf2_list.reset(new tf2_ros::TransformListener(*tfBuffer));
@@ -74,9 +76,11 @@ void GlobalPlanner::configTheta()
         theta3D.setTimeOut(timeout);
         theta3D.setTrajectoryParams(traj_dxy_max, traj_dz_max, traj_pos_tol, traj_vxy_m, traj_vz_m, traj_vxy_m_1, traj_vz_m_1, traj_wyaw_m, traj_yaw_tol);
         theta3D.confPrintRosWarn(false);
-        double cost_weight;
+        double cost_weight, lof;
         nh->param("cost_weight", cost_weight, (double)0.4);
         theta3D.set3DCostWeight(cost_weight);
+        nh->param("line_of_sight_distance", lof, (double)1);
+        theta3D.set3DMaxLineOfSightDist(lof_distance);
     }
     else
     {
@@ -162,16 +166,19 @@ void GlobalPlanner::configServices()
     make_plan_server_ptr->registerGoalCallback(boost::bind(&GlobalPlanner::makePlanGoalCB, this));
     make_plan_server_ptr->registerPreemptCallback(boost::bind(&GlobalPlanner::makePlanPreemptCB, this));
 
+    nh->param("wait_for_servers", wait_for_servers_, (bool)false);
+
     make_plan_server_ptr->start();
-    execute_path_client_ptr->waitForServer();
+    if(wait_for_servers_)
+        execute_path_client_ptr->waitForServer();
 
     if (!use3d)
     {
         reset_global_costmap_service = nh->advertiseService("reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
         is_occupied_srv_ = nh->advertiseService("is_occupied", &GlobalPlanner::isOccupiedSrvCb, this);
         rot_in_place_client_ptr.reset(new RotationInPlaceClient("/Recovery_Rotation", true));
-
-        rot_in_place_client_ptr->waitForServer();
+        if(wait_for_servers_)
+            rot_in_place_client_ptr->waitForServer();
     }
 
     ROS_INFO_COND(debug, "Global Planner 3D: Action client from global planner ready");
@@ -187,6 +194,9 @@ void GlobalPlanner::dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint
 
         theta2D.setDynParams(goal_weight, cost_weight, lof_distance, occ_threshold);
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 2D: Dynamic reconfigure requested");
+    }else{
+        theta3D.set3DCostWeight(config.cost_weight);
+        theta3D.set3DMaxLineOfSightDist(config.lof_distance);
     }
 }
 //This function gets parameter from param server at startup if they exists, if not it passes default values
@@ -308,8 +318,8 @@ void GlobalPlanner::configParams3D()
     nh->param("traj_vz_m_1", traj_vz_m_1, (double)1);
     nh->param("traj_wyaw_m", traj_wyaw_m, (double)1);
 
-    nh->param("world_frame", world_frame, (string) "/map");
-    nh->param("robot_base_frame", robot_base_frame, (string) "/base_link");
+    nh->param("world_frame", world_frame, (string) "map");
+    nh->param("robot_base_frame", robot_base_frame, (string) "base_link");
 
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Global Planner 3D Node Configuration:");
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Workspace = X: [%.2f, %.2f]\t Y: [%.2f, %.2f]\t Z: [%.2f, %.2f]  ", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
