@@ -197,6 +197,7 @@ void GlobalPlanner::dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint
     }else{
         theta3D.set3DCostWeight(config.cost_weight);
         theta3D.set3DMaxLineOfSightDist(config.lof_distance);
+        theta3D.setGridSliceZ(config.grid_slice_z);
     }
 }
 //This function gets parameter from param server at startup if they exists, if not it passes default values

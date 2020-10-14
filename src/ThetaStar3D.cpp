@@ -129,6 +129,8 @@ void ThetaStar3D::init(std::string plannerName, std::string frame_id, float ws_x
 	marker_no_los.color.b = 0.0;
 	// if you want a trajectory, its params must be configured using setTrajectoryParams()
 	trajectoryParamsConfigured = false;
+    m_grid3d.reset(new Grid3d);
+
 }
 
 ThetaStar3D::~ThetaStar3D()
@@ -1404,7 +1406,7 @@ float ThetaStar3D::distanceBetween2nodes(ThetaStarNode3D &n1, ThetaStarNode3D &n
 //!Aqui hay que meter el coste
 float ThetaStar3D::weightedDistanceBetween2nodes(ThetaStarNode3D &n1, ThetaStarNode3D &n2)
 {
-	double cost = m_grid3d.getProbabilityFromPoint(n2.point.x*step, n2.point.y*step, n2.point.z*step);
+	double cost = m_grid3d->getProbabilityFromPoint(n2.point.x*step, n2.point.y*step, n2.point.z*step);
 	// cout<<"Prob: "<<cost<<endl;
 	// ROS_INFO("Node: [%f, %f, %f, %lf], Cost w: %f", n2.point.x*step,n2.point.y*step, n2.point.z*step, cost, cost_weight);
 	
@@ -1432,7 +1434,7 @@ float ThetaStar3D::distanceFromInitialPoint(ThetaStarNode3D node, ThetaStarNode3
 float ThetaStar3D::weightedDistanceFromInitialPoint(ThetaStarNode3D node, ThetaStarNode3D parent)
 {
 	float res;
-	double cost = m_grid3d.getProbabilityFromPoint(node.point.x, node.point.y, node.point.z);
+	double cost = m_grid3d->getProbabilityFromPoint(node.point.x, node.point.y, node.point.z);
 
 	if (isOccupied(node))
 		res = std::numeric_limits<float>::max();

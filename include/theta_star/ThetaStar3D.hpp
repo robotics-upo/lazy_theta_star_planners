@@ -406,6 +406,7 @@ public:
 	
 	void set3DMaxLineOfSightDist(double dist);
 
+	void setGridSliceZ(double z){ m_grid3d->setGridSliceHeight(z); }
 
 protected:
 	/**	
@@ -913,7 +914,7 @@ protected:
 	// Flag to print the ROS_WARN()
 	bool PRINT_WARNINGS;
 
-	Grid3d m_grid3d;
+	std::unique_ptr<Grid3d> m_grid3d;
 	double cost_weight, line_of_sight;
 };
 

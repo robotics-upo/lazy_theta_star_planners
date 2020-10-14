@@ -90,7 +90,7 @@ public:
 		if(!lnh.getParam("publish_point_cloud_rate", m_publishPointCloudRate))
 			m_publishPointCloudRate = 0.2;	
 		if(!lnh.getParam("publish_grid_slice", value))
-			value = -1.0;
+			value = 1.0;
 		if(!lnh.getParam("publish_grid_slice_rate", m_publishGridSliceRate))
 			m_publishGridSliceRate = 0.2;
 		m_gridSlice = (float)value;
@@ -202,6 +202,12 @@ public:
 		rep.probability.data = getProbabilityFromPoint((double)req.x.data, (double)req.y.data, (double)req.z.data);
 
 		return true;
+	}
+	void setGridSliceHeight(const double _height){
+		if(_height < m_maxZ && _height > 0.0 ){
+			m_gridSlice = _height;
+			buildGridSliceMsg(m_gridSlice);
+		}
 	}
 	float computeCloudWeight(std::vector<pcl::PointXYZ> &points)
 	{
