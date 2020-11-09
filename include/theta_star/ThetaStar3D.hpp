@@ -16,6 +16,9 @@
 
 #include <ros/ros.h>
 #include <geometry_msgs/Vector3.h>
+#include <geometry_msgs/Point.h>
+#include "marsupial_g2o/bisection_catenary_3D.h"
+
 #include <visualization_msgs/Marker.h>
 
 #include <octomap_msgs/Octomap.h> //Octomap Binary
@@ -58,6 +61,9 @@ typedef trajectory_msgs::MultiDOFJointTrajectory Trajectory;
 typedef trajectory_msgs::MultiDOFJointTrajectoryPtr TrajectoryPtr;
 typedef trajectory_msgs::MultiDOFJointTrajectoryPoint TrajectoryPoint;
 typedef visualization_msgs::Marker RVizMarker;
+
+// Uncomment to set length catenary in nodes
+#define USE_CATENARY_COMPUTE
 
 //*****************************************************************
 //				Auxiliar Class for ThetaStar Algorithm
@@ -107,7 +113,9 @@ public:
 	float lineDistanceToFinalPoint;	// algorithm value
 	float distanceFromInitialPoint;	// algorithm value
 	float totalDistance;			   // algorithm value
-
+#ifdef USE_CATENARY_COMPUTE
+	double lengthCatenary;				//length catenary compute in node
+#endif
 	// Comparator '!=' definition
 	friend bool operator!=(const ThetaStarNode3D &lhs, const ThetaStarNode3D &rhs)
 	{
@@ -400,6 +408,36 @@ public:
 	}
 	void setMinObstacleRadius(double minR_);
 
+	/** Catenary-Related Functions**/
+	/**
+	 * @brief compute catenary between _p1 and _p2. Initial catenary length is the distance between _p1 and _p2. 
+	 * If catenary is in collision, length incremente till avoid collision or get a max length or get outside ws.
+	 * 
+	 * @param _p1 node candidate  
+	 * @param _p2 position reel tether UGV
+	 * @return true get a catenary without collision
+	 * @return false not fesible get catenary
+	 */
+	// bool feasibleCatenary(ThetaStarNode3D &_p1, geometry_msgs::Vector3 _p2);
+	bool feasibleCatenary(ThetaStarNode3D &_p1, geometry_msgs::Vector3 _p2 , geometry_msgs::Vector3 _p0);
+	/**
+	 * @brief 
+	 * 
+	 * @param _u_c 
+	 * @param _mf 
+	 * @param _ba 
+	 * @param _bb 
+	 * @param _l_m 
+	 * @param _v3 
+	 */
+	void configCatenaryCompute(bool _u_c, double _mf, double _ba, double _bb, double _l_m, geometry_msgs::Vector3 _v3);
+
+	vector<double> length_catenary;
+	vector<double> length_catenary_aux;
+	geometry_msgs::Vector3 tf_reel;
+	float step; // Resolution of the Matrix and its inverse
+	float step_inv;
+
 protected:
 	/**	
 		  Returns the discretized position of the input 'p'
@@ -503,6 +541,7 @@ protected:
 		   @param Set true to publish it instantly or false to simply push back at the marker array to publish later
 		**/
 	void publishMarker(ThetaStarNode3D &s, bool publish);
+
 	/** Inline Functions **/
 
 	/**
@@ -846,7 +885,8 @@ protected:
 		// Force search more horizontally
 		return searchFinalPositionInXyRingAhead(xs, ys, zs, 2 * d);
 	}
-
+	
+	
 	/** Variables **/
 
 	// Global Occupancy Matrix
@@ -860,8 +900,7 @@ protected:
 	int ws_x_min_inflated, ws_y_min_inflated, ws_z_min_inflated; // ... less isInside() checking
 	int Lx, Ly, Lz;												 // Inflated WorkSpace lenghts and theirs pre-computed inverses
 	float Lx_inv, Ly_inv, Lz_inv;
-	float step; // Resolution of the Matrix and its inverse
-	float step_inv;
+	
 
 	// Input octomap octree used to create the Occupancy Matrix
 	//std::unique_ptr<octomap::AbstractOcTree> map;
@@ -905,6 +944,13 @@ protected:
 
 	// Flag to print the ROS_WARN()
 	bool PRINT_WARNINGS;
+
+	// Catenary related variables
+
+	bool use_catenary;
+	double multiplicative_factor,bound_bisection_a,bound_bisection_b, length_tether_max;
+	bisectionCatenary biCat;
+
 };
 
 } /* namespace PathPlanners */

@@ -22,6 +22,7 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Transform.h>
+#include <geometry_msgs/Vector3.h>
 #include <std_msgs/Bool.h>
 
 #include <tf2_ros/transform_listener.h>
@@ -48,6 +49,10 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <octomap_msgs/Octomap.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
+
+#include <tf/transform_listener.h>
+#include "marsupial_g2o/bisection_catenary_3D.h"
+
 
 namespace PathPlanners
 {
@@ -145,7 +150,12 @@ private:
     @brief: 
     */
     void calculatePathLength();
-    
+
+    /*
+    @brief: Get tf reel tether to compute catenary.
+    */
+    geometry_msgs::Vector3 tfListenerReel();
+    void configCatenary();
     
     /*              Class Variables                 */
     ros::NodeHandlePtr nh;
@@ -159,6 +169,9 @@ private:
     //Publishers and Subscribers
     ros::Publisher replan_status_pub,visMarkersPublisher;
     ros::Subscriber goal_sub, sub_map;
+
+    //Listener tf reel
+	tf::TransformListener listener;
 
     //Services servers
     ros::ServiceServer global_replanning_service, reset_global_costmap_service, plan_request_service;
@@ -250,6 +263,10 @@ private:
     double traj_yaw_tol;
     double timeout;
     double initialSearchAround;
+
+    bool use_catenary;
+	double multiplicative_factor,bound_bisection_a,bound_bisection_b, length_tether_max;
+
 }; //class GlobalPlanner
 
 } //namespace PathPlanners

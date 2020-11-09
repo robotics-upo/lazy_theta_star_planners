@@ -19,11 +19,13 @@ namespace PathPlanners
 #define SEND_EXPLORED_NODES_MARKERS
 //#define STEP_BY_STEP
 // Uncomment to get non-LineOfSight visual markers
-//#define SEND_NO_LOFS_NODES_MARKERS
+#define SEND_NO_LOFS_NODES_MARKERS
 // Uncomment to printf octree leaf free and occupied
 //#define PRINT_OCTREE_STATS
 // Uncomment to printf if setVertex() fails at no-LofS
 //#define PRINT_SETVERTEX_FAILS
+// Uncomment to set length catenary in nodes
+#define USE_CATENARY_COMPUTE
 
 //*****************************************************************
 // 				ThetaStar Algorithm Class Definitions
@@ -394,6 +396,7 @@ bool ThetaStar3D::setInitialPosition(DiscretePosition p_)
 		initial_position.x = p_.x * step;
 		initial_position.y = p_.y * step;
 		initial_position.z = p_.z * step;
+
 		disc_initial->point = p_;
 		disc_initial->parentNode = disc_initial;
 
@@ -543,7 +546,15 @@ bool ThetaStar3D::lineofsight(ThetaStarNode3D &p1, ThetaStarNode3D &p2)
 	if (isOccupied(p1) || isOccupied(p2))
 		return false;
 
+	geometry_msgs::Vector3 p0_;
+	p0_.x= p1.point.x*step;
+	p0_.y= p1.point.y*step;
+	p0_.z= p1.point.z*step;
+	if (use_catenary && !feasibleCatenary(p1, tf_reel,p0_) )
+		return false;
+	
 	float base = distanceBetween2nodes(p1, p2);
+
 	for (int x = x0; x <= x1; x++)
 		for (int y = y0; y <= y1; y++)
 			for (int z = z0; z <= z1; z++)
@@ -865,8 +876,17 @@ int ThetaStar3D::computePath(void)
 #endif
 
 	ros::Time last_time_ = ros::Time::now();
+
+	int time_count_aux = -1;
+
 	while (!noSolution && (*min_distance) != (*disc_final))
 	{
+		int time_count = floor((ros::Time::now() - last_time_).toSec());
+		if (time_count!= time_count_aux){
+			printf("Time compute Global Path: %i sec.\n",time_count);
+			time_count_aux  = time_count ;
+		}
+
 		iter++;
 		if (iter % 100 == 0)
 		{
@@ -932,6 +952,7 @@ int ThetaStar3D::computePath(void)
 
 #ifdef SEND_EXPLORED_NODES_MARKERS
 	publishMarker(*min_distance, true);
+	publishOccupationMarkersMap();
 #endif
 
 #ifdef PRINT_EXPLORED_NODES_NUMBER
@@ -940,6 +961,9 @@ int ThetaStar3D::computePath(void)
 
 	//Path finished, get final path
 	last_path.clear();
+#ifdef USE_CATENARY_COMPUTE	
+	length_catenary.clear();
+#endif
 	ThetaStarNode3D *path_point;
 	Vector3 point;
 
@@ -954,16 +978,27 @@ int ThetaStar3D::computePath(void)
 		point.x = path_point->point.x * step;
 		point.y = path_point->point.y * step;
 		point.z = path_point->point.z * step;
+		double length_ = path_point->lengthCatenary;
+		// if (length_ <=0.0){
+		// 	if(feasibleCatenary(*path_point,tf_reel)){
+		// 		length_ = path_point->lengthCatenary;
+		// 	}
+		// }
+		printf("point=[%f %f %f] path_point->point=[%i %i %i] length_=[%f]\n",point.x,point.y,point.z,path_point->point.x,path_point->point.y,path_point->point.z,length_);
 
 		last_path.insert(last_path.begin(), point);
-
+#ifdef USE_CATENARY_COMPUTE	
+		length_catenary.insert(length_catenary.begin(), length_);
+#endif
 		path_point = path_point->parentNode;
 		if (!path_point || (path_point == path_point->parentNode && path_point != disc_initial))
 		{
 			last_path.clear();
+			length_catenary.clear();
 			break;
 		}
 	}
+
 	return last_path.size();
 }
 
@@ -1015,6 +1050,7 @@ bool ThetaStar3D::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw
 		middle_position = last_position;
 		ROS_INFO("Middle Position: [%.2f, %.2f, %.2f]", middle_position.x, middle_position.y, middle_position.z);
 
+		int count_j_ = 0;
 		// two path points loop
 		pathPointGot = false;
 		while (!pathPointGot)
@@ -1047,6 +1083,34 @@ bool ThetaStar3D::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw
 				setPositionYawAndTime(trajectory_point, middle_position, fixed_yaw, total_time);
 				trajectory.points.push_back(trajectory_point);
 
+#ifdef USE_CATENARY_COMPUTE
+				double lengthToset;
+				length_catenary_aux.clear();
+				for(size_t j=0 ; j < length_catenary.size(); j++){
+					length_catenary_aux.push_back(length_catenary[j]) ;
+				}
+				length_catenary.clear();
+
+				ThetaStarNode3D init_wp, midd_wp;
+				// midd_wp.point.x= middle_position.x*step_inv;
+				// midd_wp.point.y= middle_position.y*step_inv;
+				// midd_wp.point.z= middle_position.z*step_inv;
+				midd_wp.point.x= trajectory_point.transforms[0].translation.x*step_inv;
+				midd_wp.point.y= trajectory_point.transforms[0].translation.y*step_inv;
+				midd_wp.point.z= trajectory_point.transforms[0].translation.z*step_inv;
+				if(feasibleCatenary(midd_wp,tf_reel,trajectory_point.transforms[0].translation))
+					lengthToset = midd_wp.lengthCatenary;
+				// printf("valor de i=[%i]midd_wp.point=[%i %i %i][%f %f %f]  tf_reel=[%f %f %f] length=[%f] step_inv=[%f]\n",
+				// i,midd_wp.point.x,midd_wp.point.y,midd_wp.point.z,trajectory_point.transforms[0].translation.x,trajectory_point.transforms[0].translation.y,trajectory_point.transforms[0].translation.z,
+				// tf_reel.x,tf_reel.y,tf_reel.z,lengthToset,step_inv);
+
+				for (size_t j = 0 ; j < length_catenary_aux.size(); j++){
+					if (count_j_==j)
+						length_catenary.push_back(lengthToset);
+					length_catenary.push_back(length_catenary_aux[j]);
+				}
+#endif 			
+				count_j_++;
 				//.. to the algorihtm
 				last_position = middle_position;
 			}
@@ -1703,6 +1767,111 @@ void ThetaStar3D::setMinObstacleRadius(double minR_){
 void ThetaStar3D::confPrintRosWarn(bool print)
 {
 	PRINT_WARNINGS = print;
+}
+
+bool ThetaStar3D::feasibleCatenary(ThetaStarNode3D &_p1, geometry_msgs::Vector3 _p2 , geometry_msgs::Vector3 _p0)
+{
+	bool _p_cat_occupied= true;
+	std::vector<geometry_msgs::Point> _points_catenary;
+	geometry_msgs::Vector3 _p1_new;
+	DiscretePosition _p_occ;
+	
+	double _dist_X, _dist_Y, _dist_Z,_dist;
+	// double _mF = multiplicative_factor;
+	double _mF = 0.01;
+
+	// _p1_new.x = _p1.point.x * step;
+	// _p1_new.y = _p1.point.y * step;
+	// _p1_new.z = _p1.point.z * step;
+
+	// _dist_X = (_p1_new.x - _p2.x);
+	// _dist_Y = (_p1_new.y - _p2.y);
+	// _dist_Z = (_p1_new.z - _p2.z);
+	_dist_X = (_p0.x - _p2.x);
+	_dist_Y = (_p0.y - _p2.y);
+	_dist_Z = (_p0.z - _p2.z);
+	_dist = sqrt(_dist_X * _dist_X + _dist_Y * _dist_Y + _dist_Z * _dist_Z);
+	bool _get_catenary = false;
+	int _count = 0;
+	int count_coll_;
+	int best_count_coll_ = 1000;
+	double best_length_;
+	while (!_get_catenary){
+		
+		double _length = _dist + _mF;
+
+		if(_length > 15 ){
+			// printf("WARNING: Is not posible to get catery for point=[%f %f %f] in Theta Star because length > dist_max. Looking for a new way point\n", _p1_new.x,_p1_new.y,_p1_new.z);
+			return false;
+		}
+
+		_points_catenary.clear();
+
+		biCat.setNumberPointsCatenary(_length*10.0);
+		biCat.setFactorBisection(bound_bisection_a,bound_bisection_b);
+		biCat.configBisection(_length, _p2.x, _p2.y, _p2.z,_p0.x,_p0.y,_p0.z,_count,"cat_theta_star");
+		biCat.getPointCatenary3D(_points_catenary);
+
+		int _n_points_cat_dis = ceil(1.5*ceil(_length)); // parameter to ignore collsion points in the begining and in the end of catenary
+		if (_n_points_cat_dis < 5)
+			_n_points_cat_dis = 5;
+		if (_n_points_cat_dis +1 >= _points_catenary.size())
+			_n_points_cat_dis =  _points_catenary.size() -2;
+		
+		count_coll_ = 0;
+		for (size_t j = 0 ; j <_points_catenary.size() ; j++){
+			if (j > _n_points_cat_dis){
+				ThetaStarNode3D _p_cat;
+				_p_occ.x= _points_catenary[j].x*step_inv;
+				_p_occ.y= _points_catenary[j].y*step_inv;
+				_p_occ.z= _points_catenary[j].z*step_inv;
+				_p_cat.point = _p_occ;
+
+				if(_p_occ.z < ws_z_min ){
+					// printf("WARNING: Is not posible to get catery for point=[%f %f %f] in Theta Star because _p_occ.z < ws_z_min[%i] p_occ=[%i %i %i][%f %f %f] . Looking for a new way point\n", 
+					// _p1_new.x,_p1_new.y,_p1_new.z,ws_z_min,_p_occ.x,_p_occ.y,_p_occ.z,_points_catenary[j].x,_points_catenary[j].y,_points_catenary[j].z);
+					_p1.lengthCatenary = best_length_;
+					return false;
+				}
+				_p_cat_occupied = isOccupied(_p_cat);
+			
+				if (_p_cat_occupied){
+					// printf("ENTRO _p1_new=[%f %f %f] _p2=[%f %f %f] dist=[%f] length=[%f] point_cat=[%lu/%lu]\n",_p1_new.x,_p1_new.y,_p1_new.z,_p2.x,_p2.y,_p2.z,_dist,_length,j ,_points_catenary.size());
+					if(count_coll_ == 0)
+						_mF = _mF + 0.01;
+					count_coll_++;
+				}
+			}
+		}
+		if(best_count_coll_ > count_coll_ && count_coll_> 0){
+			best_count_coll_ = count_coll_;
+			best_length_ = _length;
+		}
+		if(count_coll_ > 0)
+			_p_cat_occupied = true;
+
+		if (!_p_cat_occupied){
+			_get_catenary = true;
+			_p1.lengthCatenary = _length;
+			// printf("========= ENTRO_p1_new=[%f %f %f] _p2=[%f %f %f] dist=[%f] length=[%f] point_cat=[%lu]\n",_p1_new.x,_p1_new.y,_p1_new.z,_p2.x,_p2.y,_p2.z,_dist,_length,_points_catenary.size());
+			return true;
+			// break
+		}
+		_count++;
+	}
+}
+
+void ThetaStar3D::configCatenaryCompute(bool _u_c, double _mf, double _ba, double _bb, double _l_m, geometry_msgs::Vector3 _v3){
+	use_catenary = _u_c;
+	multiplicative_factor = _mf;
+	bound_bisection_a = _ba;
+	bound_bisection_b = _bb; 
+	length_tether_max = _l_m;
+	tf_reel.x = _v3.x;
+	tf_reel.y = _v3.y;
+	tf_reel.z = _v3.z;
+	// printf("ThetaStar3D: VALUES:  [%d] [%f %f %f %f] [%f %f %f]!!\n",
+	// use_catenary, multiplicative_factor, bound_bisection_a, bound_bisection_b, length_tether_max, tf_reel.x, tf_reel.y, tf_reel.z);
 }
 
 } // namespace PathPlanners

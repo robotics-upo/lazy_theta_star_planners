@@ -3,6 +3,8 @@ project(theta_star_2d)
 
 set(CMAKE_CXX_STANDARD 14)
 
+set(CMAKE_BUILD_TYPE Release) #None, Debug, Release, RelWithDebInfo, MinSizeRel
+
 if($ENV{ROS_DISTRO} STREQUAL "melodic" )
 add_definitions(-DMELODIC)
 endif()
@@ -18,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   octomap_ros
   pcl_conversions
   pcl_ros
+  marsupial_g2o
 )
 find_package(Boost REQUIRED COMPONENTS system)
 
@@ -40,16 +43,17 @@ generate_dynamic_reconfigure_options(
 
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS roscpp upo_actions message_runtime octomap_msgs octomap_ros pcl_conversions pcl_ros
+  CATKIN_DEPENDS roscpp upo_actions message_runtime octomap_msgs octomap_ros pcl_conversions pcl_ros marsupial_g2o
   DEPENDS octomap_msgs octomap_ros
+  LIBRARIES ${EXTERNAL_LIBS} 
 )
 ###########
 ## Build ##
 ###########
 
-include_directories(
+include_directories(include/
   ${catkin_INCLUDE_DIRS}
-  ${PROJECT_SOURCE_DIR}/include
+  ${PROJECT_SOURCE_DIR}
   ${Boost_INCLUDE_DIRS}
 )
 
@@ -58,13 +62,13 @@ include_directories(
 #add_dependencies(sim_planner_node ${PROJECT_NAME}_gencfg)
 #add_dependencies(sim_planner_node ${catkin_EXPORTED_TARGETS})
 
-add_executable(global_planner_node src/global_planner_node.cpp src/GlobalPlanner.cpp src/ThetaStar2D.cpp src/ThetaStar3D.cpp)
-target_link_libraries(global_planner_node ${catkin_LIBRARIES})
+add_executable(global_planner_node src/global_planner_node.cpp src/GlobalPlanner.cpp src/ThetaStar2D.cpp src/ThetaStar3D.cpp )
+target_link_libraries(global_planner_node  marsupial_g2o ${catkin_LIBRARIES} ${EXTERNAL_LIBS})
 add_dependencies(global_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-add_executable(local_planner_node src/local_planner_node.cpp src/LocalPlanner.cpp src/ThetaStar2D.cpp src/ThetaStar3D.cpp)
-target_link_libraries(local_planner_node ${catkin_LIBRARIES})
-add_dependencies(local_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} )
+add_executable(local_planner_node src/local_planner_node.cpp src/LocalPlanner.cpp src/ThetaStar2D.cpp src/ThetaStar3D.cpp )
+target_link_libraries(local_planner_node marsupial_g2o ${catkin_LIBRARIES} ${EXTERNAL_LIBS})
+add_dependencies(local_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 add_executable(custom_costmap_node src/custom_costmap_node.cpp)
 target_link_libraries(custom_costmap_node ${catkin_LIBRARIES})

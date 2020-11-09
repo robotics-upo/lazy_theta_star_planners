@@ -6,6 +6,9 @@
 
 namespace PathPlanners
 {
+// Uncomment to set length catenary in nodes
+#define USE_CATENARY_COMPUTE
+
 GlobalPlanner::GlobalPlanner(string node_name_)
 {
     //The tf buffer is used to lookup the base link position(tf from world frame to robot base frame)
@@ -39,6 +42,9 @@ GlobalPlanner::GlobalPlanner(string node_name_)
     configServices();
     //Pase parameters from configParams to thetastar object
     configTheta();
+
+    nh->param("use_catenary", use_catenary, (bool)false);
+    configCatenary();
 }
 bool GlobalPlanner::resetCostmapSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &rep)
 {
@@ -217,6 +223,7 @@ void GlobalPlanner::configParams2D()
     ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 2D: ws_x_max,ws_y_max, map_resolution: [%.2f, %.2f, %.2f]", ws_x_max, ws_y_max, map_resolution);
     theta2D.loadMapParams(ws_x_max, ws_y_max, map_resolution);
 }
+
 void GlobalPlanner::configMarkers(std::string ns)
 {
 
@@ -306,7 +313,14 @@ void GlobalPlanner::sendPathToLocalPlannerServer()
 {
     //Take the calculated path, insert it into an action, in the goal (ExecutePath.action)
     upo_actions::ExecutePathGoal goal_action;
+    printfTrajectory(trajectory, "sendPathToLocalPlannerServer: Trajectory_state_1");
     goal_action.path = trajectory;
+    if (use_catenary){
+        for(int i= 0; i<theta3D.length_catenary.size() ; i++){
+            goal_action.length_catenary.push_back(theta3D.length_catenary[i]);
+        }
+    }
+
     execute_path_client_ptr->sendGoal(goal_action);
 }
 void GlobalPlanner::publishMakePlanFeedback()
@@ -551,8 +565,6 @@ bool GlobalPlanner::calculatePath()
     if (use3d && !mapRec)
         return ret;
 
-    
-
     if (setGoal() && setStart())
     {
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Goal and start successfull set");
@@ -571,6 +583,18 @@ bool GlobalPlanner::calculatePath()
 
         seconds = finish.time - start.time - 1;
         milliseconds = (1000 - start.millitm) + finish.millitm;
+
+    	std::ofstream ofs;
+        std::string output_file = "/home/simon/results_optimizer/time_compute_initial_planner.txt";
+		ofs.open(output_file.c_str(), std::ofstream::app);
+        if (ofs.is_open()) {
+		    std::cout << "Saving time initial planning data in output file: " << output_file << std::endl;
+		    ofs << (milliseconds + seconds * 1000.0)/1000.0 <<std::endl;
+	    } 
+	    else {
+	    	std::cout << "Couldn't be open the output data file for time initial planning" << std::endl;
+	    }
+        ofs.close();
 
         ROS_INFO(PRINTF_YELLOW "Global Planner: Time Spent in Global Path Calculation: %.1f ms", milliseconds + seconds * 1000);
         ROS_INFO(PRINTF_YELLOW "Global Planner: Number of points: %d", number_of_points);
@@ -608,6 +632,7 @@ bool GlobalPlanner::calculatePath()
             countImpossible++;
         }
     }
+
     return ret;
 }
 void GlobalPlanner::calculatePathLength()
@@ -622,7 +647,7 @@ void GlobalPlanner::calculatePathLength()
 
         pathLength += sqrtf(x * x + y * y + z * z);
     }
-    ROS_ERROR("Global path lenght: %f, number of points: %d", pathLength, (int)trajectory.points.size());
+    ROS_INFO_COND(debug,PRINTF_MAGENTA"Global path lenght: %f, number of points: %d", pathLength, (int)trajectory.points.size());
 
 }
 geometry_msgs::TransformStamped GlobalPlanner::getRobotPose()
@@ -632,6 +657,7 @@ geometry_msgs::TransformStamped GlobalPlanner::getRobotPose()
     try
     {
         ret = tfBuffer->lookupTransform(world_frame, robot_base_frame, ros::Time(0));
+        
     }
     catch (tf2::TransformException &ex)
     {
@@ -706,21 +732,52 @@ void GlobalPlanner::publishTrajectory3D()
     trajectory.header.frame_id = world_frame;
     trajectory.header.seq = ++seq;
     trajectory.points.clear();
+    
 
-    ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 3D: Trajectory calculation...");
+    ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner 3D: Trajectory calculation... POINTS: %d",number_of_points);
 
     geometry_msgs::TransformStamped transform_robot_pose = getRobotPose();
 
     if (number_of_points > 1)
     {
         theta3D.getTrajectoryYawInAdvance(trajectory, transform_robot_pose.transform);
+        // theta3D.getTrajectoryYawFixed(trajectory, theta3D.getYawFromQuat(transform_robot_pose.transform.rotation));
+
+        if(use_catenary){
+			double lengthToset;
+            theta3D.length_catenary_aux.clear();
+			for(size_t j=0 ; j < theta3D.length_catenary.size(); j++){
+				theta3D.length_catenary_aux.push_back(theta3D.length_catenary[j]) ;
+			}
+			theta3D.length_catenary.clear();
+
+			ThetaStarNode3D init_wp;
+			init_wp.point.x= transform_robot_pose.transform.translation.x*theta3D.step_inv;
+			init_wp.point.y= transform_robot_pose.transform.translation.y*theta3D.step_inv;
+			init_wp.point.z= transform_robot_pose.transform.translation.z*theta3D.step_inv;
+   
+			if(theta3D.feasibleCatenary(init_wp, theta3D.tf_reel,transform_robot_pose.transform.translation))
+				lengthToset = init_wp.lengthCatenary;
+            
+			for (size_t j = 0 ; j < theta3D.length_catenary_aux.size(); j++){
+				if (j==0)
+					theta3D.length_catenary.push_back(lengthToset);
+				theta3D.length_catenary.push_back(theta3D.length_catenary_aux[j]);
+			}
+
+            for(size_t k= 0; k < theta3D.length_catenary.size(); k++)
+                printf("theta3d.length_catenary.size()=[%lu] length=[%f]\n",theta3D.length_catenary.size(),theta3D.length_catenary[k]);			
+        }
+        
+
+        printfTrajectory(trajectory, "After getting traj: ");
     }
     else if (number_of_points == 1)
     {
         theta3D.getTrajectoryYawFixed(trajectory, theta3D.getYawFromQuat(transform_robot_pose.transform.rotation));
         trajectory_msgs::MultiDOFJointTrajectoryPoint pos;
-        pos.transforms.push_back(transform_robot_pose.transform);
-        trajectory.points.push_back(pos);
+        // pos.transforms.push_back(transform_robot_pose.transform);
+        // trajectory.points.push_back(pos);
     }
 
     // Send the trajectory
@@ -736,7 +793,7 @@ void GlobalPlanner::publishTrajectory3D()
 
     goal_multidof.transforms.resize(1, transform_goal);
 
-    trajectory.points.push_back(goal_multidof);
+    // trajectory.points.push_back(goal_multidof);
 
     //!Calculate path length:
     calculatePathLength();
@@ -748,6 +805,7 @@ void GlobalPlanner::publishTrajectory3D()
 
     geometry_msgs::Point p;
 
+    ROS_INFO("trajectory.points.size()=[%lu]",trajectory.points.size());
     for (size_t i = 0; i < trajectory.points.size(); i++)
     {
         p.x = trajectory.points[i].transforms[0].translation.x;
@@ -835,4 +893,29 @@ bool GlobalPlanner::setStart()
     }
     return ret;
 }
+
+void GlobalPlanner::configCatenary(){
+    nh->param("multiplicative_factor", multiplicative_factor, (double)1.001);
+    nh->param("bound_bisection_a", bound_bisection_a, (double)100.0);
+    nh->param("bound_bisection_b", bound_bisection_b, (double)100.0);
+    nh->param("length_tether_max", length_tether_max, (double)10.0);
+
+	printf("GlobalPlanner::configCatenary :   USE_OF_CATENARY=[%s] VALUES=[%f %f %f %f] !!\n",use_catenary ? "true" : "false", multiplicative_factor, bound_bisection_a,bound_bisection_b, length_tether_max);
+    theta3D.configCatenaryCompute(use_catenary,multiplicative_factor,bound_bisection_a,bound_bisection_b, length_tether_max,tfListenerReel());
+}
+
+geometry_msgs::Vector3 GlobalPlanner::tfListenerReel(){
+
+    geometry_msgs::Vector3 _p_reel;
+	tf::StampedTransform _transform;
+
+    listener.lookupTransform("map", "reel_base_link", ros::Time(0), _transform);
+
+	_p_reel.x = _transform.getOrigin().x();
+	_p_reel.y = _transform.getOrigin().y();
+	_p_reel.z = _transform.getOrigin().z();
+
+	return _p_reel;
+}
+
 } // namespace PathPlanners
