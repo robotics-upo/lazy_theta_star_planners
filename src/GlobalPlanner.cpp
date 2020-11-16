@@ -52,6 +52,9 @@ bool GlobalPlanner::GetPathService(theta_star_2d::RequestPathRequest &req, theta
     goal.vector = req.goal;
     start_coord.vector = req.start;
 
+    goalPoseStamped.pose.position.x = goal.vector.x;
+    goalPoseStamped.pose.position.y = goal.vector.y;
+    goalPoseStamped.pose.position.z = goal.vector.z;
     if(calculatePath(false)){
         //Populae response
         rep.nodes_explored.data = theta3D.getExploredNodesNumber();
@@ -670,7 +673,7 @@ void GlobalPlanner::calculatePathLength()
 
         pathLength += sqrtf(x * x + y * y + z * z);
     }
-    ROS_ERROR("Global path lenght: %f, number of points: %d", pathLength, (int)trajectory.points.size());
+    ROS_INFO("Global path lenght: %f, number of points: %d", pathLength, (int)trajectory.points.size());
 
 }
 geometry_msgs::TransformStamped GlobalPlanner::getRobotPose()
@@ -766,9 +769,9 @@ void GlobalPlanner::publishTrajectory3D()
     else if (number_of_points == 1)
     {
         theta3D.getTrajectoryYawFixed(trajectory, theta3D.getYawFromQuat(transform_robot_pose.transform.rotation));
-        trajectory_msgs::MultiDOFJointTrajectoryPoint pos;
-        pos.transforms.push_back(transform_robot_pose.transform);
-        trajectory.points.push_back(pos);
+        // trajectory_msgs::MultiDOFJointTrajectoryPoint pos;
+        // pos.transforms.push_back(transform_robot_pose.transform);
+        // trajectory.points.push_back(pos);
     }
 
     // Send the trajectory

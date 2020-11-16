@@ -477,7 +477,7 @@ protected:
 							m_grid[index].prob = gaussConst1*exp(-dist*dist*gaussConst2);
 						}else{
 							double prob =  100*exp(-cost_scaling_factor*std::fabs((dist - robot_radius)));
-							ROS_INFO("[%f, %f, %f] Dist: %f Probability: %f", searchPoint.x, searchPoint.y, searchPoint.z, dist, prob);
+							// ROS_INFO("[%f, %f, %f] Dist: %f Probability: %f", searchPoint.x, searchPoint.y, searchPoint.z, dist, prob);
 							m_grid[index].prob = prob;
 						}
 					}

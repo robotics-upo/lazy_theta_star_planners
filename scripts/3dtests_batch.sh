@@ -1,35 +1,44 @@
 #!/bin/bash
 
-
 source /opt/ros/$(rosversion -d)/setup.bash
+source $1/devel/setup.bash
 
-lof="1 2 3" 
-cost_w="0.1 0.2 0.3"
+lof=$2
+cost_w=$3
+map=$4
+initial_point="102 106 3"
+goal_point="103 106 3" 
+
 timeout=350
-map=$(rospack find theta_star_2d) 
+
+map_path=$(rospack find theta_star_2d)/$map
 mkdir -p ~/3dtest/
 
-initial_point="1 1 1"
 initial_array=($initial_point)
-goal_point="1 1 1" 
 goal_array=($goal_point)
-echo "${goal_array[0]}"
 
+roslaunch theta_star_2d test_3d_costmap.launch timeout:=$timeout batch_mode:=true map:=$map_path & 
+sleep 30
 for line in $lof; do
     for cost in $cost_w; do
         echo "cost: $cost, line of sight: $line, timeout: $timeout , map: $map"
         #Launch here the stuff
-        # roslaunch theta_star_2d test_3d_costmap.launch line_of_sight:=$line cost_weight:=$cost timeout:=$timeout map:=$map
-        
+        rosrun dynamic_reconfigure dynparam set /global_planner_node goal_weight $cost
+        rosrun dynamic_reconfigure dynparam set /global_planner_node lof_distance $line
         #Call service blocking to get map and stuff
-        rosservice call --wait /global_planner_node/compute_path 
-        test_name="$map"_lof_"$line"_cw_"$cost"
+        rosservice call --wait /global_planner_node/get_path "start:
+  x: ${initial_array[0]}
+  y: ${initial_array[1]}
+  z: ${initial_array[2]}
+goal:
+  x: ${goal_array[0]}
+  y: ${goal_array[1]}
+  z: ${goal_array[2]}" >> "$map"_lof_"$line"_cw_"$cost".txt
+
+        test_name="$map"_lof_"$line"_cw_"$cost".png
         echo "$test_name"
         #Gnome-screenshot
-        # gnome-screenshot -f ~/3dtest/$test_name.png
-        #kill entire launch
-        rosnode kill /global_planner_node
-        sleep 5
+        gnome-screenshot -f ~/3dtest/$test_name
         spd-say 'Test done'
     done
 done
