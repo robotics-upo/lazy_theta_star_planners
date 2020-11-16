@@ -5,10 +5,7 @@
 #usage: rosrun theta_star_2d generate_bunch_of_gridm.sh <path_to_workspace> <map_to_maps_folder> <map_name_with bt extension> <robot radius values list> <cost scaling factors values list>
 
 source /opt/ros/$(rosversion -d)/setup.bash
-ws_path=$1
-${ws_path:$HOME/catkin_ws}
-echo "$ws_path"
-source $ws_path/devel/setup.bash
+source $1/devel/setup.bash
 maps_folder=$2
 map_file=$3
 map_name=$(basename $map_file .bt)
