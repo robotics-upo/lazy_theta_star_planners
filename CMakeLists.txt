@@ -97,3 +97,11 @@ target_link_libraries( hmi_fake
 )
 
 add_dependencies(hmi_fake ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+add_executable(grid3d_generator src/grid_3d_generator_node.cpp)
+
+target_link_libraries( grid3d_generator
+  ${catkin_LIBRARIES}
+)
+add_dependencies(grid3d_generator ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+

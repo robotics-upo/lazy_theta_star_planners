@@ -101,7 +101,9 @@ public:
 		lnh.param("cost_scaling_factor", cost_scaling_factor, 0.8);		
 		lnh.param("robot_radius", robot_radius, 0.4);		
 		lnh.param("use_costmap_function", use_costmap_function, (bool)true);		
-		
+		ROS_INFO("Cost Scaling Factor: %.2f", cost_scaling_factor);
+		ROS_INFO("Robot Radius: %.2f", robot_radius);
+
 		getProb_server = lnh.advertiseService("get_cell_probability", &Grid3d::getCellProbability,this);
 		// Load octomap 
 		m_octomap = NULL;
@@ -154,7 +156,13 @@ public:
 		double value;
 		ros::NodeHandle lnh("~");
 		m_nodeName = node_name;
-
+		
+		lnh.param("cost_scaling_factor", cost_scaling_factor, 0.8);		
+		lnh.param("robot_radius", robot_radius, 0.4);		
+		lnh.param("use_costmap_function", use_costmap_function, (bool)true);		
+		ROS_INFO("Cost Scaling Factor: %.2f", cost_scaling_factor);
+		ROS_INFO("Robot Radius: %.2f", robot_radius);
+		
 		if(!lnh.getParam("sensor_dev", value))
 			value = 0.2;
 		m_sensorDev = (float)value;
