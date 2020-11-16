@@ -1,9 +1,9 @@
 <launch>
     <arg name="use_sim_time" default="false"/>
     <arg name="timeout" default="350"/>
-    <arg name="goal_weight" default="350"/>
-    <arg name="cost_weight" default="350"/>
-    <arg name="line_of_sight_distance" default="1"/>
+    <arg name="goal_weight" default="1.1"/>
+    <arg name="cost_weight" default="0.1"/>
+    <arg name="line_of_sight_distance" default="2"/>
     <arg name="map" default="$(find theta_star_2d)/octomap_full.bt"/>
     <arg name="batch_mode" default="false"/>
     <param name="use_sim_time" value="$(arg use_sim_time)"/>
@@ -20,11 +20,11 @@
         <param name="line_of_sight_distance" value="$(arg line_of_sight_distance)"/>
         <param name="publish_point_cloud"    value="true"/>
         <remap from="points" to="/grid3d/map_point_cloud"/>
-        <param name="ws_x_max"   value="110"/>
-        <param name="ws_x_min"   value="75"/>
-        <param name="ws_y_max"   value="140"/>
-        <param name="ws_y_min"   value="100"/>
-        <param name="ws_z_max"   value="10"/>
+        <param name="ws_x_max"   value="56"/>
+        <param name="ws_x_min"   value="12"/>
+        <param name="ws_y_max"   value="37"/>
+        <param name="ws_y_min"   value="12"/>
+        <param name="ws_z_max"   value="15"/>
         <param name="ws_z_min"   value="0"/>
         <param name="show_config" value="true"/>
         <param name="debug" value="true"/>
@@ -34,7 +34,7 @@
         <param name="timeout"   value="$(arg timeout)"/>
     </node>
 
-    <node pkg="static_tf_dyncfg" name="static_tf_dyncfg_node" type="static_tf_dyncfg_node" args="map base_link 102 106 3 0 0 0"/>
+    <node pkg="static_tf_dyncfg" name="static_tf_dyncfg_node" type="static_tf_dyncfg_node" args="map base_link 13 13 3 0 0 0"/>
     <node pkg="rqt_publisher" name="rqt_publisher" type="rqt_publisher" unless="$(arg batch_mode)"/>
     <node pkg="rqt_reconfigure" name="rqt_reconfigure" type="rqt_reconfigure" unless="$(arg batch_mode)"/>
 
