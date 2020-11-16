@@ -408,6 +408,9 @@ public:
 
 	void setGridSliceZ(double z){ m_grid3d->setGridSliceHeight(z); }
 
+	int getExploredNodesNumber(){
+		return expanded_nodes_number_;
+	}
 protected:
 	/**	
 		  Returns the discretized position of the input 'p'
@@ -916,6 +919,7 @@ protected:
 
 	std::unique_ptr<Grid3d> m_grid3d;
 	double cost_weight, line_of_sight;
+	int expanded_nodes_number_ = 0;
 };
 
 } /* namespace PathPlanners */

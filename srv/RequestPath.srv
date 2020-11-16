@@ -1,0 +1,7 @@
+geometry_msgs/Vector3 start
+geometry_msgs/Vector3 goal
+---
+std_msgs/Int32 nodes_explored
+std_msgs/Int32 number_of_points
+std_msgs/Float32 path_lenght
+std_msgs/Float32 seconds_spents

@@ -30,6 +30,7 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 //Dynamic reconfigure auto generated libraries
 #include <dynamic_reconfigure/server.h>
 #include <theta_star_2d/GlobalPlannerConfig.h>
+#include <theta_star_2d/RequestPath.h>
 
 #include <ctime>
 #include <sys/timeb.h>
@@ -90,7 +91,7 @@ private:
     bool replan();
     bool isOccupiedSrvCb(nix_common::CheckOccupiedRequest &req,nix_common::CheckOccupiedResponse &resp);
 
-    
+    bool GetPathService(theta_star_2d::RequestPathRequest &req, theta_star_2d::RequestPathResponse &rep);
     /*
     @brief: Calls the resetLayers() costmap_2d member function in order to clean old obstacles 
     */
@@ -135,14 +136,14 @@ private:
     void publishTrajectory3D();
 
 
-    bool calculatePath();
+    bool calculatePath(bool use_robot_pose = true);
 
     /*
     @brief: These functions tries to pass the start and goal positions to the thetastar object
             They return true if the points are not occupied
     */
     bool setGoal();
-    bool setStart();
+    bool setStart(bool use_robot_pose = true);
 
     /*
     @brief: 
@@ -164,7 +165,7 @@ private:
     ros::Subscriber goal_sub, sub_map;
 
     //Services servers
-    ros::ServiceServer global_replanning_service, reset_global_costmap_service, plan_request_service, is_occupied_srv_;
+    ros::ServiceServer global_replanning_service, reset_global_costmap_service, plan_request_service, is_occupied_srv_, request_path_;
     ros::ServiceClient recovery_rot_srv_client;
     //ThetaStar object
     ThetaStar2D theta2D;
@@ -221,6 +222,7 @@ private:
     float seconds, milliseconds;
     float minPathLenght;
     ros::Time start_time;
+    geometry_msgs::Vector3Stamped start_coord;
 
     //! 3D specific variables
     bool mapRec;

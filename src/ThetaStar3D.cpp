@@ -14,7 +14,7 @@ namespace PathPlanners
 {
 
 // Uncomment to printf the explored nodes number
-//#define PRINT_EXPLORED_NODES_NUMBER
+#define PRINT_EXPLORED_NODES_NUMBER
 // Uncomment to get the explored nodes (at time or slowly step_by_step)
 #define SEND_EXPLORED_NODES_MARKERS
 //#define STEP_BY_STEP
@@ -597,7 +597,7 @@ bool ThetaStar3D::lineofsight(ThetaStarNode3D &p1, ThetaStarNode3D &p2)
 					}
 				}
 			}
-
+	
 	return true;
 }
 
@@ -868,7 +868,7 @@ int ThetaStar3D::computePath(void)
 	}
 
 #ifdef PRINT_EXPLORED_NODES_NUMBER
-	int expanded_nodes_number = 0;
+	expanded_nodes_number_ = 0;
 #endif
 
 	ros::Time last_time_ = ros::Time::now();
@@ -896,7 +896,7 @@ int ThetaStar3D::computePath(void)
 #endif
 
 #ifdef PRINT_EXPLORED_NODES_NUMBER
-			expanded_nodes_number++;
+			expanded_nodes_number_++;
 #endif
 			open.erase(open.begin());
 			min_distance->nodeInWorld->isInOpenList = false;
@@ -942,7 +942,7 @@ int ThetaStar3D::computePath(void)
 #endif
 
 #ifdef PRINT_EXPLORED_NODES_NUMBER
-	ROS_INFO("Theta Star: Expanded nodes: %d", expanded_nodes_number);
+	ROS_INFO("Theta Star: Expanded nodes: %d", expanded_nodes_number_);
 #endif
 
 	//Path finished, get final path

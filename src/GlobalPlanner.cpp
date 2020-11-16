@@ -47,6 +47,24 @@ bool GlobalPlanner::resetCostmapSrvCb(std_srvs::EmptyRequest &req, std_srvs::Emp
     resetGlobalCostmap();
     return true;
 }
+bool GlobalPlanner::GetPathService(theta_star_2d::RequestPathRequest &req, theta_star_2d::RequestPathResponse &rep){
+
+    goal.vector = req.goal;
+    start_coord.vector = req.start;
+
+    if(calculatePath(false)){
+        //Populae response
+        rep.nodes_explored.data = theta3D.getExploredNodesNumber();
+        rep.number_of_points.data = number_of_points;
+        rep.path_lenght.data = pathLength;
+        rep.seconds_spents.data = seconds;
+        return true;
+    }else{
+        return false;
+    }
+    return true;
+}
+
 bool GlobalPlanner::isOccupiedSrvCb(nix_common::CheckOccupiedRequest &req,nix_common::CheckOccupiedResponse &resp){
 
     uint x_cell,y_cell;
@@ -172,6 +190,7 @@ void GlobalPlanner::configServices()
     if(wait_for_servers_)
         execute_path_client_ptr->waitForServer();
 
+    request_path_ = nh->advertiseService("get_path", &GlobalPlanner::GetPathService, this);
     if (!use3d)
     {
         reset_global_costmap_service = nh->advertiseService("reset_costmap", &GlobalPlanner::resetCostmapSrvCb, this);
@@ -571,7 +590,7 @@ void GlobalPlanner::plan()
         }
     }
 }
-bool GlobalPlanner::calculatePath()
+bool GlobalPlanner::calculatePath(bool use_robot_pose)
 {
     //It seems that you can get a goal and no map and try to get a path but setGoal and setStart will check if the points are valid
     //so if there is no map received it won't calculate a path
@@ -582,7 +601,7 @@ bool GlobalPlanner::calculatePath()
 
     
 
-    if (setGoal() && setStart())
+    if (setGoal() && setStart(use_robot_pose))
     {
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Goal and start successfull set");
         // Path calculation
@@ -818,21 +837,21 @@ bool GlobalPlanner::setGoal()
 
     return ret;
 }
-bool GlobalPlanner::setStart()
+bool GlobalPlanner::setStart(bool use_robot_pose)
 {
     bool ret = false;
-    geometry_msgs::Vector3Stamped start;
-    start.vector.x = getRobotPose().transform.translation.x;
-    start.vector.y = getRobotPose().transform.translation.y;
+    if(use_robot_pose){
+        start_coord.vector.x = getRobotPose().transform.translation.x;
+        start_coord.vector.y = getRobotPose().transform.translation.y;
+        start_coord.vector.z = getRobotPose().transform.translation.z;
+    }
 
-    start.vector.z = getRobotPose().transform.translation.z;
-
-    if (start.vector.z <= ws_z_min)
-        start.vector.z = ws_z_min + map_v_inflaction + map_resolution;
+    if (start_coord.vector.z <= ws_z_min)
+        start_coord.vector.z = ws_z_min + map_v_inflaction + map_resolution;
 
     if (use3d)
     {
-        if (theta3D.setValidInitialPosition(start.vector))
+        if (theta3D.setValidInitialPosition(start_coord.vector))
         {
             ret = true;
         }
@@ -843,12 +862,12 @@ bool GlobalPlanner::setStart()
         }
         else
         {
-            ROS_ERROR("Global Planner 3D: Failed to set initial global position(after search around): [%.2f, %.2f, %.2f]", start.vector.x, start.vector.y, start.vector.z);
+            ROS_ERROR("Global Planner 3D: Failed to set initial global position(after search around): [%.2f, %.2f, %.2f]", start_coord.vector.x, start_coord.vector.y, start_coord.vector.z);
         }
     }
     else
     {
-        if (theta2D.setValidInitialPosition(start.vector))
+        if (theta2D.setValidInitialPosition(start_coord.vector))
         {
             ret = true;
         }
@@ -859,7 +878,7 @@ bool GlobalPlanner::setStart()
         }
         else
         {
-            ROS_ERROR("Global Planner 2D: Failed to set initial global position(after search around): [%.2f, %.2f]", start.vector.x, start.vector.y);
+            ROS_ERROR("Global Planner 2D: Failed to set initial global position(after search around): [%.2f, %.2f]", start_coord.vector.x, start_coord.vector.y);
         }
     }
     return ret;

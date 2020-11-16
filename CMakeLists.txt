@@ -29,12 +29,14 @@ add_service_files(
   FILES
   SaveMission.srv
   Prob.srv
+  RequestPath.srv
   # checkObstacles.srv
 )
 
 generate_messages(
   DEPENDENCIES
   std_msgs
+  geometry_msgs
 )
 
 generate_dynamic_reconfigure_options(
