@@ -33,7 +33,7 @@ for line in $lof; do
 goal:
   x: ${goal_array[0]}
   y: ${goal_array[1]}
-  z: ${goal_array[2]}" >> "$map"_lof_"$line"_cw_"$cost".txt
+  z: ${goal_array[2]}" >> ~/3dtest/"$map"_lof_"$line"_cw_"$cost".txt
 
         test_name="$map"_lof_"$line"_cw_"$cost".png
         echo "$test_name"
