@@ -20,6 +20,10 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 
 #include <visualization_msgs/Marker.h>
 
+#include "tf2/transform_datatypes.h"
+
+#include "geometry_msgs/Vector3.h"
+#include "geometry_msgs/Quaternion.h"
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Transform.h>
 #include <geometry_msgs/Vector3.h>
@@ -144,7 +148,7 @@ private:
             They return true if the points are not occupied
     */
     bool setGoal();
-    bool setStart();
+    bool setStart(geometry_msgs::Vector3Stamped &start, geometry_msgs::Vector3 &rpy);
 
     /*
     @brief: 
@@ -161,13 +165,14 @@ private:
     ros::NodeHandlePtr nh;
 
     //!New Markers(Line strip + waypoints)
-    visualization_msgs::Marker lineMarker, waypointsMarker;
+    visualization_msgs::Marker lineMarker, waypointsMarker, fullrayMarker, raycastfreeMarker, raycastfreereducedMarker, raycastcollMarker, raycastnofreeMarker;
 
     geometry_msgs::PoseStamped goalPoseStamped;
-    geometry_msgs::Vector3Stamped goal;
+    geometry_msgs::Vector3Stamped goal, start_point;
+    geometry_msgs::Vector3 start_rpy;
 
     //Publishers and Subscribers
-    ros::Publisher replan_status_pub,visMarkersPublisher;
+    ros::Publisher replan_status_pub,visMarkersPublisher, fullRayPublisher, rayCastFreePublisher, rayCastFreeReducedPublisher, rayCastCollPublisher, rayCastNoFreePublisher;
     ros::Subscriber goal_sub, sub_map;
 
     //Listener tf reel
@@ -264,7 +269,8 @@ private:
     double timeout;
     double initialSearchAround;
 
-    bool use_catenary;
+    string path;
+    bool use_catenary, write_data_for_analysis;
 	double multiplicative_factor,bound_bisection_a,bound_bisection_b, length_tether_max;
 
 }; //class GlobalPlanner

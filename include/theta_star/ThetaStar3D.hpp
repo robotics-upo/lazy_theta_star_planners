@@ -227,6 +227,28 @@ public:
 	void updateMap(octomap_msgs::OctomapConstPtr message);
 
 	/**
+		  Override actual occupancy matrix simplify
+		   @param octomap msg
+		   @param goal_
+		   @param start_
+		   @param rpy_
+		   @param full_ray_cast
+		   @param ray_cast_free
+		   @param ray_cast_free_reduce
+		   @param ray_cast_coll
+		   @param no_ray_cast_free
+		**/
+	void updateMapSimplify(octomap_msgs::OctomapConstPtr msg, 
+							geometry_msgs::Vector3Stamped goal_, 
+							geometry_msgs::Vector3Stamped start_, 
+							geometry_msgs::Vector3 rpy_,
+							std::vector<octomap::point3d> &full_ray_cast, 
+							std::vector<octomap::point3d> &ray_cast_free,
+							std::vector<octomap::point3d> &ray_cast_free_reduce,  
+							std::vector<octomap::point3d> &ray_cast_coll, 
+							std::vector<octomap::point3d> &no_ray_cast_free);
+
+	/**
 		  Add a cloud to the actual occupancy matrix
 		   @param pcl pointCloud 
 		**/

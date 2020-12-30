@@ -79,6 +79,11 @@ void GlobalPlanner::configTopics()
 
     replan_status_pub = nh->advertise<std_msgs::Bool>("replanning_status", 1);
     visMarkersPublisher = nh->advertise<visualization_msgs::Marker>("markers", 2);
+    fullRayPublisher = nh->advertise<visualization_msgs::Marker>("full_ray", 2);
+    rayCastFreePublisher = nh->advertise<visualization_msgs::Marker>("ray_cast_free", 2);
+    rayCastFreeReducedPublisher = nh->advertise<visualization_msgs::Marker>("ray_cast_free_reduced", 2);
+    rayCastCollPublisher = nh->advertise<visualization_msgs::Marker>("ray_cast_coll", 2);
+    rayCastNoFreePublisher = nh->advertise<visualization_msgs::Marker>("ray_cast_no_free", 2);
 
     bool useOctomap;
     nh->param("use_octomap", useOctomap, (bool)false);
@@ -256,6 +261,86 @@ void GlobalPlanner::configMarkers(std::string ns)
     waypointsMarker.scale.x = 0.15;
     waypointsMarker.scale.y = 0.15;
     waypointsMarker.scale.z = 0.4;
+
+    fullrayMarker.ns = ns;
+    fullrayMarker.header.frame_id = world_frame;
+    fullrayMarker.header.stamp = ros::Time::now();
+    fullrayMarker.id = lineMarker.id + 1;
+    fullrayMarker.lifetime = ros::Duration(500);
+    fullrayMarker.type = RVizMarker::POINTS;
+    fullrayMarker.action = RVizMarker::ADD;
+    fullrayMarker.pose.orientation.w = 1;
+    fullrayMarker.color.r = 1.0;
+    fullrayMarker.color.g = 1.0;
+    fullrayMarker.color.b = 1.0;
+    fullrayMarker.color.a = 1.0;
+    fullrayMarker.scale.x = 0.05;
+    fullrayMarker.scale.y = 0.05;
+    fullrayMarker.scale.z = 0.05;
+    
+    raycastfreeMarker.ns = ns;
+    raycastfreeMarker.header.frame_id = world_frame;
+    // raycastfreeMarker.header.stamp = ros::Time::now();
+    raycastfreeMarker.id = lineMarker.id + 1;
+    raycastfreeMarker.lifetime = ros::Duration(500);
+    raycastfreeMarker.type = RVizMarker::POINTS;
+    raycastfreeMarker.action = RVizMarker::ADD;
+    raycastfreeMarker.pose.orientation.w = 1;
+    raycastfreeMarker.color.r = 0.6;
+    raycastfreeMarker.color.g = 0.6;
+    raycastfreeMarker.color.b = 0.6;
+    raycastfreeMarker.color.a = 1.0;
+    raycastfreeMarker.scale.x = 0.05;
+    raycastfreeMarker.scale.y = 0.05;
+    // raycastfreeMarker.scale.z = 0.05;
+
+    raycastfreereducedMarker.ns = ns;
+    raycastfreereducedMarker.header.frame_id = world_frame;
+    // raycastfreereducedMarker.header.stamp = ros::Time::now();
+    raycastfreereducedMarker.id = lineMarker.id + 1;
+    raycastfreereducedMarker.lifetime = ros::Duration(500);
+    raycastfreereducedMarker.type = RVizMarker::POINTS;
+    raycastfreereducedMarker.action = RVizMarker::ADD;
+    raycastfreereducedMarker.pose.orientation.w = 1;
+    raycastfreereducedMarker.color.r = 1.0;
+    raycastfreereducedMarker.color.g = 1.0;
+    raycastfreereducedMarker.color.b = 0.0;
+    raycastfreereducedMarker.color.a = 1.0;
+    raycastfreereducedMarker.scale.x = 0.05;
+    raycastfreereducedMarker.scale.y = 0.05;
+    // raycastfreereducedMarker.scale.z = 0.05;
+
+    raycastcollMarker.ns = ns;
+    raycastcollMarker.header.frame_id = world_frame;
+    // raycastcollMarker.header.stamp = ros::Time::now();
+    raycastcollMarker.id = lineMarker.id + 1;
+    raycastcollMarker.lifetime = ros::Duration(500);
+    raycastcollMarker.type = RVizMarker::POINTS;
+    raycastcollMarker.action = RVizMarker::ADD;
+    raycastcollMarker.pose.orientation.w = 1;
+    raycastcollMarker.color.r = 0.6;
+    raycastcollMarker.color.g = 0.6;
+    raycastcollMarker.color.b = 0.0;
+    raycastcollMarker.color.a = 1.0;
+    raycastcollMarker.scale.x = 0.05;
+    raycastcollMarker.scale.y = 0.05;
+    // raycastcollMarker.scale.z = 0.05;
+
+    raycastnofreeMarker.ns = ns;
+    raycastnofreeMarker.header.frame_id = world_frame;
+    // raycastnofreeMarker.header.stamp = ros::Time::now();
+    raycastnofreeMarker.id = lineMarker.id + 1;
+    raycastnofreeMarker.lifetime = ros::Duration(500);
+    raycastnofreeMarker.type = RVizMarker::POINTS;
+    raycastnofreeMarker.action = RVizMarker::ADD;
+    raycastnofreeMarker.pose.orientation.w = 1;
+    raycastnofreeMarker.color.r = 0.3;
+    raycastnofreeMarker.color.g = 0.3;
+    raycastnofreeMarker.color.b = 0.2;
+    raycastnofreeMarker.color.a = 1.0;
+    raycastnofreeMarker.scale.x = 0.05;
+    raycastnofreeMarker.scale.y = 0.05;
+    // raycastfreenoMarker.scale.z = 0.05;
 }
 void GlobalPlanner::configParams3D()
 {
@@ -299,6 +384,10 @@ void GlobalPlanner::configParams3D()
 
     nh->param("world_frame", world_frame, (string) "/map");
     nh->param("robot_base_frame", robot_base_frame, (string) "/base_link");
+
+  	nh->param("write_data_for_analysis",write_data_for_analysis, (bool)0);
+	nh->param("path", path, (std::string) "~/");
+
 
     ROS_INFO_COND(showConfig, PRINTF_GREEN "Global Planner 3D Node Configuration:");
     ROS_INFO_COND(showConfig, PRINTF_GREEN "\t Workspace = X: [%.2f, %.2f]\t Y: [%.2f, %.2f]\t Z: [%.2f, %.2f]  ", ws_x_max, ws_x_min, ws_y_max, ws_y_min, ws_z_max, ws_z_min);
@@ -565,8 +654,67 @@ bool GlobalPlanner::calculatePath()
     if (use3d && !mapRec)
         return ret;
 
-    if (setGoal() && setStart())
+    if (setGoal() && setStart(start_point, start_rpy))
     {
+        //Simpifying Map
+        std::vector<octomap::point3d> v_full_ray, v_ray_cast_free, v_ray_cast_free_reduced, v_ray_cast_coll, v_no_ray_cast_free;
+        theta3D.updateMapSimplify(map, goal, start_point, start_rpy, v_full_ray, v_ray_cast_free, v_ray_cast_free_reduced, v_ray_cast_coll, v_no_ray_cast_free);
+       
+
+        geometry_msgs::Point p;
+
+        fullrayMarker.header.stamp = ros::Time::now();
+        for (size_t i = 0; i < v_full_ray.size(); i++)
+        {
+            p.x = v_full_ray[i].x();
+            p.y = v_full_ray[i].y();
+            p.z = v_full_ray[i].z();
+
+            fullrayMarker.points.push_back(p);
+        }
+        raycastfreeMarker.header.stamp = ros::Time::now();
+        for (size_t i = 0; i < v_ray_cast_free.size(); i++)
+        {
+            p.x = v_ray_cast_free[i].x();
+            p.y = v_ray_cast_free[i].y();
+            p.z = v_ray_cast_free[i].z();
+
+            raycastfreeMarker.points.push_back(p);
+        }
+        raycastfreereducedMarker.header.stamp = ros::Time::now();
+        for (size_t i = 0; i < v_ray_cast_free_reduced.size(); i++)
+        {
+            p.x = v_ray_cast_free_reduced[i].x();
+            p.y = v_ray_cast_free_reduced[i].y();
+            p.z = v_ray_cast_free_reduced[i].z();
+
+            raycastfreereducedMarker.points.push_back(p);
+        }
+        raycastcollMarker.header.stamp = ros::Time::now();
+        for (size_t i = 0; i < v_ray_cast_coll.size(); i++)
+        {
+            p.x = v_ray_cast_coll[i].x();
+            p.y = v_ray_cast_coll[i].y();
+            p.z = v_ray_cast_coll[i].z();
+
+            raycastcollMarker.points.push_back(p);
+        }
+        raycastnofreeMarker.header.stamp = ros::Time::now();
+        for (size_t i = 0; i < v_no_ray_cast_free.size(); i++)
+        {
+            p.x = v_no_ray_cast_free[i].x();
+            p.y = v_no_ray_cast_free[i].y();
+            p.z = v_no_ray_cast_free[i].z();
+
+            raycastnofreeMarker.points.push_back(p);
+        }
+
+        fullRayPublisher.publish(fullrayMarker);
+        rayCastFreePublisher.publish(raycastfreeMarker);
+        rayCastFreeReducedPublisher.publish(raycastfreereducedMarker);
+        rayCastCollPublisher.publish(raycastcollMarker);
+        rayCastNoFreePublisher.publish(raycastnofreeMarker);
+
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Goal and start successfull set");
         // Path calculation
 
@@ -584,17 +732,19 @@ bool GlobalPlanner::calculatePath()
         seconds = finish.time - start.time - 1;
         milliseconds = (1000 - start.millitm) + finish.millitm;
 
-    	std::ofstream ofs;
-        std::string output_file = "/home/simon/results_optimizer/time_compute_initial_planner.txt";
-		ofs.open(output_file.c_str(), std::ofstream::app);
-        if (ofs.is_open()) {
-		    std::cout << "Saving time initial planning data in output file: " << output_file << std::endl;
-		    ofs << (milliseconds + seconds * 1000.0)/1000.0 <<std::endl;
-	    } 
-	    else {
-	    	std::cout << "Couldn't be open the output data file for time initial planning" << std::endl;
-	    }
-        ofs.close();
+        if (write_data_for_analysis){
+            std::ofstream ofs;
+            std::string output_file = path + "time_compute_initial_planner.txt";
+            ofs.open(output_file.c_str(), std::ofstream::app);
+            if (ofs.is_open()) {
+                std::cout << "Saving time initial planning data in output file: " << output_file << std::endl;
+                ofs << (milliseconds + seconds * 1000.0)/1000.0 <<std::endl;
+            } 
+            else {
+                std::cout << "Couldn't be open the output data file for time initial planning" << std::endl;
+            }
+            ofs.close();
+        }
 
         ROS_INFO(PRINTF_YELLOW "Global Planner: Time Spent in Global Path Calculation: %.1f ms", milliseconds + seconds * 1000);
         ROS_INFO(PRINTF_YELLOW "Global Planner: Number of points: %d", number_of_points);
@@ -847,14 +997,23 @@ bool GlobalPlanner::setGoal()
 
     return ret;
 }
-bool GlobalPlanner::setStart()
+bool GlobalPlanner::setStart(geometry_msgs::Vector3Stamped &start, geometry_msgs::Vector3 &rpy)
 {
     bool ret = false;
-    geometry_msgs::Vector3Stamped start;
     start.vector.x = getRobotPose().transform.translation.x;
     start.vector.y = getRobotPose().transform.translation.y;
-
     start.vector.z = getRobotPose().transform.translation.z;
+
+    //get RPY start point from quaternion 
+    tf2::Quaternion quat_tf;
+    tf2::Quaternion quat_msg(getRobotPose().transform.rotation.x, getRobotPose().transform.rotation.y, getRobotPose().transform.rotation.z, getRobotPose().transform.rotation.w);
+    tf2::convert(quat_msg, quat_tf);
+    double roll, pitch, yaw;
+    tf2::Matrix3x3(quat_tf).getRPY(roll, pitch, yaw);
+    rpy.x = roll;
+    rpy.y = pitch;
+    rpy.z = yaw;
+    printf("=============quat=[%f %f %f %f] rpy=[%f %f %f]\n",getRobotPose().transform.rotation.x, getRobotPose().transform.rotation.y, getRobotPose().transform.rotation.z, getRobotPose().transform.rotation.w,roll, pitch, yaw);
 
     if (start.vector.z <= ws_z_min)
         start.vector.z = ws_z_min + map_v_inflaction + map_resolution;
