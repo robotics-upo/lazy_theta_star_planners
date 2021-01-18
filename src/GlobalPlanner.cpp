@@ -84,6 +84,8 @@ void GlobalPlanner::configTopics()
     rayCastFreeReducedPublisher = nh->advertise<visualization_msgs::Marker>("ray_cast_free_reduced", 2);
     rayCastCollPublisher = nh->advertise<visualization_msgs::Marker>("ray_cast_coll", 2);
     rayCastNoFreePublisher = nh->advertise<visualization_msgs::Marker>("ray_cast_no_free", 2);
+    reducedMapPublisher = nh->advertise<octomap_msgs::Octomap>("octomap_reduced", 1000);
+
 
     bool useOctomap;
     nh->param("use_octomap", useOctomap, (bool)false);
@@ -593,6 +595,35 @@ void GlobalPlanner::clearMarkers()
     lineMarker.action = RVizMarker::ADD;
     waypointsMarker.action = RVizMarker::ADD;
 }
+
+void GlobalPlanner::clearMarkersRayCast()
+{
+    fullrayMarker.action = RVizMarker::DELETEALL; 
+    raycastfreeMarker.action = RVizMarker::DELETEALL;
+    raycastfreereducedMarker.action = RVizMarker::DELETEALL; 
+    raycastcollMarker.action = RVizMarker::DELETEALL; 
+    raycastnofreeMarker.action = RVizMarker::DELETEALL;
+
+    fullRayPublisher.publish(fullrayMarker); 
+    rayCastFreePublisher.publish(raycastfreeMarker); 
+    rayCastFreeReducedPublisher.publish(raycastfreereducedMarker); 
+    rayCastCollPublisher.publish(raycastcollMarker); 
+    rayCastNoFreePublisher.publish(raycastnofreeMarker); 
+    
+    fullrayMarker.points.clear();
+    raycastfreeMarker.points.clear();
+    raycastfreereducedMarker.points.clear();
+    raycastcollMarker.points.clear();
+    raycastnofreeMarker.points.clear();
+
+    reducedMapPublisher.publish(raycastnofreeMarker);
+
+    fullrayMarker.action = RVizMarker::ADD; 
+    raycastfreeMarker.action = RVizMarker::ADD;
+    raycastfreereducedMarker.action = RVizMarker::ADD; 
+    raycastcollMarker.action = RVizMarker::ADD; 
+    raycastnofreeMarker.action = RVizMarker::ADD;
+}
 /**
  * This is the main function executed in loop
  * 
@@ -656,20 +687,25 @@ bool GlobalPlanner::calculatePath()
 
     if (setGoal() && setStart(start_point, start_rpy))
     {
-        //Simpifying Map
+        //Reduced Map 
+        clearMarkersRayCast();
         std::vector<octomap::point3d> v_full_ray, v_ray_cast_free, v_ray_cast_free_reduced, v_ray_cast_coll, v_no_ray_cast_free;
-        theta3D.updateMapSimplify(map, goal, start_point, start_rpy, v_full_ray, v_ray_cast_free, v_ray_cast_free_reduced, v_ray_cast_coll, v_no_ray_cast_free);
-       
-
+        octomap::OcTree map_reduced = theta3D.updateMapReduced(map, goal, start_point, start_rpy, v_full_ray, v_ray_cast_free, v_ray_cast_free_reduced, v_ray_cast_coll, v_no_ray_cast_free);
+        octomap_msgs::Octomap octomap_reduced;
+        octomap_reduced.binary = 1 ;
+        octomap_reduced.id = 1 ;
+        octomap_reduced.resolution =0.1 ;
+        octomap_reduced.header.frame_id = "/map";
+        octomap_reduced.header.stamp = ros::Time::now();
+        octomap_msgs::fullMapToMsg(map_reduced, octomap_reduced);
+        reducedMapPublisher.publish(octomap_reduced);
         geometry_msgs::Point p;
-
         fullrayMarker.header.stamp = ros::Time::now();
         for (size_t i = 0; i < v_full_ray.size(); i++)
         {
             p.x = v_full_ray[i].x();
             p.y = v_full_ray[i].y();
             p.z = v_full_ray[i].z();
-
             fullrayMarker.points.push_back(p);
         }
         raycastfreeMarker.header.stamp = ros::Time::now();
@@ -678,7 +714,6 @@ bool GlobalPlanner::calculatePath()
             p.x = v_ray_cast_free[i].x();
             p.y = v_ray_cast_free[i].y();
             p.z = v_ray_cast_free[i].z();
-
             raycastfreeMarker.points.push_back(p);
         }
         raycastfreereducedMarker.header.stamp = ros::Time::now();
@@ -687,7 +722,6 @@ bool GlobalPlanner::calculatePath()
             p.x = v_ray_cast_free_reduced[i].x();
             p.y = v_ray_cast_free_reduced[i].y();
             p.z = v_ray_cast_free_reduced[i].z();
-
             raycastfreereducedMarker.points.push_back(p);
         }
         raycastcollMarker.header.stamp = ros::Time::now();
@@ -696,7 +730,6 @@ bool GlobalPlanner::calculatePath()
             p.x = v_ray_cast_coll[i].x();
             p.y = v_ray_cast_coll[i].y();
             p.z = v_ray_cast_coll[i].z();
-
             raycastcollMarker.points.push_back(p);
         }
         raycastnofreeMarker.header.stamp = ros::Time::now();
@@ -705,19 +738,18 @@ bool GlobalPlanner::calculatePath()
             p.x = v_no_ray_cast_free[i].x();
             p.y = v_no_ray_cast_free[i].y();
             p.z = v_no_ray_cast_free[i].z();
-
             raycastnofreeMarker.points.push_back(p);
         }
-
         fullRayPublisher.publish(fullrayMarker);
         rayCastFreePublisher.publish(raycastfreeMarker);
         rayCastFreeReducedPublisher.publish(raycastfreereducedMarker);
         rayCastCollPublisher.publish(raycastcollMarker);
         rayCastNoFreePublisher.publish(raycastnofreeMarker);
 
+        //Print succes start and goal points
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Goal and start successfull set");
+        
         // Path calculation
-
         ftime(&start);
         if (use3d)
         {
@@ -1004,7 +1036,7 @@ bool GlobalPlanner::setStart(geometry_msgs::Vector3Stamped &start, geometry_msgs
     start.vector.y = getRobotPose().transform.translation.y;
     start.vector.z = getRobotPose().transform.translation.z;
 
-    //get RPY start point from quaternion 
+    //get RPY start point from quaternion used in updateMapReduced
     tf2::Quaternion quat_tf;
     tf2::Quaternion quat_msg(getRobotPose().transform.rotation.x, getRobotPose().transform.rotation.y, getRobotPose().transform.rotation.z, getRobotPose().transform.rotation.w);
     tf2::convert(quat_msg, quat_tf);
@@ -1013,7 +1045,7 @@ bool GlobalPlanner::setStart(geometry_msgs::Vector3Stamped &start, geometry_msgs
     rpy.x = roll;
     rpy.y = pitch;
     rpy.z = yaw;
-    printf("=============quat=[%f %f %f %f] rpy=[%f %f %f]\n",getRobotPose().transform.rotation.x, getRobotPose().transform.rotation.y, getRobotPose().transform.rotation.z, getRobotPose().transform.rotation.w,roll, pitch, yaw);
+
 
     if (start.vector.z <= ws_z_min)
         start.vector.z = ws_z_min + map_v_inflaction + map_resolution;

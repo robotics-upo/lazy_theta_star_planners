@@ -87,6 +87,7 @@ public:
    
 private:
     void clearMarkers();
+    void clearMarkersRayCast();
     void sendPathToLocalPlannerServer();
     void publishMakePlanFeedback();
 
@@ -172,7 +173,7 @@ private:
     geometry_msgs::Vector3 start_rpy;
 
     //Publishers and Subscribers
-    ros::Publisher replan_status_pub,visMarkersPublisher, fullRayPublisher, rayCastFreePublisher, rayCastFreeReducedPublisher, rayCastCollPublisher, rayCastNoFreePublisher;
+    ros::Publisher replan_status_pub,visMarkersPublisher, fullRayPublisher, rayCastFreePublisher, rayCastFreeReducedPublisher, rayCastCollPublisher, rayCastNoFreePublisher, reducedMapPublisher;
     ros::Subscriber goal_sub, sub_map;
 
     //Listener tf reel

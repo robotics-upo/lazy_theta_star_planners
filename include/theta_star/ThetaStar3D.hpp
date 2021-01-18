@@ -13,6 +13,7 @@
 
 #include <vector>
 #include <set>
+#include <Eigen/Dense>
 
 #include <ros/ros.h>
 #include <geometry_msgs/Vector3.h>
@@ -238,7 +239,7 @@ public:
 		   @param ray_cast_coll
 		   @param no_ray_cast_free
 		**/
-	void updateMapSimplify(octomap_msgs::OctomapConstPtr msg, 
+	octomap::OcTree updateMapReduced(octomap_msgs::OctomapConstPtr msg, 
 							geometry_msgs::Vector3Stamped goal_, 
 							geometry_msgs::Vector3Stamped start_, 
 							geometry_msgs::Vector3 rpy_,
@@ -262,6 +263,10 @@ public:
 		   Clear occupancy discrete matrix
 		**/
 	void clearMap();
+	/** 
+		   Clear occupancy discrete matrix reduced
+		**/
+	void clearMapReduced(size_t _size);
 	/**
 		  Publish via topic the discrete map constructed
 		**/
@@ -457,6 +462,9 @@ public:
 	vector<double> length_catenary;
 	vector<double> length_catenary_aux;
 	geometry_msgs::Vector3 tf_reel;
+	geometry_msgs::Vector3 new_start, new_goal;
+	double rc_area, offset_area;
+	double phi_min, phi_max, theta_min, theta_max ;
 	float step; // Resolution of the Matrix and its inverse
 	float step_inv;
 
@@ -475,6 +483,12 @@ protected:
 		**/
 	void getNeighbors(ThetaStarNode3D &node, set<ThetaStarNode3D *, NodePointerComparator3D> &neighbors);
 
+	/**
+		 Get neighbors of a specified node
+		   @param node (input)
+		   @param his neighbors (output)
+		**/
+	void getNeighborsReduced(ThetaStarNode3D &node, set<ThetaStarNode3D *, NodePointerComparator3D> &neighbors);
 	/**
 		 Returns distance to goal.
 		   @param node to calculate distance from.
@@ -563,6 +577,12 @@ protected:
 		   @param Set true to publish it instantly or false to simply push back at the marker array to publish later
 		**/
 	void publishMarker(ThetaStarNode3D &s, bool publish);
+	/**
+		 Publish a marker reduced in the position of a ThetaStarNode3D
+		   @param node to publish his position
+		   @param Set true to publish it instantly or false to simply push back at the marker array to publish later
+		**/
+	void publishMarkerReduced(octomap::point3d _p, bool publish);
 
 	/** Inline Functions **/
 
@@ -575,7 +595,6 @@ protected:
 	{
 		return (unsigned int)((x - ws_x_min_inflated) + (Lx) * ((y - ws_y_min_inflated) + (Ly) * (z - ws_z_min_inflated)));
 	}
-
 	/**
 		 Get discrete (x,y,z) position for a discrete occupancy matrix index
 		   @param x, y, z discrete position values (output)
@@ -610,6 +629,58 @@ protected:
 		return (x < (ws_x_max - 1) && x > (ws_x_min + 1)) &&
 			   (y < (ws_y_max - 1) && y > (ws_y_min + 1)) &&
 			   (z < (ws_z_max - 1) && z > (ws_z_min + 1));
+	}
+
+    bool isInsideReduced(int &x, int &y, int &z)
+	{
+		//point(p) in 3D space
+		double x_ = x * step;
+		double y_ = y * step;
+		double z_ = z * step;
+
+		// // 1.a Get angle between plane start(s)-goal(g) and UAV solidarity coordinate system
+		// double dist_s_g_xz = sqrt(pow(new_start.x - new_goal.x,2) + pow(new_start.z - new_goal.z,2));
+		// double dist_projection_g_xz = sqrt(pow(new_goal.x - new_goal.x,2) + pow(new_goal.z - new_start.z,2));
+		// double alpha_xz = asin(dist_projection_g_xz/dist_s_g_xz);
+		// // 1.b Get angle between plane point(p) and UAV solidarity coordinate system
+		// double dist_s_p_xz = sqrt(pow(new_start.x - x,2) + pow(new_start.z - z,2));
+		// double dist_projection_p_xz = sqrt(pow(x_ - x_,2) + pow( z_ - new_start.z,2));
+		// double beta_xz = asin(dist_projection_p_xz - dist_s_p_xz);
+		// // 1.c Get angle between plane plane point(p) and plane start(s)-goal(g)
+		// double theta_ = beta_xz - alpha_xz;
+		
+		// // 2.a Get angle between plane start(s)-goal(g) and UAV solidarity coordinate system
+		// double dist_s_g_xy = sqrt(pow(new_start.x - new_goal.x,2) + pow(new_start.y - new_goal.y,2));
+		// double dist_projection_g_xy = sqrt(pow(new_goal.x - new_goal.x,2) + pow(new_goal.y - new_start.y,2));
+		// double alpha_xy = asin(dist_projection_g_xy/dist_s_g_xy);
+		// // 2.b Get angle between plane point(p) and UAV solidarity coordinate system
+		// double dist_s_p_xy = sqrt(pow(new_start.x - x,2) + pow(new_start.y - y,2));
+		// double dist_projection_p_xy = sqrt(pow(x_ - x_,2) + pow(y_ - y_,2));
+		// double beta_xy = asin(dist_projection_p_xz - dist_s_p_xz);
+		// // 2.c Get angle between plane plane point(p) and plane start(s)-goal(g)
+		// double phi_ = beta_xy - alpha_xy;
+
+		// double cat_xz = cos(theta_) * dist_s_g_xz;
+		// double cat_xy = cos(phi_) * dist_s_g_xy;
+
+		// //Get position from vector projected
+		// double p_z = new_start.z + sin (alpha_xz) * cat_xz;
+		// double p_y = new_start.y + sin (alpha_xy) * cat_xy;
+		// double p_x = new_start.x + cos (alpha_xy) * cat_xy;
+		// double px2 = new_start.x + cos (alpha_xz) * cat_xz;
+
+		// //Get length edge square for vector projected
+		// double angle_square_pyramid = atan( (rc_area + offset_area)/  sqrt(pow(new_start.x - new_goal.x,2)+ pow(new_start.y - new_goal.y,2) + pow(new_start.z - new_goal.z,2)));
+		// double dist_projection_square pyramid = sqrt((p_x*p_x) + (p_y*p_y) + (p_z*p_z));
+		// double edgeMax_to_projection = tan(angle_square_pyramid) * dist_projection_square_pyramid;   
+
+		// //Search if point is inside square pyramid
+		// bool out_z , out_xy;
+		// out_z = out_xy = false;
+		// if (z_ > p_z + edgeMax_to_projection || z < p_z - edgeMax_to_projection)
+		// 	out_z = true;
+		// if (y_ > p_y + edgeMax_to_projection*sin(rpy_.z) && x_ > p_x + edgeMax_to_projection*cos(rpy_.z) || y_ < p_y - edgeMax_to_projection*sin(rpy_.z) && x_ < p_x - edgeMax_to_projection*cos(rpy_.z))
+		// 	out_xy = true;
 	}
 
 	/**
@@ -912,7 +983,7 @@ protected:
 	/** Variables **/
 
 	// Global Occupancy Matrix
-	std::vector<ThetaStartNodeLink3D> discrete_world; // Occupancy Matrix and its size
+	std::vector<ThetaStartNodeLink3D> discrete_world, discrete_world_reduced; // Occupancy Matrix and its size
 	int matrix_size;
 	int ws_x_max, ws_y_max, ws_z_max; // WorkSpace lenghts from origin (0,0,0)
 	int ws_x_min, ws_y_min, ws_z_min;
@@ -945,7 +1016,8 @@ protected:
 	// Debug Visualization markers and theirs topics
 	ros::NodeHandlePtr nh; // Pointer to the process NodeHandle to publish topics
 	RVizMarker marker;	 // Explored nodes by ThetaStar
-	ros::Publisher marker_pub_;
+	RVizMarker marker_reduced;	 
+	ros::Publisher marker_pub_, marker_reduced_pub_ ;
 	PointCloud occupancy_marker; // Occupancy Map as PointCloud markers
 	ros::Publisher occupancy_marker_pub_;
 	RVizMarker marker_no_los; // Explored nodes with no lineOfSight
