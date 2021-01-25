@@ -242,7 +242,6 @@ public:
 	octomap::OcTree updateMapReduced(octomap_msgs::OctomapConstPtr msg, 
 							geometry_msgs::Vector3Stamped goal_, 
 							geometry_msgs::Vector3Stamped start_, 
-							geometry_msgs::Vector3 rpy_,
 							std::vector<octomap::point3d> &full_ray_cast, 
 							std::vector<octomap::point3d> &ray_cast_free,
 							std::vector<octomap::point3d> &ray_cast_free_reduce,  
@@ -457,13 +456,14 @@ public:
 	 * @param _l_m 
 	 * @param _v3 
 	 */
-	void configCatenaryCompute(bool _u_c, double _mf, double _ba, double _bb, double _l_m, geometry_msgs::Vector3 _v3);
+	void configCatenaryCompute(bool _u_c, bool _u_s_p, double _mf, double _ba, double _bb, double _l_m, geometry_msgs::Vector3 _v3);
 
 	vector<double> length_catenary;
 	vector<double> length_catenary_aux;
 	geometry_msgs::Vector3 tf_reel;
 	geometry_msgs::Vector3 new_start, new_goal;
-	double rc_area, offset_area;
+	Eigen::Matrix3f base_sp;
+	double angle_square_pyramid, max_theta_axe_reduced, sweep_range;
 	double phi_min, phi_max, theta_min, theta_max ;
 	float step; // Resolution of the Matrix and its inverse
 	float step_inv;
@@ -633,54 +633,71 @@ protected:
 
     bool isInsideReduced(int &x, int &y, int &z)
 	{
-		//point(p) in 3D space
+		//Vector (P) in 3D space
 		double x_ = x * step;
 		double y_ = y * step;
 		double z_ = z * step;
 
-		// // 1.a Get angle between plane start(s)-goal(g) and UAV solidarity coordinate system
-		// double dist_s_g_xz = sqrt(pow(new_start.x - new_goal.x,2) + pow(new_start.z - new_goal.z,2));
-		// double dist_projection_g_xz = sqrt(pow(new_goal.x - new_goal.x,2) + pow(new_goal.z - new_start.z,2));
-		// double alpha_xz = asin(dist_projection_g_xz/dist_s_g_xz);
-		// // 1.b Get angle between plane point(p) and UAV solidarity coordinate system
-		// double dist_s_p_xz = sqrt(pow(new_start.x - x,2) + pow(new_start.z - z,2));
-		// double dist_projection_p_xz = sqrt(pow(x_ - x_,2) + pow( z_ - new_start.z,2));
-		// double beta_xz = asin(dist_projection_p_xz - dist_s_p_xz);
-		// // 1.c Get angle between plane plane point(p) and plane start(s)-goal(g)
-		// double theta_ = beta_xz - alpha_xz;
+		// //Get module Vector goal-start
+		float mod_gs_ = sqrt(pow(new_goal.x - new_start.x,2)+pow(new_goal.y - new_start.y,2)+pow(new_goal.z - new_start.z,2));
+
+		//Find angle between Vector P and Vector goal-start
+		float mod_p_ = sqrt(pow(x_- new_start.x,2) + pow(y_- new_start.y,2) + pow(z_- new_start.z,2));
+		float ang_p_gs_ = acos(( (x_- new_start.x)*(new_goal.x - new_start.x) + (y_- new_start.y)*(new_goal.y - new_start.y) + (z_- new_start.z)*(new_goal.z - new_start.z) ) / (mod_p_*mod_gs_) );
+		float projection_p_gs_ = cos(ang_p_gs_)*mod_p_;
+
+		// //Find point in projection P-GS
+		geometry_msgs::Vector3 proj;
+		proj.x = new_start.x + projection_p_gs_*((new_goal.x - new_start.x) / mod_gs_);
+		proj.y = new_start.y + projection_p_gs_*((new_goal.y - new_start.y) / mod_gs_);
+		proj.z = new_start.z + projection_p_gs_*((new_goal.z - new_start.z) / mod_gs_);
+		float mod_proj = sqrt(pow(new_start.x-proj.x,2)+pow(new_start.y-proj.y,2)+pow(new_start.z-proj.z,2));
+		float square_length_max_ =tan(angle_square_pyramid)*mod_proj;
+
+		Eigen::Vector3f cartesian_;
+		cartesian_ << x_,
+					  y_, 
+					  z_;
+		Eigen::Vector3f spheric_p;
+		spheric_p = base_sp * cartesian_; //Vector with spherical coordinate of P
+
+		//Get max. length theta axes reduced
+		float angle_reduced_ = atan(max_theta_axe_reduced/mod_gs_);
+		float square_length_max_reduced_ = tan(angle_reduced_)*mod_proj;
+
+		Eigen::Vector3f plane_sp;
+		plane_sp << (proj.x)+0.0, 
+					(proj.y)-square_length_max_, 
+					(proj.z)+0.0;
+		Eigen::Vector3f spheric_theta_neg = base_sp * plane_sp;
+		plane_sp << (proj.x)+0.0, 
+					(proj.y)+square_length_max_, 
+					(proj.z)+0.0;
+		Eigen::Vector3f spheric_theta_pos = base_sp * plane_sp;
+		plane_sp << (proj.x)+0.0,
+					(proj.y)+0.0, 
+					(proj.z)-square_length_max_;
+		Eigen::Vector3f spheric_phi_pos = base_sp * plane_sp;
+		plane_sp << (proj.x)+0.0,
+					(proj.y)+0.0, 
+					(proj.z)+square_length_max_reduced_;
+		Eigen::Vector3f spheric_phi_neg = base_sp * plane_sp;
+
+		plane_sp << proj.x,
+					proj.y, 
+					proj.z;
+		Eigen::Vector3f project_sp = base_sp * plane_sp;
 		
-		// // 2.a Get angle between plane start(s)-goal(g) and UAV solidarity coordinate system
-		// double dist_s_g_xy = sqrt(pow(new_start.x - new_goal.x,2) + pow(new_start.y - new_goal.y,2));
-		// double dist_projection_g_xy = sqrt(pow(new_goal.x - new_goal.x,2) + pow(new_goal.y - new_start.y,2));
-		// double alpha_xy = asin(dist_projection_g_xy/dist_s_g_xy);
-		// // 2.b Get angle between plane point(p) and UAV solidarity coordinate system
-		// double dist_s_p_xy = sqrt(pow(new_start.x - x,2) + pow(new_start.y - y,2));
-		// double dist_projection_p_xy = sqrt(pow(x_ - x_,2) + pow(y_ - y_,2));
-		// double beta_xy = asin(dist_projection_p_xz - dist_s_p_xz);
-		// // 2.c Get angle between plane plane point(p) and plane start(s)-goal(g)
-		// double phi_ = beta_xy - alpha_xy;
+		//Search if point is inside square pyramid
+		bool out_theta_ = false;
+		bool out_phi_ = false;
+		if ( (spheric_theta_pos(2,0) > spheric_p(2,0) && spheric_theta_neg(2,0) < spheric_p(2,0) ) || (spheric_theta_pos(2,0) < spheric_p(2,0) && spheric_theta_neg(2,0) > spheric_p(2,0) ) )
+			out_theta_ = true;
+		if ( (spheric_phi_pos(1,0) > spheric_p(1,0) && spheric_phi_neg(1,0) < spheric_p(1,0)) || (spheric_phi_pos(1,0) < spheric_p(1,0) && spheric_phi_neg(1,0) > spheric_p(1,0)) ) 
+			out_phi_ = true;
+		bool result_ = out_theta_ * out_phi_;
 
-		// double cat_xz = cos(theta_) * dist_s_g_xz;
-		// double cat_xy = cos(phi_) * dist_s_g_xy;
-
-		// //Get position from vector projected
-		// double p_z = new_start.z + sin (alpha_xz) * cat_xz;
-		// double p_y = new_start.y + sin (alpha_xy) * cat_xy;
-		// double p_x = new_start.x + cos (alpha_xy) * cat_xy;
-		// double px2 = new_start.x + cos (alpha_xz) * cat_xz;
-
-		// //Get length edge square for vector projected
-		// double angle_square_pyramid = atan( (rc_area + offset_area)/  sqrt(pow(new_start.x - new_goal.x,2)+ pow(new_start.y - new_goal.y,2) + pow(new_start.z - new_goal.z,2)));
-		// double dist_projection_square pyramid = sqrt((p_x*p_x) + (p_y*p_y) + (p_z*p_z));
-		// double edgeMax_to_projection = tan(angle_square_pyramid) * dist_projection_square_pyramid;   
-
-		// //Search if point is inside square pyramid
-		// bool out_z , out_xy;
-		// out_z = out_xy = false;
-		// if (z_ > p_z + edgeMax_to_projection || z < p_z - edgeMax_to_projection)
-		// 	out_z = true;
-		// if (y_ > p_y + edgeMax_to_projection*sin(rpy_.z) && x_ > p_x + edgeMax_to_projection*cos(rpy_.z) || y_ < p_y - edgeMax_to_projection*sin(rpy_.z) && x_ < p_x - edgeMax_to_projection*cos(rpy_.z))
-		// 	out_xy = true;
+		return (out_theta_ * out_phi_);
 	}
 
 	/**
@@ -1041,7 +1058,7 @@ protected:
 
 	// Catenary related variables
 
-	bool use_catenary;
+	bool use_catenary, use_search_pyramid;
 	double multiplicative_factor,bound_bisection_a,bound_bisection_b, length_tether_max;
 	bisectionCatenary biCat;
 

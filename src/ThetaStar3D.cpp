@@ -346,7 +346,6 @@ void ThetaStar3D::updateMap(const PointCloud::ConstPtr &map)
 octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg, 
 									geometry_msgs::Vector3Stamped goal_, 
 									geometry_msgs::Vector3Stamped start_, 
-									geometry_msgs::Vector3 rpy_,
 									std::vector<octomap::point3d> &full_ray_cast, 
 									std::vector<octomap::point3d> &ray_cast_free,
 									std::vector<octomap::point3d> &ray_cast_free_reduce,  
@@ -355,26 +354,29 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 {
 	full_ray_cast.clear(); ray_cast_free.clear(); ray_cast_free_reduce.clear(); ray_cast_coll.clear(); no_ray_cast_free.clear();
 
-	// geometry_msgs::Vector3 new_start, new_goal;
-	double offset_start_ = 0.25;
-	double offset_goal_ = 0.25;
 	double _resolution = 0.2;
 	double R_, theta_, phi_;
 
-	new_start.x = start_.vector.x + 0.5 * ((start_.vector.x - goal_.vector.x) / sqrt(pow(start_.vector.x - goal_.vector.x,2)+pow(start_.vector.y - goal_.vector.y,2)+pow(start_.vector.z - goal_.vector.z,2)));
-	new_start.y = start_.vector.y + 0.5 * ((start_.vector.y - goal_.vector.y) / sqrt(pow(start_.vector.x - goal_.vector.x,2)+pow(start_.vector.y - goal_.vector.y,2)+pow(start_.vector.z - goal_.vector.z,2)));
-	new_start.z = start_.vector.z + 0.5 * ((start_.vector.z - goal_.vector.z) / sqrt(pow(start_.vector.x - goal_.vector.x,2)+pow(start_.vector.y - goal_.vector.y,2)+pow(start_.vector.z - goal_.vector.z,2)));
-	new_goal.x = goal_.vector.x + 0.5 * ((goal_.vector.x - start_.vector.x) / sqrt(pow(goal_.vector.x - start_.vector.x,2)+pow(goal_.vector.y - start_.vector.y,2)+pow(goal_.vector.z - start_.vector.z,2)));
-	new_goal.y = goal_.vector.y + 0.5 * ((goal_.vector.y - start_.vector.y) / sqrt(pow(goal_.vector.x - start_.vector.x,2)+pow(goal_.vector.y - start_.vector.y,2)+pow(goal_.vector.z - start_.vector.z,2)));
-	new_goal.z = goal_.vector.z + 0.5 * ((goal_.vector.z - start_.vector.z) / sqrt(pow(goal_.vector.x - start_.vector.x,2)+pow(goal_.vector.y - start_.vector.y,2)+pow(goal_.vector.z - start_.vector.z,2)));
+	new_start.x = start_.vector.x + ((start_.vector.x - goal_.vector.x) / sqrt(pow(start_.vector.x - goal_.vector.x,2)+pow(start_.vector.y - goal_.vector.y,2)+pow(start_.vector.z - goal_.vector.z,2)));
+	new_start.y = start_.vector.y + ((start_.vector.y - goal_.vector.y) / sqrt(pow(start_.vector.x - goal_.vector.x,2)+pow(start_.vector.y - goal_.vector.y,2)+pow(start_.vector.z - goal_.vector.z,2)));
+	new_start.z = start_.vector.z + ((start_.vector.z - goal_.vector.z) / sqrt(pow(start_.vector.x - goal_.vector.x,2)+pow(start_.vector.y - goal_.vector.y,2)+pow(start_.vector.z - goal_.vector.z,2)));
+	new_goal.x = goal_.vector.x + ((goal_.vector.x - start_.vector.x) / sqrt(pow(goal_.vector.x - start_.vector.x,2)+pow(goal_.vector.y - start_.vector.y,2)+pow(goal_.vector.z - start_.vector.z,2)));
+	new_goal.y = goal_.vector.y + ((goal_.vector.y - start_.vector.y) / sqrt(pow(goal_.vector.x - start_.vector.x,2)+pow(goal_.vector.y - start_.vector.y,2)+pow(goal_.vector.z - start_.vector.z,2)));
+	new_goal.z = goal_.vector.z + ((goal_.vector.z - start_.vector.z) / sqrt(pow(goal_.vector.x - start_.vector.x,2)+pow(goal_.vector.y - start_.vector.y,2)+pow(goal_.vector.z - start_.vector.z,2)));
 
+	// new_start.x = start_.vector.x;
+	// new_start.y = start_.vector.y;
+	// new_start.z = start_.vector.z;
+	// new_goal.x = goal_.vector.x;
+	// new_goal.y = goal_.vector.y;
+	// new_goal.z = goal_.vector.z;
 
-	std::vector<octomap::point3d> vrc_, points_rcnf_, points_rcf_;
+	std::vector<octomap::point3d> vrc_, points_rcnf_, points_rcf_ , points_rcc_;
 	std::vector<octomap::point3d> map_simplify_free, map_simplify_occupied;
-	vrc_.clear(); points_rcnf_.clear();  points_rcf_.clear(); map_simplify_free.clear(); map_simplify_occupied.clear();
+	vrc_.clear(); points_rcnf_.clear(); points_rcc_.clear(); points_rcf_.clear(); map_simplify_free.clear(); map_simplify_occupied.clear();
 	octomap::point3d s_(new_start.x, new_start.y, new_start.z);
 	octomap::point3d g_(new_goal.x, new_goal.y, new_goal.z);
-	octomap::point3d r_, e_;
+	octomap::point3d r_, e_, c_;
 	octomap::OcTree *map_msg;
 	octomap::OcTree map_simplify (0.05f);
 	octomap::OcTree map_simplify_reduced (0.05f);
@@ -382,23 +384,41 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 
 	map_msg = (octomap::OcTree *)octomap_msgs::binaryMsgToMap(*msg);
 
-	double angle_ = M_PI/8;
+	angle_square_pyramid = M_PI/8;
 	double hip_ = sqrt(pow(new_goal.x-new_start.x,2)+ pow(new_goal.y-new_start.y,2)+ pow(new_goal.z-new_start.z,2));
-	double sweep_range = hip_ * sin(angle_); 
-	offset_area = 0.5;
-	phi_min = -1.0*sweep_range - offset_area;	
-	phi_max = sweep_range + offset_area;
-	theta_min = -1.0* sweep_range - offset_area;
-	theta_max = sweep_range + offset_area;
+	sweep_range = hip_ * sin(angle_square_pyramid); 
+	phi_min = -1.0*sweep_range ;	
+	phi_max = sweep_range ;
+	theta_min = -1.0* sweep_range ;
+	theta_max = sweep_range ;
 	double z_max_obs = 0.0; 
 	double max_z_to_explore = -100.0;
+
+	bool obs_pyramd_floor = false;
 
 	octomap::point3d Vgs(new_goal.x-new_start.x, new_goal.y-new_start.y, new_goal.z-new_start.z);
 
 	//Get spherical parameter
 	R_= sqrt(Vgs.x()*Vgs.x() + Vgs.y()*Vgs.y() + Vgs.z()*Vgs.z());
-	theta_ = atan(sqrt(Vgs.x()*Vgs.x()+Vgs.y()*Vgs.y())/(Vgs.z()));
-	phi_ = atan(Vgs.y()/Vgs.x());
+	// theta_ = atan(sqrt(Vgs.x()*Vgs.x()+Vgs.y()*Vgs.y())/(Vgs.z()));
+	// phi_ = atan(Vgs.y()/Vgs.x());
+
+	if(Vgs.z() > 0.0)
+		theta_ = atan(sqrt(Vgs.x()*Vgs.x()+Vgs.y()*Vgs.y())/(Vgs.z()));
+	else if (Vgs.z() < 0.0)
+		theta_ = M_PI - atan(sqrt(Vgs.x()*Vgs.x()+Vgs.y()*Vgs.y())/(Vgs.z()));
+	else
+		theta_ = 0.0;
+	
+	if (Vgs.y() >= 0.0 && Vgs.x()>= 0.0)
+		phi_ = atan(fabs(Vgs.y()/Vgs.x()));
+	else if (Vgs.y() >= 0.0 && Vgs.x() < 0.0)
+		phi_ = M_PI - atan(fabs(Vgs.y()/Vgs.x()));
+	else if (Vgs.y() < 0.0 && Vgs.x() < 0.0)
+		phi_ = M_PI + atan(fabs(Vgs.y()/Vgs.x()));
+	else
+		phi_ = 2.0*M_PI - atan(fabs(Vgs.y()/Vgs.x()));
+
 	//Transform cartesian coordinates to spherical vectorial base 
 	float ur_x,ur_y,ur_z,ut_x,ut_y,ut_z,up_x,up_y,up_z;
 	ur_x = sin(theta_) * cos(phi_);
@@ -410,18 +430,13 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 	up_x= -sin(phi_);
 	up_y = cos(phi_);
 	up_z = 0;
-	Eigen::Matrix3f base_sp;
 	base_sp << ur_x, ur_y, ur_z, 
 			   ut_x, ut_y, ut_z, 
 			   up_x, up_y, up_z;
     Eigen::Vector3f plane_sp;
 	
 	//1. Applying Ray Cast to detect 3D free collision space and with collision. The space where Ray cast has collision is used to set highest obstacle and reduce 3D space to set with full Ray 
-	int count_total_full = 0;
-	int count_ray_free = 0;
-	int count_ray_collision = 0;
-	int count_ray_free_reduced = 0;
-
+	int counting3 = 0;
 	for (double delta_theta = theta_min ; delta_theta <= theta_max; delta_theta = delta_theta + _resolution){
 		for (double delta_phi = phi_min ; delta_phi <= phi_max; delta_phi = delta_phi + _resolution){	
 			plane_sp << 0.0, 
@@ -433,14 +448,13 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 			cartesian_ << spheric_(0,0)+new_goal.x,
 						  spheric_(1,0)+new_goal.y, 
 						  spheric_(2,0)+new_goal.z;
-
 			octomap::point3d e_(cartesian_(0,0), cartesian_(1,0), cartesian_(2,0)); //current end(goal) point
 			octomap::point3d d_(e_.x() - new_start.x , e_.y() - new_start.y , e_.z() - new_start.z ); //direction for rayCast
 
 			r_cast_coll = map_msg->castRay(s_, d_, r_);
 
+			// These four lines can be commented to improve compute time performance, are uncommented just to graph Ray-Casting complete
 			map_msg->computeRay(s_, e_, vrc_);
-			count_total_full++;	
 			for (size_t i = 0; i < vrc_.size(); i ++){
 				full_ray_cast.push_back(vrc_[i]);
 			}
@@ -449,76 +463,81 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 				map_msg->computeRay(s_, e_, vrc_);
 				for (size_t i = 0; i < vrc_.size(); i ++){
 					ray_cast_free.push_back(vrc_[i]);
+					map_simplify_free.push_back(vrc_[i]);
 				}
-				count_ray_free++;
 				points_rcf_.push_back(e_);
 			}
 			else{
-				count_ray_collision ++;
 				double d1_ = pow(new_start.x - r_.x(),2) + pow(new_start.y - r_.y(),2) + pow(new_start.z - r_.z(),2);
 				double d2_ = pow(new_start.x - e_.x(),2) + pow(new_start.y - e_.y(),2) + pow(new_start.z - e_.z(),2);
-				if (d1_ >= d2_ ){
+				if (d1_ >= d2_){
 					map_msg->computeRay(s_, e_, vrc_);
 					points_rcf_.push_back(e_);
+					for (size_t i = 0; i < vrc_.size(); i ++){
+						ray_cast_free.push_back(vrc_[i]);
+						map_simplify_free.push_back(vrc_[i]);
+					}
 				}
 				else{
 					map_msg->computeRay(s_, r_, vrc_);
 					points_rcnf_.push_back(e_);
+					points_rcc_.push_back(r_);
+					if ( (z_max_obs < r_.z()) && (d1_ < d2_*2.0/3.0)){
+						z_max_obs = r_.z();
+						max_z_to_explore = e_.z();
+						max_theta_axe_reduced = spheric_(2,0);
+					}
 				}
-				if (z_max_obs < r_.z()){
-					z_max_obs = r_.z();
-					max_z_to_explore = e_.z();
-				}
-				for (size_t i = 0; i < vrc_.size(); i ++){
-					ray_cast_coll.push_back(vrc_[i]);
-					if (i < vrc_.size()-1)
-						map_simplify_free.push_back(vrc_[i]);
-					else
-						map_simplify_occupied.push_back(vrc_[i]);
-				}
-
 			}
 		}
 	}
-	printf("------------------ COUNT_RAY_FULL = [%i]\n",count_total_full);
-	printf("------------------ COUNT_RAY_FREE = [%i]\n",count_ray_free);
-	printf("------------------ COUNT_RAY_COLLISION = [%i]\n",count_ray_collision);
 
+	if ( max_z_to_explore < new_goal.z){
+		obs_pyramd_floor = true;
+		max_theta_axe_reduced = sweep_range;
+	}
+	else{
+		obs_pyramd_floor = false;
+	}
+	//2. Apply Ray to set and reduced free space between start and obstacle 
+	for (size_t i = 0; i < points_rcc_.size(); i ++){
+		map_msg->computeRay(s_, points_rcc_[i], vrc_);
+		if ((points_rcc_[i].z() < z_max_obs || obs_pyramd_floor)){	
+			for (size_t j = 0; j < vrc_.size(); j ++){
+				ray_cast_coll.push_back(vrc_[j]);
+				if (j < vrc_.size()-1)
+					map_simplify_free.push_back(vrc_[j]);
+				else
+					map_simplify_occupied.push_back(vrc_[j]);
+			}
+		}
+	}
 
-	//2. Apply Full Ray to set full 3D space for exploration  and reduced free space above highest collision 
+	//3. Apply Ray to set reduced free space above highest collision 
 	for (size_t i= 0 ; i < points_rcf_.size(); i++){
 		octomap::point3d e_(points_rcf_[i].x(), points_rcf_[i].y(), points_rcf_[i].z()); //save the current end(goal) point
 		map_msg->computeRay(s_, e_, vrc_);
-		if (points_rcf_[i].z() < max_z_to_explore- _resolution){	
-			count_ray_free_reduced++;
+		if ((points_rcf_[i].z() < max_z_to_explore || obs_pyramd_floor)){	
+			counting3++;
 			for (size_t i = 0; i < vrc_.size(); i ++){
 				ray_cast_free_reduce.push_back(vrc_[i]);
 				map_simplify_free.push_back(vrc_[i]);
 			}
 		}
 	}
-	printf("------------------ COUNT_RAY_FREE_REDUCED = [%i]\n",count_ray_free_reduced);
-	printf("------------------ SIZE  points_rcf_ = [%lu] max_z_to_explore=[%f]\n",points_rcf_.size(), max_z_to_explore);
 
-	//3. Process to get rayCast in opposite direction, from goal zone to start zone to fill the collision zone
-	int count_ray_inverse = 0;
-	int count_ray_inverse_if = 0; 
-	int count_ray_inverse_else = 0; 
+	//4. Process to get rayCast in opposite direction, from goal zone to start zone to fill the collision zone
 	for (size_t i = 0; i < points_rcnf_.size(); i ++){
-		count_ray_inverse++;
-		if (points_rcnf_[i].z() < max_z_to_explore- _resolution){
-			octomap::point3d d_((new_start.x-points_rcnf_[i].x()) ,(new_start.y - points_rcnf_[i].y()) ,(new_start.z - points_rcnf_[i].z()) ); //save the direction for rayCast
-			octomap::point3d c_;
-			map_msg->castRay(points_rcnf_[i], d_, c_);
+		if (points_rcnf_[i].z() < max_z_to_explore + _resolution/2.0 || obs_pyramd_floor){
+			octomap::point3d d_(new_start.x - points_rcnf_[i].x(), new_start.y - points_rcnf_[i].y(), new_start.z - points_rcnf_[i].z()); //save the direction for rayCast
+			map_msg->castRay(points_rcnf_[i], d_, c_,true);
 			double d1_ = pow(new_start.x - points_rcnf_[i].x(),2) + pow(new_start.y - points_rcnf_[i].y(),2) + pow(new_start.z - points_rcnf_[i].z(),2);
 			double d2_ = pow(c_.x() - points_rcnf_[i].x(),2) + pow(c_.y() - points_rcnf_[i].y(),2) + pow(c_.z() - points_rcnf_[i].z(),2);
+			octomap::point3d new_s_(new_start.x,new_start.y,new_start.z);
 			if (d2_ >= d1_ ){
-				count_ray_inverse_if++;
-				octomap::point3d new_s_(new_start.x,new_start.y,new_start.z);
 				map_msg->computeRay(points_rcnf_[i], new_s_, vrc_);
 			}
 			else{
-				count_ray_inverse_else++;
 				map_msg->computeRay(points_rcnf_[i], c_, vrc_);
 			}
 			for (size_t j = 0; j < vrc_.size(); j++){
@@ -532,10 +551,6 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 			}
 		}	
 	}
-	printf("------------------ COUNT_RAY_INVERSE = [%i]\n",count_ray_inverse);
-	printf("------------------ COUNT_RAY_INVERSE_IF = [%i]  COUNT_RAY_INVERSE_ELSE = [%i]\n",count_ray_inverse_if, count_ray_inverse_else);
-	printf("------------------ SIZE  points_rcnf_ = [%lu] \n",points_rcnf_.size());
-
 
 	//4. Create new octomap with desired space to navigate
 	// insert some measurements of occupied cells
@@ -568,16 +583,6 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 	{
 		for (octomap::OcTree::leaf_iterator it = map_simplify.begin_leafs(), end = map_simplify.end_leafs(); it != end; ++it)
 		{
-			// // Get occupied cells
-			// x_w = it.getX();
-			// y_w = it.getY();
-			// z_w = it.getZ();
-
-			// // Exact discretization
-			// x_ = (int)(x_w * step_inv_red);
-			// y_ = (int)(y_w * step_inv_red);
-			// z_ = (int)(z_w * step_inv_red);
-
 			if (map_simplify.isNodeOccupied(*it))
 			{
 				// Get occupied cells
@@ -614,32 +619,6 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 					}
 				}
 			}
-			// else
-			// {
-			// 	if(v_disc_free_x_.size() < 1){
-			// 		v_disc_free_x_.push_back(x_);
-			// 		v_disc_free_y_.push_back(y_);
-			// 		v_disc_free_z_.push_back(z_);
-			// 	}
-			// 	else{
-			// 		match_ = false;
-			// 		for(size_t i=0 ; i<v_disc_free_x_.size() ; i++){
-			// 			if (v_disc_free_x_[i] == x_){
-			// 				if(v_disc_free_y_[i] == y_){
-			// 					if(v_disc_free_z_[i] == z_){
-			// 						match_ = true;
-			// 						break;	
-			// 					}
-			// 				}
-			// 			}
-			// 		}
-			// 		if (match_ != true){
-			// 			v_disc_free_x_.push_back(x_);
-			// 			v_disc_free_y_.push_back(y_);
-			// 			v_disc_free_z_.push_back(z_);
-			// 		}
-			// 	}
-			// }
 		}
 	}
 	printf("=================== size v_disc_x_=[%lu] \n",v_disc_x_.size());
@@ -660,10 +639,6 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 				inflateNodeAsCylinder(x_, y_, z_);
 		}
 	}
-	// for(size_t i = 0 ; i < v_disc_free_x_.size() ; i++){
-	// 	octomap::point3d reduced_points_(v_disc_free_x_[i]* step_red, v_disc_free_y_[i]* step_red,v_disc_free_z_[i]* step_red);
-	// 	map_simplify_reduced.updateNode(reduced_points_, true);
-	// }
 
 	return map_simplify_reduced;
 }
@@ -1277,7 +1252,12 @@ int ThetaStar3D::computePath(void)
 
 			//Look for Neighbors with line of sight
 			set<ThetaStarNode3D *, NodePointerComparator3D> neighbors;
-			getNeighbors(*min_distance, neighbors);
+
+			bool disable_search_pyramid = lineofsight(*disc_initial, *disc_final);
+			if(use_search_pyramid && !disable_search_pyramid)
+				getNeighborsReduced(*min_distance, neighbors);
+			else
+				getNeighbors(*min_distance, neighbors);
 
 			//Check if exist line of sight.
 			SetVertex(*min_distance, neighbors);
@@ -1336,11 +1316,6 @@ int ThetaStar3D::computePath(void)
 		point.y = path_point->point.y * step;
 		point.z = path_point->point.z * step;
 		double length_ = path_point->lengthCatenary;
-		// if (length_ <=0.0){
-		// 	if(feasibleCatenary(*path_point,tf_reel)){
-		// 		length_ = path_point->lengthCatenary;
-		// 	}
-		// }
 		printf("point=[%f %f %f] path_point->point=[%i %i %i] length_=[%f]\n",point.x,point.y,point.z,path_point->point.x,path_point->point.y,path_point->point.z,length_);
 
 		last_path.insert(last_path.begin(), point);
@@ -1457,9 +1432,6 @@ bool ThetaStar3D::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw
 				midd_wp.point.z= trajectory_point.transforms[0].translation.z*step_inv;
 				if(feasibleCatenary(midd_wp,tf_reel,trajectory_point.transforms[0].translation))
 					lengthToset = midd_wp.lengthCatenary;
-				// printf("valor de i=[%i]midd_wp.point=[%i %i %i][%f %f %f]  tf_reel=[%f %f %f] length=[%f] step_inv=[%f]\n",
-				// i,midd_wp.point.x,midd_wp.point.y,midd_wp.point.z,trajectory_point.transforms[0].translation.x,trajectory_point.transforms[0].translation.y,trajectory_point.transforms[0].translation.z,
-				// tf_reel.x,tf_reel.y,tf_reel.z,lengthToset,step_inv);
 
 				for (size_t j = 0 ; j < length_catenary_aux.size(); j++){
 					if (count_j_==j)
@@ -1793,7 +1765,7 @@ void ThetaStar3D::getNeighborsReduced(ThetaStarNode3D &node, set<ThetaStarNode3D
 					node_temp.y = node.point.y + j;
 					node_temp.z = node.point.z + k;
 
-					if (isInside(node_temp.x, node_temp.y, node_temp.z))
+					if (isInsideReduced(node_temp.x, node_temp.y, node_temp.z))
 					{
 						int nodeInWorld = getWorldIndex(node_temp.x, node_temp.y, node_temp.z);
 
@@ -2227,7 +2199,6 @@ bool ThetaStar3D::feasibleCatenary(ThetaStarNode3D &_p1, geometry_msgs::Vector3 
 		double _length = _dist + _mF;
 
 		if(_length > 15 ){
-			// printf("WARNING: Not posible to get catery for point=[%f %f %f] in Theta Star because length > dist_max. Looking for a new way point\n", _p1_new.x,_p1_new.y,_p1_new.z);
 			return false;
 		}
 
@@ -2254,15 +2225,12 @@ bool ThetaStar3D::feasibleCatenary(ThetaStarNode3D &_p1, geometry_msgs::Vector3 
 				_p_cat.point = _p_occ;
 
 				if(_p_occ.z < ws_z_min ){
-					// printf("WARNING: Not posible to get catery for point=[%f %f %f] in Theta Star because _p_occ.z < ws_z_min[%i] p_occ=[%i %i %i][%f %f %f] . Looking for a new way point\n", 
-					// _p1_new.x,_p1_new.y,_p1_new.z,ws_z_min,_p_occ.x,_p_occ.y,_p_occ.z,_points_catenary[j].x,_points_catenary[j].y,_points_catenary[j].z);
 					_p1.lengthCatenary = best_length_;
 					return false;
 				}
 				_p_cat_occupied = isOccupied(_p_cat);
 			
 				if (_p_cat_occupied){
-					// printf("ENTRO _p1_new=[%f %f %f] _p2=[%f %f %f] dist=[%f] length=[%f] point_cat=[%lu/%lu]\n",_p1_new.x,_p1_new.y,_p1_new.z,_p2.x,_p2.y,_p2.z,_dist,_length,j ,_points_catenary.size());
 					if(count_coll_ == 0)
 						_mF = _mF + 0.01;
 					count_coll_++;
@@ -2279,16 +2247,15 @@ bool ThetaStar3D::feasibleCatenary(ThetaStarNode3D &_p1, geometry_msgs::Vector3 
 		if (!_p_cat_occupied){
 			_get_catenary = true;
 			_p1.lengthCatenary = _length;
-			// printf("========= ENTRO_p1_new=[%f %f %f] _p2=[%f %f %f] dist=[%f] length=[%f] point_cat=[%lu]\n",_p1_new.x,_p1_new.y,_p1_new.z,_p2.x,_p2.y,_p2.z,_dist,_length,_points_catenary.size());
 			return true;
-			// break
 		}
 		_count++;
 	}
 }
 
-void ThetaStar3D::configCatenaryCompute(bool _u_c, double _mf, double _ba, double _bb, double _l_m, geometry_msgs::Vector3 _v3){
+void ThetaStar3D::configCatenaryCompute(bool _u_c, bool _u_s_p, double _mf, double _ba, double _bb, double _l_m, geometry_msgs::Vector3 _v3){
 	use_catenary = _u_c;
+	use_search_pyramid =  _u_s_p;
 	multiplicative_factor = _mf;
 	bound_bisection_a = _ba;
 	bound_bisection_b = _bb; 
@@ -2296,8 +2263,6 @@ void ThetaStar3D::configCatenaryCompute(bool _u_c, double _mf, double _ba, doubl
 	tf_reel.x = _v3.x;
 	tf_reel.y = _v3.y;
 	tf_reel.z = _v3.z;
-	// printf("ThetaStar3D: VALUES:  [%d] [%f %f %f %f] [%f %f %f]!!\n",
-	// use_catenary, multiplicative_factor, bound_bisection_a, bound_bisection_b, length_tether_max, tf_reel.x, tf_reel.y, tf_reel.z);
 }
 
 } // namespace PathPlanners

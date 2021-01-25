@@ -44,6 +44,7 @@ GlobalPlanner::GlobalPlanner(string node_name_)
     configTheta();
 
     nh->param("use_catenary", use_catenary, (bool)false);
+    nh->param("use_search_pyramid", use_search_pyramid, (bool)false);
     configCatenary();
 }
 bool GlobalPlanner::resetCostmapSrvCb(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &rep)
@@ -262,7 +263,7 @@ void GlobalPlanner::configMarkers(std::string ns)
     waypointsMarker.color.a = 1.0;
     waypointsMarker.scale.x = 0.15;
     waypointsMarker.scale.y = 0.15;
-    waypointsMarker.scale.z = 0.4;
+    // waypointsMarker.scale.z = 0.4;
 
     fullrayMarker.ns = ns;
     fullrayMarker.header.frame_id = world_frame;
@@ -278,7 +279,7 @@ void GlobalPlanner::configMarkers(std::string ns)
     fullrayMarker.color.a = 1.0;
     fullrayMarker.scale.x = 0.05;
     fullrayMarker.scale.y = 0.05;
-    fullrayMarker.scale.z = 0.05;
+    // fullrayMarker.scale.z = 0.05;
     
     raycastfreeMarker.ns = ns;
     raycastfreeMarker.header.frame_id = world_frame;
@@ -616,7 +617,6 @@ void GlobalPlanner::clearMarkersRayCast()
     raycastcollMarker.points.clear();
     raycastnofreeMarker.points.clear();
 
-    reducedMapPublisher.publish(raycastnofreeMarker);
 
     fullrayMarker.action = RVizMarker::ADD; 
     raycastfreeMarker.action = RVizMarker::ADD;
@@ -685,16 +685,16 @@ bool GlobalPlanner::calculatePath()
     if (use3d && !mapRec)
         return ret;
 
-    if (setGoal() && setStart(start_point, start_rpy))
+    if (setGoal() && setStart(start_point))
     {
         //Reduced Map 
         clearMarkersRayCast();
         std::vector<octomap::point3d> v_full_ray, v_ray_cast_free, v_ray_cast_free_reduced, v_ray_cast_coll, v_no_ray_cast_free;
-        octomap::OcTree map_reduced = theta3D.updateMapReduced(map, goal, start_point, start_rpy, v_full_ray, v_ray_cast_free, v_ray_cast_free_reduced, v_ray_cast_coll, v_no_ray_cast_free);
+        octomap::OcTree map_reduced = theta3D.updateMapReduced(map, goal, start_point, v_full_ray, v_ray_cast_free, v_ray_cast_free_reduced, v_ray_cast_coll, v_no_ray_cast_free);
         octomap_msgs::Octomap octomap_reduced;
         octomap_reduced.binary = 1 ;
         octomap_reduced.id = 1 ;
-        octomap_reduced.resolution =0.1 ;
+        octomap_reduced.resolution =0.2 ;
         octomap_reduced.header.frame_id = "/map";
         octomap_reduced.header.stamp = ros::Time::now();
         octomap_msgs::fullMapToMsg(map_reduced, octomap_reduced);
@@ -733,6 +733,7 @@ bool GlobalPlanner::calculatePath()
             raycastcollMarker.points.push_back(p);
         }
         raycastnofreeMarker.header.stamp = ros::Time::now();
+        printf("============================ v_no_ray_cast_free.size()=[%lu]",v_no_ray_cast_free.size());
         for (size_t i = 0; i < v_no_ray_cast_free.size(); i++)
         {
             p.x = v_no_ray_cast_free[i].x();
@@ -1029,23 +1030,12 @@ bool GlobalPlanner::setGoal()
 
     return ret;
 }
-bool GlobalPlanner::setStart(geometry_msgs::Vector3Stamped &start, geometry_msgs::Vector3 &rpy)
+bool GlobalPlanner::setStart(geometry_msgs::Vector3Stamped &start)
 {
     bool ret = false;
     start.vector.x = getRobotPose().transform.translation.x;
     start.vector.y = getRobotPose().transform.translation.y;
     start.vector.z = getRobotPose().transform.translation.z;
-
-    //get RPY start point from quaternion used in updateMapReduced
-    tf2::Quaternion quat_tf;
-    tf2::Quaternion quat_msg(getRobotPose().transform.rotation.x, getRobotPose().transform.rotation.y, getRobotPose().transform.rotation.z, getRobotPose().transform.rotation.w);
-    tf2::convert(quat_msg, quat_tf);
-    double roll, pitch, yaw;
-    tf2::Matrix3x3(quat_tf).getRPY(roll, pitch, yaw);
-    rpy.x = roll;
-    rpy.y = pitch;
-    rpy.z = yaw;
-
 
     if (start.vector.z <= ws_z_min)
         start.vector.z = ws_z_min + map_v_inflaction + map_resolution;
@@ -1092,7 +1082,8 @@ void GlobalPlanner::configCatenary(){
     nh->param("length_tether_max", length_tether_max, (double)10.0);
 
 	printf("GlobalPlanner::configCatenary :   USE_OF_CATENARY=[%s] VALUES=[%f %f %f %f] !!\n",use_catenary ? "true" : "false", multiplicative_factor, bound_bisection_a,bound_bisection_b, length_tether_max);
-    theta3D.configCatenaryCompute(use_catenary,multiplicative_factor,bound_bisection_a,bound_bisection_b, length_tether_max,tfListenerReel());
+	printf("GlobalPlanner::configCatenary :   USE_SEARCH_PYRAMID=[%s] \n", use_search_pyramid ? "true" : "false");
+    theta3D.configCatenaryCompute(use_catenary, use_search_pyramid, multiplicative_factor,bound_bisection_a,bound_bisection_b, length_tether_max,tfListenerReel());
 }
 
 geometry_msgs::Vector3 GlobalPlanner::tfListenerReel(){

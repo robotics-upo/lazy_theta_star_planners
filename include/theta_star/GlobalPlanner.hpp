@@ -149,7 +149,7 @@ private:
             They return true if the points are not occupied
     */
     bool setGoal();
-    bool setStart(geometry_msgs::Vector3Stamped &start, geometry_msgs::Vector3 &rpy);
+    bool setStart(geometry_msgs::Vector3Stamped &start);
 
     /*
     @brief: 
@@ -271,7 +271,7 @@ private:
     double initialSearchAround;
 
     string path;
-    bool use_catenary, write_data_for_analysis;
+    bool use_catenary, write_data_for_analysis, use_search_pyramid;
 	double multiplicative_factor,bound_bisection_a,bound_bisection_b, length_tether_max;
 
 }; //class GlobalPlanner
