@@ -360,9 +360,9 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 	new_start.x = start_.vector.x + ((start_.vector.x - goal_.vector.x) / sqrt(pow(start_.vector.x - goal_.vector.x,2)+pow(start_.vector.y - goal_.vector.y,2)+pow(start_.vector.z - goal_.vector.z,2)));
 	new_start.y = start_.vector.y + ((start_.vector.y - goal_.vector.y) / sqrt(pow(start_.vector.x - goal_.vector.x,2)+pow(start_.vector.y - goal_.vector.y,2)+pow(start_.vector.z - goal_.vector.z,2)));
 	new_start.z = start_.vector.z + ((start_.vector.z - goal_.vector.z) / sqrt(pow(start_.vector.x - goal_.vector.x,2)+pow(start_.vector.y - goal_.vector.y,2)+pow(start_.vector.z - goal_.vector.z,2)));
-	new_goal.x = goal_.vector.x + ((goal_.vector.x - start_.vector.x) / sqrt(pow(goal_.vector.x - start_.vector.x,2)+pow(goal_.vector.y - start_.vector.y,2)+pow(goal_.vector.z - start_.vector.z,2)));
-	new_goal.y = goal_.vector.y + ((goal_.vector.y - start_.vector.y) / sqrt(pow(goal_.vector.x - start_.vector.x,2)+pow(goal_.vector.y - start_.vector.y,2)+pow(goal_.vector.z - start_.vector.z,2)));
-	new_goal.z = goal_.vector.z + ((goal_.vector.z - start_.vector.z) / sqrt(pow(goal_.vector.x - start_.vector.x,2)+pow(goal_.vector.y - start_.vector.y,2)+pow(goal_.vector.z - start_.vector.z,2)));
+	new_goal.x = goal_.vector.x + 0.5*((goal_.vector.x - start_.vector.x) / sqrt(pow(goal_.vector.x - start_.vector.x,2)+pow(goal_.vector.y - start_.vector.y,2)+pow(goal_.vector.z - start_.vector.z,2)));
+	new_goal.y = goal_.vector.y + 0.5*((goal_.vector.y - start_.vector.y) / sqrt(pow(goal_.vector.x - start_.vector.x,2)+pow(goal_.vector.y - start_.vector.y,2)+pow(goal_.vector.z - start_.vector.z,2)));
+	new_goal.z = goal_.vector.z + 0.5*((goal_.vector.z - start_.vector.z) / sqrt(pow(goal_.vector.x - start_.vector.x,2)+pow(goal_.vector.y - start_.vector.y,2)+pow(goal_.vector.z - start_.vector.z,2)));
 
 	// new_start.x = start_.vector.x;
 	// new_start.y = start_.vector.y;
@@ -389,7 +389,7 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 	sweep_range = hip_ * sin(angle_square_pyramid); 
 	phi_min = -1.0*sweep_range ;	
 	phi_max = sweep_range ;
-	theta_min = -1.0* sweep_range ;
+	theta_min = -1.0* sweep_range;
 	theta_max = sweep_range ;
 	double z_max_obs = 0.0; 
 	double max_z_to_explore = -100.0;
@@ -556,12 +556,10 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 	// insert some measurements of occupied cells
 	for (size_t i=0 ; i < map_simplify_occupied.size() ; i++){
 		map_simplify.updateNode(map_simplify_occupied[i], true); // integrate 'occupied' measurement
-		// publishMarkerReduced(map_simplify_occupied[i],true);
 	}
   	// insert some measurements of free cells
 	for (size_t i=0 ; i < map_simplify_free.size() ; i++){
 		map_simplify.updateNode(map_simplify_free[i], false);  // integrate 'free' measurement
-		// publishMarkerReduced(map_simplify_free[i],true);
 	}
 	
 	u_int64_t occupied_leafs = 0, free_leafs = 0;
@@ -574,71 +572,71 @@ octomap::OcTree ThetaStar3D::updateMapReduced(octomap_msgs::OctomapConstPtr msg,
 	bool match_;
 	int x_, y_ , z_;
 	float x_w, y_w, z_w;
-	// Read from first to the last leaf of the tree set its xyz (discretized) if it is occupied into the occupancy matrix
 
+	// Read from first to the last leaf of the tree set its xyz (discretized) if it is occupied into the occupancy matrix
 	float step_red = 0.1;
 	float step_inv_red = 1.0/0.1;
 
-	if (map_simplify.begin_leafs() != NULL)
-	{
-		for (octomap::OcTree::leaf_iterator it = map_simplify.begin_leafs(), end = map_simplify.end_leafs(); it != end; ++it)
-		{
-			if (map_simplify.isNodeOccupied(*it))
-			{
-				// Get occupied cells
-				x_w = it.getX();
-				y_w = it.getY();
-				z_w = it.getZ();
+	// if (map_simplify.begin_leafs() != NULL)
+	// {
+	// 	for (octomap::OcTree::leaf_iterator it = map_simplify.begin_leafs(), end = map_simplify.end_leafs(); it != end; ++it)
+	// 	{
+	// 		if (map_simplify.isNodeOccupied(*it))
+	// 		{
+	// 			// Get occupied cells
+	// 			x_w = it.getX();
+	// 			y_w = it.getY();
+	// 			z_w = it.getZ();
 
-				// Exact discretization
-				x_ = (int)(x_w * step_inv_red);
-				y_ = (int)(y_w * step_inv_red);
-				z_ = (int)(z_w * step_inv_red);
+	// 			// Exact discretization
+	// 			x_ = (int)(x_w * step_inv_red);
+	// 			y_ = (int)(y_w * step_inv_red);
+	// 			z_ = (int)(z_w * step_inv_red);
 
-				if(v_disc_x_.size() < 1){
-					v_disc_x_.push_back(x_);
-					v_disc_y_.push_back(y_);
-					v_disc_z_.push_back(z_);
-				}
-				else{
-					match_ = false;
-					for(size_t i=0 ; i<v_disc_x_.size() ; i++){
-						if (v_disc_x_[i] == x_){
-							if(v_disc_y_[i] == y_){
-								if(v_disc_z_[i] == z_){
-									match_ = true;
-									break;	
-								}
-							}
-						}
-					}
-					if (match_ != true){
-						v_disc_x_.push_back(x_);
-						v_disc_y_.push_back(y_);
-						v_disc_z_.push_back(z_);
-					}
-				}
-			}
-		}
-	}
-	printf("=================== size v_disc_x_=[%lu] \n",v_disc_x_.size());
-	clearMapReduced(v_disc_x_.size());
-	// Set as occupied in the discrete matrix reduced
-	for(size_t i = 0 ; i < v_disc_x_.size() ; i++){
-		unsigned int world_index_ = nit;
-		++nit;
-		discrete_world_reduced[world_index_].notOccupied = false;
-		octomap::point3d reduced_points_(v_disc_x_[i]* step_red,v_disc_y_[i]* step_red,v_disc_z_[i]* step_red);
-		map_simplify_reduced.updateNode(reduced_points_, true);
+	// 			if(v_disc_x_.size() < 1){
+	// 				v_disc_x_.push_back(x_);
+	// 				v_disc_y_.push_back(y_);
+	// 				v_disc_z_.push_back(z_);
+	// 			}
+	// 			else{
+	// 				match_ = false;
+	// 				for(size_t i=0 ; i<v_disc_x_.size() ; i++){
+	// 					if (v_disc_x_[i] == x_){
+	// 						if(v_disc_y_[i] == y_){
+	// 							if(v_disc_z_[i] == z_){
+	// 								match_ = true;
+	// 								break;	
+	// 							}
+	// 						}
+	// 					}
+	// 				}
+	// 				if (match_ != true){
+	// 					v_disc_x_.push_back(x_);
+	// 					v_disc_y_.push_back(y_);
+	// 					v_disc_z_.push_back(z_);
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
+	// printf("=================== size v_disc_x_=[%lu] \n",v_disc_x_.size());
+	// clearMapReduced(v_disc_x_.size());
+	// // Set as occupied in the discrete matrix reduced
+	// for(size_t i = 0 ; i < v_disc_x_.size() ; i++){
+	// 	unsigned int world_index_ = nit;
+	// 	++nit;
+	// 	discrete_world_reduced[world_index_].notOccupied = false;
+	// 	octomap::point3d reduced_points_(v_disc_x_[i]* step_red,v_disc_y_[i]* step_red,v_disc_z_[i]* step_red);
+	// 	map_simplify_reduced.updateNode(reduced_points_, true);
 
-		if (h_inflation >= step || v_inflation >= step)
-		{
-			if (z_w > z_not_inflate)
-				inflateNodeAsXyRectangle(x_, y_, z_);
-			else
-				inflateNodeAsCylinder(x_, y_, z_);
-		}
-	}
+	// 	if (h_inflation >= step || v_inflation >= step)
+	// 	{
+	// 		if (z_w > z_not_inflate)
+	// 			inflateNodeAsXyRectangle(x_, y_, z_);
+	// 		else
+	// 			inflateNodeAsCylinder(x_, y_, z_);
+	// 	}
+	// }
 
 	return map_simplify_reduced;
 }
