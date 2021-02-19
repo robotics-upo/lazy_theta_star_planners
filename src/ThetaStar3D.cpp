@@ -131,6 +131,10 @@ void ThetaStar3D::init(std::string plannerName, std::string frame_id, float ws_x
 	trajectoryParamsConfigured = false;
     m_grid3d.reset(new Grid3d);
 
+	closest_distances_pub_  = nh->advertise<std_msgs::Float32MultiArray>("/theta_star_3d/closest_distances", 1);
+	closest_distance_pub_   = nh->advertise<std_msgs::Float32>("/theta_star_3d/closest_distance", 1);
+    set_cost_params_server_ = nh->advertiseService("/theta_star_3d/set_costs_values", &ThetaStar3D::setCostsParamsSrv, this);
+
 }
 
 ThetaStar3D::~ThetaStar3D()
@@ -546,7 +550,7 @@ bool ThetaStar3D::lineofsight(ThetaStarNode3D &p1, ThetaStarNode3D &p2)
 	if (isOccupied(p1) || isOccupied(p2))
 		return false;
 
-    if (distanceBetween2nodes(p1, p2) > line_of_sight )
+    if (distanceBetween2nodes(p1, p2) > line_of_sight/step )
 		return false;
 	
 
@@ -1434,7 +1438,9 @@ float ThetaStar3D::distanceFromInitialPoint(ThetaStarNode3D node, ThetaStarNode3
 float ThetaStar3D::weightedDistanceFromInitialPoint(ThetaStarNode3D node, ThetaStarNode3D parent)
 {
 	float res;
-	double cost = m_grid3d->getProbabilityFromPoint(node.point.x, node.point.y, node.point.z);
+	double cost = m_grid3d->getProbabilityFromPoint(node.point.x*step, node.point.y*step, node.point.z*step);
+
+	// double cost = m_grid3d->getProbabilityFromPoint(node.point.x, node.point.y, node.point.z);
 
 	if (isOccupied(node))
 		res = std::numeric_limits<float>::max();
@@ -1699,15 +1705,44 @@ double ThetaStar3D::getDyaw(double next_yaw, double last_yaw)
 void ThetaStar3D::printfTrajectory(Trajectory trajectory, string trajectory_name)
 {
 	printf(PRINTF_YELLOW "%s trajectory [%d]:\n", trajectory_name.c_str(), (int)trajectory.points.size());
+	std::vector<float> closest_distances;
 
 	for (unsigned int i = 0; i < trajectory.points.size(); i++)
 	{
 		double yaw = getYawFromQuat(trajectory.points[i].transforms[0].rotation);
 		printf(PRINTF_BLUE "\t %d: [%f, %f, %f] m\t[%f] rad\t [%f] sec\n", i, trajectory.points[i].transforms[0].translation.x, trajectory.points[i].transforms[0].translation.y, trajectory.points[i].transforms[0].translation.z, yaw, trajectory.points[i].time_from_start.toSec());
+		closest_distances.push_back( getClosestObstacle(trajectory.points[i].transforms[0].translation));
 	}
-
+	std_msgs::Float32MultiArray msg; 
+	msg.data = closest_distances;
+	closest_distances_pub_.publish(msg);
+	std_msgs::Float32 msg_min;
+	msg_min.data = 1000000;
+	for(auto &it: closest_distances){
+		if(it < msg_min.data)
+			msg_min.data = it;
+	}
+	closest_distance_pub_.publish(msg_min);
 	printf(PRINTF_REGULAR);
 }
+double ThetaStar3D::getClosestObstacle(const geometry_msgs::Vector3 &positon){
+
+	double prob = m_grid3d->getProbabilityFromPoint(positon.x, positon.y, positon.z);
+	//Inverse the probabilty function to get dist:
+	//! prob = 100*exp(-cost_scaling_factor*std::fabs((dist - robot_radius)));
+
+	double closest = std::fabs((std::log(prob / 100 ) / cost_scaling_factor_ ) )+ robot_radius_;
+	return closest;
+}
+bool ThetaStar3D::setCostsParamsSrv(theta_star_2d::SetCostParams::Request& _req, theta_star_2d::SetCostParams::Response& _rep ){
+
+	_rep.success = true;
+	cost_scaling_factor_ = _req.cost_scaling_factor;
+	robot_radius_ = _req.robot_radius;
+	_rep.message = "Cost scaling factor set to " + std::to_string(cost_scaling_factor_) + ", Robot radius set to " + std::to_string(robot_radius_);
+	return true;
+}
+
 void ThetaStar3D::setMinObstacleRadius(double minR_){
 	minR=minR_;
 }

@@ -28,14 +28,15 @@
 #include <tf/transform_datatypes.h>
 
 #include <sensor_msgs/PointCloud2.h>
-
+#include <std_msgs/Float32MultiArray.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_ros/point_cloud.h>
 
 #include <boost/foreach.hpp>
-
+#include <algorithm>
 #include "theta_star/grid3d.hpp"
+#include <theta_star_2d/SetCostParams.h>
 
 #define PRINTF_REGULAR "\x1B[0m"
 #define PRINTF_RED "\x1B[31m"
@@ -507,7 +508,10 @@ protected:
 
 	//! Aux Function: simply print the trajectory msg data
 	void printfTrajectory(Trajectory trajectory, string trajectory_name);
+	
+	double getClosestObstacle(const geometry_msgs::Vector3 &positon);
 
+	bool setCostsParamsSrv(theta_star_2d::SetCostParams::Request& _req, theta_star_2d::SetCostParams::Response& _rep );
 	/**
 		 Publish a marker in the position of a ThetaStarNode3D
 		   @param node to publish his position
@@ -900,6 +904,8 @@ protected:
 	ros::Publisher occupancy_marker_pub_;
 	RVizMarker marker_no_los; // Explored nodes with no lineOfSight
 	ros::Publisher no_los_marker_pub_;
+	ros::Publisher closest_distances_pub_, closest_distance_pub_;
+	ros::ServiceServer set_cost_params_server_;
 
 	double minR;
 	// Trajectory parameters
@@ -920,6 +926,9 @@ protected:
 	std::unique_ptr<Grid3d> m_grid3d;
 	double cost_weight, line_of_sight;
 	int expanded_nodes_number_ = 0;
+
+	double cost_scaling_factor_;
+	double robot_radius_;
 };
 
 } /* namespace PathPlanners */

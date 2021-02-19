@@ -30,6 +30,7 @@ add_service_files(
   SaveMission.srv
   Prob.srv
   RequestPath.srv
+  SetCostParams.srv
   # checkObstacles.srv
 )
 

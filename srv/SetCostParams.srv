@@ -1,0 +1,5 @@
+float32 robot_radius
+float32 cost_scaling_factor
+---
+string message
+bool success
