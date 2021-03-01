@@ -849,7 +849,7 @@ void ThetaStar3D::computeAStarPath(){
 		current = *current_it;
 		open.erase(current_it);
 
-		std::cout << "Open Size: "<< open.size()<<"Expanded Nodes: " << expanded_nodes_number_ << "  Current: [" << current->point.x << ", " << current->point.y << ", " << current->point.z << "]" << std::endl;
+		// std::cout << "Open Size: "<< open.size()<<"Expanded Nodes: " << expanded_nodes_number_ << "  Current: [" << current->point.x << ", " << current->point.y << ", " << current->point.z << "]" << std::endl;
 
 		for(auto it = open.begin(); it != open.end(); it++){
 			auto node = *it;
@@ -860,7 +860,6 @@ void ThetaStar3D::computeAStarPath(){
 		}
 		if( !((*current) != (*disc_final))){//Solution found
 			noSolution = false;
-			std::cout << "Solution!! " << std::endl;
 			break;
 		}
 		
@@ -873,9 +872,7 @@ void ThetaStar3D::computeAStarPath(){
 			auto cost = current->totalDistance;
 			std::cout << "Current cost: " << current->totalDistance << std::endl;
 			ThetaStarNode3D *successor = findNodeOnList(open, it);
-			std::cout << "2 Current cost: " << current->totalDistance << std::endl;
 			if(successor == nullptr){
-				std::cout << "Preview to inserr node: " << successor->lineDistanceToFinalPoint << std::endl;
 				successor = new ThetaStarNode3D;
 				successor = it;
 				successor->lineDistanceToFinalPoint = weightedDistanceToGoal(*successor);
@@ -883,14 +880,10 @@ void ThetaStar3D::computeAStarPath(){
 				std::cout << "Inserting node in list with line distance to final: " << successor->lineDistanceToFinalPoint << std::endl;
 				open.insert(successor);
 			}else if(cost < successor->totalDistance){
-				std::cout << "Case 2" << std::endl;
 				successor->parentNode = current;
 				successor->totalDistance = cost;
 			}
-			std::cout << "Neihbor next iter..."<<std::endl;
 		}	
-		std::cout << "End size: " << neighbors.size() << std::endl;
-
 	}
 			
 	
