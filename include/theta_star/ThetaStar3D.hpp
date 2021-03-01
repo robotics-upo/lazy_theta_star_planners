@@ -99,17 +99,17 @@ public:
 class ThetaStarNode3D
 {
 public:
-	ThetaStarNode3D() : parentNode(NULL), nodeInWorld(NULL), lineDistanceToFinalPoint(std::numeric_limits<float>::max()),
-						distanceFromInitialPoint(std::numeric_limits<float>::max()), totalDistance(std::numeric_limits<float>::max())
+	ThetaStarNode3D() : parentNode(NULL), nodeInWorld(NULL), lineDistanceToFinalPoint(0),
+						distanceFromInitialPoint(0), totalDistance(0)
 	{
 	}
 
 	DiscretePosition point;			   // Discrete position of this node
 	ThetaStarNode3D *parentNode;	   // pointer to parent node
 	ThetaStartNodeLink3D *nodeInWorld; // pointer to link from this node to its parent
-	float lineDistanceToFinalPoint;	// algorithm value
-	float distanceFromInitialPoint;	// algorithm value
-	float totalDistance;			   // algorithm value
+	float lineDistanceToFinalPoint;	// algorithm value (h)
+	float distanceFromInitialPoint;	// algorithm value (g)
+	float totalDistance;			   // algorithm value (total = g + h)
 
 	// Comparator '!=' definition
 	friend bool operator!=(const ThetaStarNode3D &lhs, const ThetaStarNode3D &rhs)
@@ -373,6 +373,9 @@ public:
 			@return number of points in the path. 0 if no solution
 		**/
 	int computePath(void);
+	void computeAStarPath();
+	void computeLazyThetaStarPath();
+	ThetaStarNode3D* findNodeOnList(set<ThetaStarNode3D *, NodePointerComparator3D> &_set, ThetaStarNode3D *node);
 
 	/**
 		  Get the current Path as vector [Xi Yi Zi]   
@@ -919,7 +922,7 @@ protected:
 	float w_yaw;					 // Mean angular velocity at yaw [rad/s]
 	float min_yaw_ahead;			 // Minimum position increment to set yaw ahead [meters]
 	bool trajectoryParamsConfigured; // Flag to enable the Trajectory Computation
-
+	bool use_astar;
 	// Flag to print the ROS_WARN()
 	bool PRINT_WARNINGS;
 

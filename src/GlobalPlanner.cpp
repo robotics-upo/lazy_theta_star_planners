@@ -207,6 +207,11 @@ void GlobalPlanner::configServices()
 }
 void GlobalPlanner::dynReconfCb(theta_star_2d::GlobalPlannerConfig &config, uint32_t level)
 {
+    if(first_dyn_cb){
+        first_dyn_cb = false;
+        return;
+    }
+        
     if (!use3d)
     {
         this->cost_weight = config.cost_weight;

@@ -223,13 +223,13 @@ private:
     float minPathLenght;
     ros::Time start_time;
     geometry_msgs::Vector3Stamped start_coord;
-
+    bool first_dyn_cb{true};
     //! 3D specific variables
     bool mapRec;
     ThetaStar3D theta3D;
     bool use3d;
     bool data_source;
-
+    
     octomap_msgs::OctomapConstPtr map;
 
     double ws_x_max; // 32.2

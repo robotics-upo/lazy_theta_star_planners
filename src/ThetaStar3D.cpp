@@ -17,7 +17,7 @@ namespace PathPlanners
 #define PRINT_EXPLORED_NODES_NUMBER
 // Uncomment to get the explored nodes (at time or slowly step_by_step)
 #define SEND_EXPLORED_NODES_MARKERS
-//#define STEP_BY_STEP
+#define STEP_BY_STEP
 // Uncomment to get non-LineOfSight visual markers
 //#define SEND_NO_LOFS_NODES_MARKERS
 // Uncomment to printf octree leaf free and occupied
@@ -135,6 +135,13 @@ void ThetaStar3D::init(std::string plannerName, std::string frame_id, float ws_x
 	closest_distance_pub_   = nh->advertise<std_msgs::Float32>("/theta_star_3d/closest_distance", 1);
     set_cost_params_server_ = nh->advertiseService("/theta_star_3d/set_costs_values", &ThetaStar3D::setCostsParamsSrv, this);
 
+	nh->param("/theta_star_3d/astar_mode", use_astar, false);
+	if(use_astar){
+		goal_weight_ = 1.0; //No goal weight
+		z_weight_cost_ = 1.0;
+		cost_weight = 0.0;
+		std::cout<<"Using A* Algorithm" << std::endl;
+	}
 }
 
 ThetaStar3D::~ThetaStar3D()
@@ -260,13 +267,13 @@ void ThetaStar3D::updateMap(PointCloud cloud)
 		if (isInside(x_, y_, z_))
 		{
 			unsigned int world_index_ = getWorldIndex(x_, y_, z_);
-			dist=sqrt(p.x*p.x+p.y*p.y+p.z*p.z);
-			if(dist < minR){
-				discrete_world[world_index_].notOccupied = true;
-				continue;
-			}
-			else
-				discrete_world[world_index_].notOccupied = false;
+			//dist=sqrt(p.x*p.x+p.y*p.y+p.z*p.z);
+			//if(dist < minR){
+			//	discrete_world[world_index_].notOccupied = true;
+			//	continue;
+			//}
+			//else
+			discrete_world[world_index_].notOccupied = false;
 			
 			// Inflates nodes
 			if (h_inflation * step >= step || v_inflation * step >= step)
@@ -285,6 +292,12 @@ void ThetaStar3D::updateMap(PointCloud cloud)
 			}
 		}
 	}
+	int occ = 0;
+	int total = discrete_world.size();
+	for(auto &it: discrete_world){
+		if(!it.notOccupied) ++occ;
+	}
+	ROS_INFO("Discrete world size: %d, Occupied: %d", total, occ);
 }
 
 void ThetaStar3D::updateMap(const PointCloud::ConstPtr &map)
@@ -806,76 +819,137 @@ int ThetaStar3D::getTimeOut()
 {
 	return timeout;
 }
+void ThetaStar3D::computeAStarPath(){
 
-int ThetaStar3D::computePath(void)
-{
-	//~ printf("Calculating...\n");
+	ros::Time last_time_ = ros::Time::now();
+	bool noSolution = false;
+	long iter = 0;
+	ThetaStarNode3D *current;
+	while(!open.empty()){
+		iter++;
 
-	if (disc_initial == NULL || disc_final == NULL)
-	{
-		std::cerr << "ThetaStar: Cannot calculate path. Initial or Final point not valid." << std::endl;
-		return 0;
-	}
+#ifdef SEND_EXPLORED_NODES_MARKERS
+			publishMarker(*current, false);
+			//usleep(20000);
+#endif
 
-	marker.points.clear();
-	marker_no_los.points.clear();
-	geometry_msgs::Point p;
-	p.x = disc_initial->point.x * step;
-	p.y = disc_initial->point.y * step;
-	p.z = disc_initial->point.z * step;
-	marker.points.push_back(p);
+#ifdef PRINT_EXPLORED_NODES_NUMBER
+			expanded_nodes_number_++;
+#endif
 
-	//Initialize data structure. --> clear lists
-	ThetaStarNode3D *erase_node;
-	while (!open.empty())
-	{
-		erase_node = *open.begin();
-		open.erase(open.begin());
-		if (erase_node != NULL)
+		if (iter % 100 == 0)
 		{
-			erase_node->nodeInWorld->isInCandidateList = false;
-			erase_node->nodeInWorld->isInOpenList = false;
+			if ((ros::Time::now() - last_time_).toSec() > timeout)
+			{
+				noSolution = true;
+				std::cerr << "Theta Star: Timeout. Iteractions:" << iter << std::endl;
+			}
+		}
+		auto current_it = open.begin();
+		current = *current_it;
+		open.erase(current_it);
+
+		std::cout << "Open Size: "<< open.size()<<"Expanded Nodes: " << expanded_nodes_number_ << "  Current: [" << current->point.x << ", " << current->point.y << ", " << current->point.z << "]" << std::endl;
+
+		for(auto it = open.begin(); it != open.end(); it++){
+			auto node = *it;
+			if(node->totalDistance <= current->totalDistance){
+				current = node;
+				current_it = it;
+			}
+		}
+		if( !((*current) != (*disc_final))){//Solution found
+			noSolution = false;
+			std::cout << "Solution!! " << std::endl;
+			break;
+		}
+		
+		candidates.insert(current);
+		set<ThetaStarNode3D *, NodePointerComparator3D> neighbors;
+		getNeighbors(*current, neighbors);
+		std::cout << "Neighboors size: " << neighbors.size() << std::endl;
+		for(auto &it: neighbors){//Calculated neigbors does not produce collisions
+			
+			auto cost = current->totalDistance;
+			std::cout << "Current cost: " << current->totalDistance << std::endl;
+			ThetaStarNode3D *successor = findNodeOnList(open, it);
+			std::cout << "2 Current cost: " << current->totalDistance << std::endl;
+			if(successor == nullptr){
+				std::cout << "Preview to inserr node: " << successor->lineDistanceToFinalPoint << std::endl;
+				successor = new ThetaStarNode3D;
+				successor = it;
+				successor->lineDistanceToFinalPoint = weightedDistanceToGoal(*successor);
+				successor->totalDistance = weightedDistanceFromInitialPoint(*successor,*successor->parentNode) + successor->lineDistanceToFinalPoint;
+				std::cout << "Inserting node in list with line distance to final: " << successor->lineDistanceToFinalPoint << std::endl;
+				open.insert(successor);
+			}else if(cost < successor->totalDistance){
+				std::cout << "Case 2" << std::endl;
+				successor->parentNode = current;
+				successor->totalDistance = cost;
+			}
+			std::cout << "Neihbor next iter..."<<std::endl;
+		}	
+		std::cout << "End size: " << neighbors.size() << std::endl;
+
+	}
+			
+	
+
+// #ifdef SEND_EXPLORED_NODES_MARKERS
+// 	publishMarker(*min_distance, true);
+// #endif
+
+#ifdef PRINT_EXPLORED_NODES_NUMBER
+	ROS_INFO("Theta Star: Expanded nodes: %d", expanded_nodes_number_);
+#endif
+
+	//Path finished, get final path
+	last_path.clear();
+	ThetaStarNode3D *path_point;
+	Vector3 point;
+
+	path_point = current;
+	if (noSolution)
+	{
+		std::cerr << "Imposible to calculate a solution" << std::endl;
+	}
+	ROS_INFO("Disc initial: [%f, %f, %f]", disc_initial->point.x*step,disc_initial->point.y*step,disc_initial->point.z*step);
+
+	while (!noSolution && path_point != disc_initial)
+	{
+		point.x = path_point->point.x * step;
+		point.y = path_point->point.y * step;
+		point.z = path_point->point.z * step;
+		ROS_INFO("Inserting [%f, %f, %f]", point.x,point.y,point.z);
+		ROS_INFO("Parent is [%f, %f, %f]", path_point->parentNode->point.x*step,path_point->parentNode->point.y*step,path_point->parentNode->point.z*step);
+
+		last_path.insert(last_path.begin(), point);
+
+		path_point = path_point->parentNode;
+		if (!path_point || (path_point == path_point->parentNode && path_point != disc_initial))
+		{
+			last_path.clear();
+			break;
 		}
 	}
 
-	while (!candidates.empty())
-	{
-		erase_node = *candidates.begin();
-		candidates.erase(candidates.begin());
-		if (erase_node != NULL)
-		{
-			erase_node->nodeInWorld->isInCandidateList = false;
-			erase_node->nodeInWorld->isInOpenList = false;
+}
+ThetaStarNode3D* ThetaStar3D::findNodeOnList(set<ThetaStarNode3D *, NodePointerComparator3D> &_set, ThetaStarNode3D *node){
+	for(auto &it: _set){
+		if( ! (*it != *node) ){
+			std::cout << "Node found in open list!" << std::endl;
+			return node;
 		}
 	}
-
-	open.clear();
-	candidates.clear();
-
-	disc_initial->distanceFromInitialPoint = 0;
-	disc_initial->lineDistanceToFinalPoint = weightedDistanceToGoal(*disc_initial);
-	disc_initial->totalDistance = disc_initial->lineDistanceToFinalPoint + 0;
-	disc_initial->parentNode = disc_initial;
-
-	open.insert(disc_initial);
-	disc_initial->nodeInWorld->isInOpenList = true;
-
-	//Inicialize loop
+	return nullptr;
+}
+void ThetaStar3D::computeLazyThetaStarPath(){
+	
 	ThetaStarNode3D *min_distance = disc_initial; // s : current node
 	bool noSolution = false;
 	long iter = 0;
-
-	if (isOccupied(*disc_initial) || isOccupied(*disc_final))
-	{
-		noSolution = true;
-		std::cerr << "ThetaStar: Initial or Final point not free." << std::endl;
-	}
-
-#ifdef PRINT_EXPLORED_NODES_NUMBER
-	expanded_nodes_number_ = 0;
-#endif
-
 	ros::Time last_time_ = ros::Time::now();
+
 	while (!noSolution && (*min_distance) != (*disc_final))
 	{
 		iter++;
@@ -941,9 +1015,9 @@ int ThetaStar3D::computePath(void)
 		}
 	}
 
-#ifdef SEND_EXPLORED_NODES_MARKERS
-	publishMarker(*min_distance, true);
-#endif
+// #ifdef SEND_EXPLORED_NODES_MARKERS
+// 	publishMarker(*min_distance, true);
+// #endif
 
 #ifdef PRINT_EXPLORED_NODES_NUMBER
 	ROS_INFO("Theta Star: Expanded nodes: %d", expanded_nodes_number_);
@@ -959,12 +1033,15 @@ int ThetaStar3D::computePath(void)
 	{
 		std::cerr << "Imposible to calculate a solution" << std::endl;
 	}
+	ROS_INFO("Disc initial: [%f, %f, %f]", disc_initial->point.x*step,disc_initial->point.y*step,disc_initial->point.z*step);
 
 	while (!noSolution && path_point != disc_initial)
 	{
 		point.x = path_point->point.x * step;
 		point.y = path_point->point.y * step;
 		point.z = path_point->point.z * step;
+		ROS_INFO("Inserting [%f, %f, %f]", point.x,point.y,point.z);
+		ROS_INFO("Parent is [%f, %f, %f]", path_point->parentNode->point.x*step,path_point->parentNode->point.y*step,path_point->parentNode->point.z*step);
 
 		last_path.insert(last_path.begin(), point);
 
@@ -975,6 +1052,82 @@ int ThetaStar3D::computePath(void)
 			break;
 		}
 	}
+}
+int ThetaStar3D::computePath(void)
+{
+	//~ printf("Calculating...\n");
+
+	if (disc_initial == NULL || disc_final == NULL)
+	{
+		std::cerr << "ThetaStar: Cannot calculate path. Initial or Final point not valid." << std::endl;
+		return 0;
+	}
+
+	marker.points.clear();
+	marker_no_los.points.clear();
+	geometry_msgs::Point p;
+	p.x = disc_initial->point.x * step;
+	p.y = disc_initial->point.y * step;
+	p.z = disc_initial->point.z * step;
+	marker.points.push_back(p);
+
+	//Initialize data structure. --> clear lists
+	ThetaStarNode3D *erase_node;
+	while (!open.empty())
+	{
+		erase_node = *open.begin();
+		open.erase(open.begin());
+		if (erase_node != NULL)
+		{
+			erase_node->nodeInWorld->isInCandidateList = false;
+			erase_node->nodeInWorld->isInOpenList = false;
+		}
+	}
+
+	while (!candidates.empty())
+	{
+		erase_node = *candidates.begin();
+		candidates.erase(candidates.begin());
+		if (erase_node != NULL)
+		{
+			erase_node->nodeInWorld->isInCandidateList = false;
+			erase_node->nodeInWorld->isInOpenList = false;
+		}
+	}
+
+	open.clear();
+	candidates.clear();
+
+	disc_initial->distanceFromInitialPoint = 0;
+	disc_initial->lineDistanceToFinalPoint = weightedDistanceToGoal(*disc_initial);
+	disc_initial->totalDistance = disc_initial->lineDistanceToFinalPoint + 0;
+	disc_initial->parentNode = disc_initial;
+
+	open.insert(disc_initial);
+	disc_initial->nodeInWorld->isInOpenList = true;
+
+	//Inicialize loop
+	// ThetaStarNode3D *min_distance = disc_initial; // s : current node
+	bool noSolution = false;
+	// long iter = 0;
+
+	if (isOccupied(*disc_initial) || isOccupied(*disc_final))
+	{
+		noSolution = true;
+		std::cerr << "ThetaStar: Initial or Final point not free." << std::endl;
+	}
+
+#ifdef PRINT_EXPLORED_NODES_NUMBER
+	expanded_nodes_number_ = 0;
+#endif
+
+	if(use_astar && !noSolution){
+		computeAStarPath();
+	}else if(!noSolution){
+		computeLazyThetaStarPath();
+	}
+
+
 	return last_path.size();
 }
 
@@ -1021,10 +1174,10 @@ bool ThetaStar3D::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw
 	{
 		// get next path position
 		next_position = last_path[i];
-		ROS_INFO("Next Position: [%.2f, %.2f, %.2f]", next_position.x, next_position.y, next_position.z);
+		// ROS_INFO("Next Position: [%.2f, %.2f, %.2f]", next_position.x, next_position.y, next_position.z);
 		// trajectory middle waypoints
 		middle_position = last_position;
-		ROS_INFO("Middle Position: [%.2f, %.2f, %.2f]", middle_position.x, middle_position.y, middle_position.z);
+		// ROS_INFO("Middle Position: [%.2f, %.2f, %.2f]", middle_position.x, middle_position.y, middle_position.z);
 
 		// two path points loop
 		pathPointGot = false;
@@ -1346,8 +1499,11 @@ void ThetaStar3D::getNeighbors(ThetaStarNode3D &node, set<ThetaStarNode3D *, Nod
 							new_neighbor->node->nodeInWorld = new_neighbor;
 							new_neighbor->node->parentNode = &node;
 						}
-
-						if (new_neighbor->isInCandidateList || lineofsight(node, *new_neighbor->node))
+						if(use_astar && new_neighbor->notOccupied && !new_neighbor->isInCandidateList){
+							neighbors.insert(new_neighbor->node);
+							continue;
+						}
+						if (!use_astar && new_neighbor->isInCandidateList || lineofsight(node, *new_neighbor->node))
 						{
 							neighbors.insert(new_neighbor->node);
 						}
@@ -1383,7 +1539,7 @@ void ThetaStar3D::publishMarker(ThetaStarNode3D &s, bool publish)
 	}
 
 #ifdef STEP_BY_STEP
-	usleep(1e4);
+	usleep(2e5);
 #endif
 }
 
@@ -1752,9 +1908,14 @@ void ThetaStar3D::confPrintRosWarn(bool print)
 	PRINT_WARNINGS = print;
 }
 void ThetaStar3D::set3DCostWeight(double cost){
+	if(use_astar)
+		return;
 	cost_weight = cost;
 }
 void ThetaStar3D::set3DMaxLineOfSightDist(double dist){
+	if(use_astar)
+		return;
+
 	line_of_sight = dist;
 }
 
