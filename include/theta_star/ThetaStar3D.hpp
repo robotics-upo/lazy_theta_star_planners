@@ -99,9 +99,14 @@ public:
 class ThetaStarNode3D
 {
 public:
-	ThetaStarNode3D() : parentNode(NULL), nodeInWorld(NULL), lineDistanceToFinalPoint(0),
-						distanceFromInitialPoint(0), totalDistance(0)
+	ThetaStarNode3D(bool astar = false) : parentNode(NULL), nodeInWorld(NULL), lineDistanceToFinalPoint(std::numeric_limits<float>::max()),
+						distanceFromInitialPoint(std::numeric_limits<float>::max()), totalDistance(std::numeric_limits<float>::max())
 	{
+		if(astar){
+			distanceFromInitialPoint = 0;
+			totalDistance = 0;
+			lineDistanceToFinalPoint = 0;
+		}
 	}
 
 	DiscretePosition point;			   // Discrete position of this node

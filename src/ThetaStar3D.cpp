@@ -402,7 +402,7 @@ bool ThetaStar3D::setInitialPosition(DiscretePosition p_)
 
 		if (initialNodeInWorld->node == NULL)
 		{
-			initialNodeInWorld->node = new ThetaStarNode3D();
+			initialNodeInWorld->node = new ThetaStarNode3D(use_astar);
 			initialNodeInWorld->node->point.x = p_.x;
 			initialNodeInWorld->node->point.x = p_.y;
 			initialNodeInWorld->node->point.x = p_.z;
@@ -441,7 +441,7 @@ bool ThetaStar3D::setInitialPosition(Vector3 p)
 
 		if (initialNodeInWorld->node == NULL)
 		{
-			initialNodeInWorld->node = new ThetaStarNode3D();
+			initialNodeInWorld->node = new ThetaStarNode3D(use_astar);
 			initialNodeInWorld->node->point.x = p_.x;
 			initialNodeInWorld->node->point.x = p_.y;
 			initialNodeInWorld->node->point.x = p_.z;
@@ -474,7 +474,7 @@ bool ThetaStar3D::setFinalPosition(DiscretePosition p_)
 
 		if (finalNodeInWorld->node == NULL)
 		{
-			finalNodeInWorld->node = new ThetaStarNode3D();
+			finalNodeInWorld->node = new ThetaStarNode3D(use_astar);
 			finalNodeInWorld->node->point.x = p_.x;
 			finalNodeInWorld->node->point.x = p_.y;
 			finalNodeInWorld->node->point.x = p_.z;
@@ -511,7 +511,7 @@ bool ThetaStar3D::setFinalPosition(Vector3 p)
 
 		if (finalNodeInWorld->node == NULL)
 		{
-			finalNodeInWorld->node = new ThetaStarNode3D();
+			finalNodeInWorld->node = new ThetaStarNode3D(use_astar);
 			finalNodeInWorld->node->point.x = p_.x;
 			finalNodeInWorld->node->point.y = p_.y;
 			finalNodeInWorld->node->point.z = p_.z;
@@ -881,7 +881,7 @@ void ThetaStar3D::computeAStarPath(){
 			ThetaStarNode3D *successor = findNodeOnList(open, it);
 			ThetaStarNode3D *successor2 = findNodeOnList(candidates, it);
 			if(successor == nullptr && successor2 == nullptr){
-				successor = new ThetaStarNode3D;
+				successor = new ThetaStarNode3D(use_astar);
 				successor = it;
 				successor->parentNode = current;
 				successor->lineDistanceToFinalPoint = weightedDistanceToGoal(*successor);
@@ -1498,7 +1498,7 @@ void ThetaStar3D::getNeighbors(ThetaStarNode3D &node, set<ThetaStarNode3D *, Nod
 
 						if (new_neighbor->node == NULL)
 						{
-							new_neighbor->node = new ThetaStarNode3D();
+							new_neighbor->node = new ThetaStarNode3D(use_astar);
 							new_neighbor->node->point.x = node_temp.x;
 							new_neighbor->node->point.y = node_temp.y;
 							new_neighbor->node->point.z = node_temp.z;
