@@ -17,7 +17,7 @@ namespace PathPlanners
 #define PRINT_EXPLORED_NODES_NUMBER
 // Uncomment to get the explored nodes (at time or slowly step_by_step)
 #define SEND_EXPLORED_NODES_MARKERS
-#define STEP_BY_STEP
+// #define STEP_BY_STEP
 // Uncomment to get non-LineOfSight visual markers
 //#define SEND_NO_LOFS_NODES_MARKERS
 // Uncomment to printf octree leaf free and occupied
@@ -851,35 +851,43 @@ void ThetaStar3D::computeAStarPath(){
 
 		// std::cout << "Open Size: "<< open.size()<<"Expanded Nodes: " << expanded_nodes_number_ << "  Current: [" << current->point.x << ", " << current->point.y << ", " << current->point.z << "]" << std::endl;
 
-		for(auto it = open.begin(); it != open.end(); it++){
+		/*for(auto it = open.begin(); it != open.end(); it++){
 			auto node = *it;
 			if(node->totalDistance <= current->totalDistance){
 				current = node;
 				current_it = it;
 			}
-		}
+		}*/
+		
+		std::cout<< "Current point: [" << current->point.x << ", " << current->point.y << ", " << current->point.z << "]" << 
+					" Parent: [" << current->parentNode->point.x << ", "                         << current->parentNode->point.y                         << ", " << current->parentNode->point.z << "]" << 
+					" Parent: [" << current->parentNode->parentNode->point.x << ", "             << current->parentNode->parentNode->point.y             << ", " << current->parentNode->parentNode->point.z << "]" << 
+					" Parent: [" << current->parentNode->parentNode->parentNode->point.x << ", " << current->parentNode->parentNode->parentNode->point.y << ", " << current->parentNode->parentNode->parentNode->point.z << "]" << std::endl;
+		candidates.insert(current);
+		
 		if( !((*current) != (*disc_final))){//Solution found
+			std::cout<< "Solution found!" << std::endl;
 			noSolution = false;
 			break;
 		}
 		
-		candidates.insert(current);
 		set<ThetaStarNode3D *, NodePointerComparator3D> neighbors;
 		getNeighbors(*current, neighbors);
-		std::cout << "Neighboors size: " << neighbors.size() << std::endl;
+		// std::cout << "Neighboors size: " << neighbors.size() << std::endl;
 		for(auto &it: neighbors){//Calculated neigbors does not produce collisions
 			
 			auto cost = current->totalDistance;
-			std::cout << "Current cost: " << current->totalDistance << std::endl;
+			// std::cout << "Current cost: " << current->totalDistance << std::endl;
 			ThetaStarNode3D *successor = findNodeOnList(open, it);
-			if(successor == nullptr){
+			ThetaStarNode3D *successor2 = findNodeOnList(candidates, it);
+			if(successor == nullptr && successor2 == nullptr){
 				successor = new ThetaStarNode3D;
 				successor = it;
+				successor->parentNode = current;
 				successor->lineDistanceToFinalPoint = weightedDistanceToGoal(*successor);
 				successor->totalDistance = weightedDistanceFromInitialPoint(*successor,*successor->parentNode) + successor->lineDistanceToFinalPoint;
-				std::cout << "Inserting node in list with line distance to final: " << successor->lineDistanceToFinalPoint << std::endl;
 				open.insert(successor);
-			}else if(cost < successor->totalDistance){
+			}else if( successor2 == nullptr && cost < successor->totalDistance){
 				successor->parentNode = current;
 				successor->totalDistance = cost;
 			}
@@ -914,7 +922,9 @@ void ThetaStar3D::computeAStarPath(){
 		point.y = path_point->point.y * step;
 		point.z = path_point->point.z * step;
 		ROS_INFO("Inserting [%f, %f, %f]", point.x,point.y,point.z);
-		ROS_INFO("Parent is [%f, %f, %f]", path_point->parentNode->point.x*step,path_point->parentNode->point.y*step,path_point->parentNode->point.z*step);
+		ROS_INFO("\tParent is [%f, %f, %f]", path_point->parentNode->point.x*step,path_point->parentNode->point.y*step,path_point->parentNode->point.z*step);
+		ROS_INFO("\t\ttParent is [%f, %f, %f]", path_point->parentNode->parentNode->point.x*step,path_point->parentNode->parentNode->point.y*step,path_point->parentNode->parentNode->point.z*step);
+		ROS_INFO("\t\t\tParent is [%f, %f, %f]", path_point->parentNode->parentNode->parentNode->point.x*step,path_point->parentNode->parentNode->parentNode->point.y*step,path_point->parentNode->parentNode->parentNode->point.z*step);
 
 		last_path.insert(last_path.begin(), point);
 
@@ -924,13 +934,16 @@ void ThetaStar3D::computeAStarPath(){
 			last_path.clear();
 			break;
 		}
+#ifdef STEP_BY_STEP
+	usleep(2e5);
+#endif
 	}
 
 }
 ThetaStarNode3D* ThetaStar3D::findNodeOnList(set<ThetaStarNode3D *, NodePointerComparator3D> &_set, ThetaStarNode3D *node){
 	for(auto &it: _set){
 		if( ! (*it != *node) ){
-			std::cout << "Node found in open list!" << std::endl;
+			// std::cout << "Node found in open list!" << std::endl;
 			return node;
 		}
 	}
