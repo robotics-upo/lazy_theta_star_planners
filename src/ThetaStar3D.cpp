@@ -1162,11 +1162,13 @@ int ThetaStar3D::computePath(void)
 		double final_closest = std::fabs((std::log(prob_final / 100 ) / cost_scaling_factor_ ) ) + robot_radius_;
 
 		std::vector<float> closest_distances;
+		int i = 0;
 		for(auto &it: last_path){
-			if(it == *last_path.begin() || it == *last_path.end() )
+			if(i == 0 || i == last_path.size()-1 )
 				continue;
 
 			closest_distances.push_back( getClosestObstacle(it));
+			++i;
 		}
 		auto minmax = std::minmax_element(closest_distances.begin(), closest_distances.end());
 		out_file_data_ << std::boolalpha << use_astar     << ", " << robot_radius_          << ", " << cost_scaling_factor_ << ", " << 
