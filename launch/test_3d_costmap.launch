@@ -9,6 +9,8 @@
     <param name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="astar_mode"  default="false"/>
     <param name="/theta_star_3d/astar_mode" value="$(arg astar_mode)"/>
+    <param name="/theta_star_3d/save_data_to_file" value="true"/>
+    <param name="/theta_star_3d/data_filename" value="$(env HOME)/theta_star_3d_data.txt"/>
 
     <node pkg="theta_star_2d" type="global_planner_node" name="global_planner_node" output="screen" required="true">
         <param name="map_path"               value="$(arg map)"/>
@@ -34,6 +36,10 @@
         <param name="robot_base_frame" value="base_link"/>
         <param name="wait_for_servers" value="false"/>
         <param name="timeout"   value="$(arg timeout)"/>
+        <param name="traj_dxy_max" value="10"/>
+        <param name="traj_pos_tol" value="10"/>
+        <param name="traj_yaw_tol" value="6"/>
+        <param name="traj_dz_max" value="10"/>
     </node>
 
     <node pkg="static_tf_dyncfg" name="static_tf_dyncfg_node" type="static_tf_dyncfg_node" args="map base_link 13 13 3 0 0 0"/>

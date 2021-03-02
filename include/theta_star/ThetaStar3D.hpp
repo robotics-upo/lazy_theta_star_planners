@@ -37,6 +37,10 @@
 #include <algorithm>
 #include "theta_star/grid3d.hpp"
 #include <theta_star_2d/SetCostParams.h>
+#include <std_srvs/Trigger.h>
+#include <fstream>
+#include <ctime>
+#include <sys/timeb.h>
 
 #define PRINTF_REGULAR "\x1B[0m"
 #define PRINTF_RED "\x1B[31m"
@@ -525,6 +529,8 @@ protected:
 		   @param node to publish his position
 		   @param Set true to publish it instantly or false to simply push back at the marker array to publish later
 		**/
+	bool switchAstar(std_srvs::Trigger::Request &_req, std_srvs::Trigger::Response &_rep);
+
 	void publishMarker(ThetaStarNode3D &s, bool publish);
 	/** Inline Functions **/
 
@@ -913,7 +919,7 @@ protected:
 	RVizMarker marker_no_los; // Explored nodes with no lineOfSight
 	ros::Publisher no_los_marker_pub_;
 	ros::Publisher closest_distances_pub_, closest_distance_pub_;
-	ros::ServiceServer set_cost_params_server_;
+	ros::ServiceServer set_cost_params_server_, switch_astar_server_;
 
 	double minR;
 	// Trajectory parameters
@@ -935,8 +941,11 @@ protected:
 	double cost_weight, line_of_sight;
 	int expanded_nodes_number_ = 0;
 
-	double cost_scaling_factor_;
-	double robot_radius_;
+	double cost_scaling_factor_=0;
+	double robot_radius_=0;
+	std::ofstream out_file_data_;
+	std::string data_file;
+	bool save_data_;
 };
 
 } /* namespace PathPlanners */

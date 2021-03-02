@@ -134,18 +134,28 @@ void ThetaStar3D::init(std::string plannerName, std::string frame_id, float ws_x
 	closest_distances_pub_  = nh->advertise<std_msgs::Float32MultiArray>("/theta_star_3d/closest_distances", 1);
 	closest_distance_pub_   = nh->advertise<std_msgs::Float32>("/theta_star_3d/closest_distance", 1);
     set_cost_params_server_ = nh->advertiseService("/theta_star_3d/set_costs_values", &ThetaStar3D::setCostsParamsSrv, this);
+    switch_astar_server_ = nh->advertiseService("/theta_star_3d/switch_astar", &ThetaStar3D::switchAstar, this);
 
 	nh->param("/theta_star_3d/astar_mode", use_astar, false);
 	if(use_astar){
-		goal_weight_ = 1.0; //No goal weight
-		z_weight_cost_ = 1.0;
+		goal_weight = 1.0; //No goal weight
+		z_weight_cost  = 1.0;
 		cost_weight = 0.0;
 		std::cout<<"Using A* Algorithm" << std::endl;
 	}
+	nh->param("/theta_star_3d/save_data_to_file", save_data_, false);
+	nh->param("/theta_star_3d/data_filename", data_file, (std::string)"");
+	if(save_data_){
+		out_file_data_.open(data_file, std::ofstream::app);
+	}
+	
 }
 
 ThetaStar3D::~ThetaStar3D()
 {
+	if(save_data_){
+		out_file_data_.close();
+	}
 }
 void ThetaStar3D::setTrajectoryParams(float dxy_max_, float dz_max_, float dxyz_tolerance_, float vm_xy_, float vm_z_, float vm_xy_1_, float vm_z_1_, float w_yaw_, float min_yaw_ahead_)
 {
@@ -1062,7 +1072,10 @@ void ThetaStar3D::computeLazyThetaStarPath(){
 int ThetaStar3D::computePath(void)
 {
 	//~ printf("Calculating...\n");
+	struct timeb start, finish;
+    float seconds, milliseconds;
 
+ 	ftime(&start);
 	if (disc_initial == NULL || disc_final == NULL)
 	{
 		std::cerr << "ThetaStar: Cannot calculate path. Initial or Final point not valid." << std::endl;
@@ -1132,8 +1145,43 @@ int ThetaStar3D::computePath(void)
 	}else if(!noSolution){
 		computeLazyThetaStarPath();
 	}
+    ftime(&finish);
 
+	if(save_data_){
 
+    	seconds = finish.time - start.time - 1;
+    	milliseconds = (1000 - start.millitm) + finish.millitm;
+		double time_spent =  milliseconds + seconds * 1000;
+		// out_file_data_ << "AStar "<< ", " << "Robot Radius" << ", " << "Cost Scaling Factor" << ", " << 
+		//                   "Cost Weight" << ", " << "Line of sight" << ", " << "Number of points" << ", " << 
+		//					 "Path lenght" << ", " << "Nodos explorados" << "Tiempo" <<  std::endl;
+		float x, y, z;
+    	double pathLength = 0;
+    	for (int i = 0; i < last_path.size()-1; i++)
+    	{
+    	    x = last_path.at(i).x - last_path.at(i+1).x;
+    	    y = last_path.at(i).y - last_path.at(i+1).y;
+    	    z = last_path.at(i).z - last_path.at(i+1).z;
+    	    pathLength += sqrtf(x * x + y * y + z * z);
+    	}
+
+		double prob_init  = m_grid3d->getProbabilityFromPoint(disc_initial->point.x*step, disc_initial->point.y*step, disc_initial->point.z*step);
+		double prob_final = m_grid3d->getProbabilityFromPoint(disc_final->point.x*step, disc_final->point.y*step, disc_final->point.z*step);
+
+		double init_closest  = std::fabs((std::log(prob_init  / 100 ) / cost_scaling_factor_ ) ) + robot_radius_;
+		double final_closest = std::fabs((std::log(prob_final / 100 ) / cost_scaling_factor_ ) ) + robot_radius_;
+
+		std::vector<float> closest_distances;
+		for(auto &it: last_path){
+			closest_distances.push_back( getClosestObstacle(it));
+		}
+		auto minmax = std::minmax_element(closest_distances.begin(), closest_distances.end());
+		out_file_data_ << std::boolalpha << use_astar     << ", " << robot_radius_          << ", " << cost_scaling_factor_ << ", " << 
+		                  				cost_weight       << ", " << line_of_sight          << ", " << last_path.size()     << ", " << 
+										pathLength        << ", " << expanded_nodes_number_ << ", " << time_spent           <<  "," << 
+										init_closest      << ","  << final_closest          << ", " << *minmax.first << ", " <<
+										*minmax.second << std::endl;
+	}
 	return last_path.size();
 }
 
@@ -1904,7 +1952,20 @@ bool ThetaStar3D::setCostsParamsSrv(theta_star_2d::SetCostParams::Request& _req,
 	_rep.message = "Cost scaling factor set to " + std::to_string(cost_scaling_factor_) + ", Robot radius set to " + std::to_string(robot_radius_);
 	return true;
 }
-
+bool ThetaStar3D::switchAstar(std_srvs::Trigger::Request &_req, std_srvs::Trigger::Response &_rep){
+	
+	if(use_astar){
+		use_astar = false;
+	}else{
+		goal_weight = 1.0; //No goal weight
+		z_weight_cost = 1.0;
+		cost_weight = 0.0;
+		std::cout<<"Using A* Algorithm" << std::endl;
+		use_astar  = true;
+	}
+	_rep.success = true;
+	return true;
+}
 void ThetaStar3D::setMinObstacleRadius(double minR_){
 	minR=minR_;
 }

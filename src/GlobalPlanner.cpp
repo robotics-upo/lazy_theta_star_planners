@@ -60,7 +60,7 @@ bool GlobalPlanner::GetPathService(theta_star_2d::RequestPathRequest &req, theta
         rep.nodes_explored.data = theta3D.getExploredNodesNumber();
         rep.number_of_points.data = number_of_points;
         rep.path_lenght.data = pathLength;
-        rep.seconds_spents.data = seconds;
+        rep.seconds_spents.data = milliseconds + seconds * 1000;
         return true;
     }else{
         return false;
