@@ -1,8 +1,8 @@
 <launch>
     <arg name="use_sim_time" default="false"/>
     <arg name="timeout" default="350"/>
-    <arg name="goal_weight" default="1.1"/>
-    <arg name="cost_weight" default="0.1"/>
+    <arg name="goal_weight" default="1"/>
+    <arg name="cost_weight" default="0.15"/>
     <arg name="line_of_sight_distance" default="2"/>
     <arg name="map" default="$(find theta_star_2d)/maps/octomap_full.bt"/>
     <arg name="batch_mode" default="false"/>
