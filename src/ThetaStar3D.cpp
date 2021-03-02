@@ -858,16 +858,6 @@ void ThetaStar3D::computeAStarPath(){
 		auto current_it = open.begin();
 		current = *current_it;
 		open.erase(current_it);
-
-		// std::cout << "Open Size: "<< open.size()<<"Expanded Nodes: " << expanded_nodes_number_ << "  Current: [" << current->point.x << ", " << current->point.y << ", " << current->point.z << "]" << std::endl;
-
-		/*for(auto it = open.begin(); it != open.end(); it++){
-			auto node = *it;
-			if(node->totalDistance <= current->totalDistance){
-				current = node;
-				current_it = it;
-			}
-		}*/
 		
 		std::cout<< "Current point: [" << current->point.x << ", " << current->point.y << ", " << current->point.z << "]" << 
 					" Parent: [" << current->parentNode->point.x << ", "                         << current->parentNode->point.y                         << ", " << current->parentNode->point.z << "]" << 
@@ -1173,6 +1163,9 @@ int ThetaStar3D::computePath(void)
 
 		std::vector<float> closest_distances;
 		for(auto &it: last_path){
+			if(it == *last_path.begin() || it == *last_path.end() )
+				continue;
+
 			closest_distances.push_back( getClosestObstacle(it));
 		}
 		auto minmax = std::minmax_element(closest_distances.begin(), closest_distances.end());
