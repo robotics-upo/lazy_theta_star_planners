@@ -1137,7 +1137,7 @@ int ThetaStar3D::computePath(void)
 	}
     ftime(&finish);
 
-	if(save_data_){
+	if(!noSolution && last_path.size() != 0 && save_data_){
 
     	seconds = finish.time - start.time - 1;
     	milliseconds = (1000 - start.millitm) + finish.millitm;
@@ -1155,19 +1155,13 @@ int ThetaStar3D::computePath(void)
     	    pathLength += sqrtf(x * x + y * y + z * z);
     	}
 
-		double prob_init  = m_grid3d->getProbabilityFromPoint(disc_initial->point.x*step, disc_initial->point.y*step, disc_initial->point.z*step);
-		double prob_final = m_grid3d->getProbabilityFromPoint(disc_final->point.x*step, disc_final->point.y*step, disc_final->point.z*step);
-
-		double init_closest  = std::fabs((std::log(prob_init  / 100 ) / cost_scaling_factor_ ) ) + robot_radius_;
-		double final_closest = std::fabs((std::log(prob_final / 100 ) / cost_scaling_factor_ ) ) + robot_radius_;
-
 		std::vector<float> closest_distances;
-		for(int i = 1; i < (last_path.size()-1); ++i)
-			closest_distances.push_back( getClosestObstacle(last_path.at(i)));
+		for(auto &it: last_path)
+			closest_distances.push_back( getClosestObstacle(it));
 		
-		auto minmax = std::minmax_element(closest_distances.begin(), closest_distances.end());
+		auto minmax = std::minmax_element(closest_distances.begin()+1, closest_distances.end()-1);
 		float min   = std::numeric_limits<float>::max();
-		double max  = std::numeric_limits<float>::max();
+		float max  = std::numeric_limits<float>::max();
 
 		if(minmax.first != closest_distances.end()) 
 			min = *minmax.first;
@@ -1175,6 +1169,9 @@ int ThetaStar3D::computePath(void)
 		if(minmax.second != closest_distances.end()) 
 			max = *minmax.second;
 
+		auto init_closest = *closest_distances.begin();
+		auto final_closest = *closest_distances.end();
+		
 		out_file_data_ << std::boolalpha << use_astar     << ", " << robot_radius_          << ", " << cost_scaling_factor_ << ", " << 
 		                  				cost_weight       << ", " << line_of_sight          << ", " << last_path.size()     << ", " << 
 										pathLength        << ", " << expanded_nodes_number_ << ", " << time_spent           <<  "," << 
