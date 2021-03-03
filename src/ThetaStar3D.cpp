@@ -921,11 +921,11 @@ void ThetaStar3D::computeAStarPath(){
 		point.x = path_point->point.x * step;
 		point.y = path_point->point.y * step;
 		point.z = path_point->point.z * step;
-		ROS_INFO("Inserting [%f, %f, %f]", point.x,point.y,point.z);
+		/*ROS_INFO("Inserting [%f, %f, %f]", point.x,point.y,point.z);
 		ROS_INFO("\tParent is [%f, %f, %f]", path_point->parentNode->point.x*step,path_point->parentNode->point.y*step,path_point->parentNode->point.z*step);
 		ROS_INFO("\t\ttParent is [%f, %f, %f]", path_point->parentNode->parentNode->point.x*step,path_point->parentNode->parentNode->point.y*step,path_point->parentNode->parentNode->point.z*step);
 		ROS_INFO("\t\t\tParent is [%f, %f, %f]", path_point->parentNode->parentNode->parentNode->point.x*step,path_point->parentNode->parentNode->parentNode->point.y*step,path_point->parentNode->parentNode->parentNode->point.z*step);
-
+		*/
 		last_path.insert(last_path.begin(), point);
 
 		path_point = path_point->parentNode;
@@ -1046,8 +1046,8 @@ void ThetaStar3D::computeLazyThetaStarPath(){
 		point.x = path_point->point.x * step;
 		point.y = path_point->point.y * step;
 		point.z = path_point->point.z * step;
-		ROS_INFO("Inserting [%f, %f, %f]", point.x,point.y,point.z);
-		ROS_INFO("Parent is [%f, %f, %f]", path_point->parentNode->point.x*step,path_point->parentNode->point.y*step,path_point->parentNode->point.z*step);
+		//ROS_INFO("Inserting [%f, %f, %f]", point.x,point.y,point.z);
+		//ROS_INFO("Parent is [%f, %f, %f]", path_point->parentNode->point.x*step,path_point->parentNode->point.y*step,path_point->parentNode->point.z*step);
 
 		last_path.insert(last_path.begin(), point);
 
@@ -1162,20 +1162,24 @@ int ThetaStar3D::computePath(void)
 		double final_closest = std::fabs((std::log(prob_final / 100 ) / cost_scaling_factor_ ) ) + robot_radius_;
 
 		std::vector<float> closest_distances;
-		int i = 0;
-		for(auto &it: last_path){
-			if(i == 0 || i == last_path.size()-1 )
-				continue;
-
-			closest_distances.push_back( getClosestObstacle(it));
-			++i;
-		}
+		for(int i = 1; i < (last_path.size()-1); ++i)
+			closest_distances.push_back( getClosestObstacle(last_path.at(i)));
+		
 		auto minmax = std::minmax_element(closest_distances.begin(), closest_distances.end());
+		float min   = std::numeric_limits<float>::max();
+		double max  = std::numeric_limits<float>::max();
+
+		if(minmax.first != closest_distances.end()) 
+			min = *minmax.first;
+		
+		if(minmax.second != closest_distances.end()) 
+			max = *minmax.second;
+
 		out_file_data_ << std::boolalpha << use_astar     << ", " << robot_radius_          << ", " << cost_scaling_factor_ << ", " << 
 		                  				cost_weight       << ", " << line_of_sight          << ", " << last_path.size()     << ", " << 
 										pathLength        << ", " << expanded_nodes_number_ << ", " << time_spent           <<  "," << 
-										init_closest      << ","  << final_closest          << ", " << *minmax.first << ", " <<
-										*minmax.second << std::endl;
+										init_closest      << ","  << final_closest          << ", " << min << ", " <<
+										max << std::endl;
 	}
 	return last_path.size();
 }
@@ -1935,7 +1939,10 @@ double ThetaStar3D::getClosestObstacle(const geometry_msgs::Vector3 &positon){
 	double prob = m_grid3d->getProbabilityFromPoint(positon.x, positon.y, positon.z);
 	//Inverse the probabilty function to get dist:
 	//! prob = 100*exp(-cost_scaling_factor*std::fabs((dist - robot_radius)));
-
+	if(cost_scaling_factor_ == 0){
+		ROS_ERROR("You should set cost scaling factor to calculate obstacle dist to a value different than 0");
+		return 0;
+	}
 	double closest = std::fabs((std::log(prob / 100 ) / cost_scaling_factor_ ) )+ robot_radius_;
 	return closest;
 }
