@@ -1156,8 +1156,21 @@ int ThetaStar3D::computePath(void)
     	}
 
 		std::vector<float> closest_distances;
-		for(auto &it: last_path)
-			closest_distances.push_back( getClosestObstacle(it));
+		float closest = std::numeric_limits<float>::max();
+		float dist;
+		std::cout << "Before " << discrete_world.size() << std::endl;
+		for(auto &it: last_path){
+			for(int i = 0; i < occupancy_marker.points.size(); i++){
+				x =  occupancy_marker.points[i].x - it.x;
+				y =  occupancy_marker.points[i].y - it.y;
+				z =  occupancy_marker.points[i].z - it.z;
+				dist = sqrtf(x*x+y*y+z*z);
+				if( dist < closest)
+					closest = dist;
+			}
+			closest_distances.push_back(closest);
+			closest = std::numeric_limits<float>::max();
+		}
 		
 		auto minmax = std::minmax_element(closest_distances.begin()+1, closest_distances.end()-1);
 		float min   = std::numeric_limits<float>::max();
