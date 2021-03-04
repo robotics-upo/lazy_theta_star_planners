@@ -345,6 +345,7 @@ void GlobalPlanner::configMarkers(std::string ns)
     raycastnofreeMarker.scale.y = 0.05;
     // raycastfreenoMarker.scale.z = 0.05;
 }
+
 void GlobalPlanner::configParams3D()
 {
     //At startup, no goal and no costmap received yet
@@ -401,6 +402,7 @@ void GlobalPlanner::configParams3D()
 
     configMarkers("global_path_3d");
 }
+
 void GlobalPlanner::sendPathToLocalPlannerServer()
 {
     //Take the calculated path, insert it into an action, in the goal (ExecutePath.action)
@@ -415,6 +417,7 @@ void GlobalPlanner::sendPathToLocalPlannerServer()
 
     execute_path_client_ptr->sendGoal(goal_action);
 }
+
 void GlobalPlanner::publishMakePlanFeedback()
 {
     float x = 0, y = 0, z = 0;
@@ -470,6 +473,7 @@ void GlobalPlanner::publishMakePlanFeedback()
     make_plan_fb.percent_achieved.data = data_;
     make_plan_server_ptr->publishFeedback(make_plan_fb);
 }
+
 int GlobalPlanner::getClosestWaypoint()
 {
 
@@ -491,6 +495,7 @@ int GlobalPlanner::getClosestWaypoint()
     }
     return waypoint;
 }
+
 void GlobalPlanner::makePlanGoalCB()
 {
     //Cancel previous executing plan
@@ -532,6 +537,7 @@ void GlobalPlanner::makePlanGoalCB()
         make_plan_server_ptr->setAborted(make_plan_res, "Impossible to calculate a solution");
     }
 }
+
 void GlobalPlanner::makePlanPreemptCB()
 {
     make_plan_res.finished = false;
@@ -543,6 +549,7 @@ void GlobalPlanner::makePlanPreemptCB()
     execute_path_client_ptr->cancelAllGoals();
     clearMarkers();
 }
+
 bool GlobalPlanner::replan()
 {
     if (!use3d)
@@ -581,6 +588,7 @@ bool GlobalPlanner::replan()
         return false;
     }
 }
+
 void GlobalPlanner::clearMarkers()
 {
 
@@ -626,7 +634,6 @@ void GlobalPlanner::clearMarkersRayCast()
 }
 /**
  * This is the main function executed in loop
- * 
  **/
 void GlobalPlanner::plan()
 {
@@ -676,6 +683,7 @@ void GlobalPlanner::plan()
         }
     }
 }
+
 bool GlobalPlanner::calculatePath()
 {
     //It seems that you can get a goal and no map and try to get a path but setGoal and setStart will check if the points are valid
@@ -818,6 +826,7 @@ bool GlobalPlanner::calculatePath()
 
     return ret;
 }
+
 void GlobalPlanner::calculatePathLength()
 {
     float x, y, z;
@@ -833,6 +842,7 @@ void GlobalPlanner::calculatePathLength()
     ROS_INFO_COND(debug,PRINTF_MAGENTA"Global path lenght: %f, number of points: %d", pathLength, (int)trajectory.points.size());
 
 }
+
 geometry_msgs::TransformStamped GlobalPlanner::getRobotPose()
 {
     geometry_msgs::TransformStamped ret;
@@ -848,6 +858,7 @@ geometry_msgs::TransformStamped GlobalPlanner::getRobotPose()
     }
     return ret;
 }
+
 void GlobalPlanner::publishTrajectory2D()
 {
 
@@ -1002,6 +1013,7 @@ void GlobalPlanner::publishTrajectory3D()
     visMarkersPublisher.publish(lineMarker);
     visMarkersPublisher.publish(waypointsMarker);
 }
+
 bool GlobalPlanner::setGoal()
 {
     bool ret = false;
@@ -1030,6 +1042,7 @@ bool GlobalPlanner::setGoal()
 
     return ret;
 }
+
 bool GlobalPlanner::setStart(geometry_msgs::Vector3Stamped &start)
 {
     bool ret = false;

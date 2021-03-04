@@ -1413,7 +1413,7 @@ bool ThetaStar3D::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw
 				setPositionYawAndTime(trajectory_point, middle_position, fixed_yaw, total_time);
 				trajectory.points.push_back(trajectory_point);
 
-#ifdef USE_CATENARY_COMPUTE
+				#ifdef USE_CATENARY_COMPUTE
 				double lengthToset;
 				length_catenary_aux.clear();
 				for(size_t j=0 ; j < length_catenary.size(); j++){
@@ -1436,7 +1436,7 @@ bool ThetaStar3D::getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw
 						length_catenary.push_back(lengthToset);
 					length_catenary.push_back(length_catenary_aux[j]);
 				}
-#endif 			
+			#endif 			
 				count_j_++;
 				//.. to the algorihtm
 				last_position = middle_position;

@@ -44,9 +44,9 @@
   <exec_depend>pcl_conversions</exec_depend>
   <exec_depend>pcl_ros</exec_depend>
 
-  <build_depend>marsupial_g2o</build_depend> 
-  <exec_depend>marsupial_g2o</exec_depend> 
-  <build_export_depend>marsupial_g2o</build_export_depend>
+  <build_depend>marsupial_optimizer</build_depend> 
+  <exec_depend>marsupial_optimizer</exec_depend> 
+  <build_export_depend>marsupial_optimizer</build_export_depend>
 
 
 

@@ -20,7 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   octomap_ros
   pcl_conversions
   pcl_ros
-  marsupial_g2o
+  marsupial_optimizer
 )
 find_package(Boost REQUIRED COMPONENTS system)
 
@@ -43,7 +43,7 @@ generate_dynamic_reconfigure_options(
 
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS roscpp upo_actions message_runtime octomap_msgs octomap_ros pcl_conversions pcl_ros marsupial_g2o
+  CATKIN_DEPENDS roscpp upo_actions message_runtime octomap_msgs octomap_ros pcl_conversions pcl_ros marsupial_optimizer
   DEPENDS octomap_msgs octomap_ros
   LIBRARIES ${EXTERNAL_LIBS} 
 )
@@ -63,11 +63,11 @@ include_directories(include/
 #add_dependencies(sim_planner_node ${catkin_EXPORTED_TARGETS})
 
 add_executable(global_planner_node src/global_planner_node.cpp src/GlobalPlanner.cpp src/ThetaStar2D.cpp src/ThetaStar3D.cpp )
-target_link_libraries(global_planner_node  marsupial_g2o ${catkin_LIBRARIES} ${EXTERNAL_LIBS})
+target_link_libraries(global_planner_node  marsupial_optimizer ${catkin_LIBRARIES} ${EXTERNAL_LIBS})
 add_dependencies(global_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 add_executable(local_planner_node src/local_planner_node.cpp src/LocalPlanner.cpp src/ThetaStar2D.cpp src/ThetaStar3D.cpp )
-target_link_libraries(local_planner_node marsupial_g2o ${catkin_LIBRARIES} ${EXTERNAL_LIBS})
+target_link_libraries(local_planner_node marsupial_optimizer ${catkin_LIBRARIES} ${EXTERNAL_LIBS})
 add_dependencies(local_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 add_executable(custom_costmap_node src/custom_costmap_node.cpp)

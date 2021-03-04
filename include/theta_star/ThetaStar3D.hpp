@@ -18,7 +18,7 @@
 #include <ros/ros.h>
 #include <geometry_msgs/Vector3.h>
 #include <geometry_msgs/Point.h>
-#include "marsupial_g2o/bisection_catenary_3D.h"
+#include "misc/bisection_catenary_3D.h"
 
 #include <visualization_msgs/Marker.h>
 
