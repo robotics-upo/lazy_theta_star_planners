@@ -42,7 +42,9 @@
         <param name="traj_dz_max" value="10"/>
     </node>
 
-    <node pkg="static_tf_dyncfg" name="static_tf_dyncfg_node" type="static_tf_dyncfg_node" args="map base_link 13 13 3 0 0 0"/>
+    <!-- <node pkg="static_tf_dyncfg" name="static_tf_dyncfg_node" type="static_tf_dyncfg_node" args="map base_link 33 15 3 0 0 0"/> -->
+    <!-- Para el local planner -->
+    <node pkg="static_tf_dyncfg" name="static_tf_dyncfg_node" type="static_tf_dyncfg_node" args="map base_link 37 20 6 0 0 0"/>
     <node pkg="rqt_publisher" name="rqt_publisher" type="rqt_publisher" unless="$(arg batch_mode)"/>
     <node pkg="rqt_reconfigure" name="rqt_reconfigure" type="rqt_reconfigure" unless="$(arg batch_mode)"/>
 

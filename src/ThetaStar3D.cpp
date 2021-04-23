@@ -63,6 +63,21 @@ void ThetaStar3D::init(std::string plannerName, std::string frame_id, float ws_x
 	ws_z_min = ((ws_z_min_ / step_) - 1);
 
 	step = step_;
+
+	// std::cout << "workspace_x_min: " << ws_x_min_ << std::endl;
+	// std::cout << "workspace_x_max: " << ws_x_max_ << std::endl;
+	// std::cout << "workspace_y_min: " << ws_y_min_ << std::endl;
+	// std::cout << "workspace_y_max: " << ws_y_max_ << std::endl;
+	// std::cout << "workspace_z_min: " << ws_z_min_ << std::endl;
+	// std::cout << "workspace_z_max: " << ws_z_max_ << std::endl;
+	// std::cout << "step: " << step << std::endl;
+	// std::cout << "workspace_x_min: " << ws_x_min << std::endl;
+	// std::cout << "workspace_x_max: " << ws_x_max << std::endl;
+	// std::cout << "workspace_y_min: " << ws_y_min << std::endl;
+	// std::cout << "workspace_y_max: " << ws_y_max << std::endl;
+	// std::cout << "workspace_z_min: " << ws_z_min << std::endl;
+	// std::cout << "workspace_z_max: " << ws_z_max << std::endl;
+
 	step_inv = 1.0 / step_;
 	h_inflation = (int)(h_inflation_ / step_);
 	v_inflation = (int)(v_inflation_ / step_);
@@ -562,6 +577,20 @@ bool ThetaStar3D::lineofsight(ThetaStarNode3D &p1, ThetaStarNode3D &p2)
 	float min_distance = 5.0 * step; // 1.9; //sqrt(8);
 	int extra_cells = 0;			 // min(2.0f,min_distance);
 
+	// std::cout << "workspace_x_min: " << ws_x_min << std::endl;
+	// std::cout << "workspace_x_max: " << ws_x_max << std::endl;
+	// std::cout << "workspace_y_min: " << ws_y_min << std::endl;
+	// std::cout << "workspace_y_max: " << ws_y_max << std::endl;
+	// std::cout << "workspace_z_min: " << ws_z_min << std::endl;
+	// std::cout << "workspace_z_max: " << ws_z_max << std::endl;
+
+	// std::cout << "P1_x: " << p1.point.x << std::endl;
+	// std::cout << "P1_y: " << p1.point.y << std::endl;
+	// std::cout << "P1_z: " << p1.point.z << std::endl;
+	// std::cout << "P2_x: " << p2.point.x << std::endl;
+	// std::cout << "P2_y: " << p2.point.y << std::endl;
+	// std::cout << "P2_z: " << p1.point.z << std::endl;
+
 	//distance doble triangle.
 	int x0 = max(min(p1.point.x, p2.point.x) - extra_cells, ws_x_min);
 	int x1 = min(max(p1.point.x, p2.point.x) + extra_cells, ws_x_max);
@@ -573,17 +602,16 @@ bool ThetaStar3D::lineofsight(ThetaStarNode3D &p1, ThetaStarNode3D &p2)
 	if (isOccupied(p1) || isOccupied(p2))
 		return false;
 
-    if (distanceBetween2nodes(p1, p2) > line_of_sight/step )
+    float base = distanceBetween2nodes(p1, p2);
+	if (base > line_of_sight/step )
 		return false;
-	
-
-	float base = distanceBetween2nodes(p1, p2);
+		
 	for (int x = x0; x <= x1; x++)
 		for (int y = y0; y <= y1; y++)
 			for (int z = z0; z <= z1; z++)
 			{
 				//If the point is occupied, we have to calculate distance to the line.
-				if (!discrete_world[getWorldIndex(x, y, z)].notOccupied)
+				if (!discrete_world[getWorldIndex(x, y, z)].notOccupied)  //notOccupied false means that the cell is occupied.
 				{
 					//If base is zero and node is occcupied, directly does not exist line of sight
 					if (base == 0)
@@ -627,6 +655,249 @@ bool ThetaStar3D::lineofsight(ThetaStarNode3D &p1, ThetaStarNode3D &p2)
 	
 	return true;
 }
+
+bool ThetaStar3D::bresenham3D(ThetaStarNode3D &p1, ThetaStarNode3D &p2)
+{
+	//Save solution in visitors.point.x, visitors.point.y and visitors.point.z
+	Vector3 point;
+	int xs, ys, zs, px, py, pz, d1, d2, tam;
+	int x0=p1.point.x;
+	int y0=p1.point.y;
+	int z0=p1.point.z;
+	int x1=p2.point.x;
+	int y1=p2.point.y;
+	int z1=p2.point.z;
+
+	int dx=abs(x1-x0);
+	int dy=abs(y1-y0);
+	int dz=abs(z1-z0);
+
+	if (isOccupied(p1) || isOccupied(p2))
+		return false;
+
+    float base = distanceBetween2nodes(p1, p2);
+	if (base > line_of_sight/step )
+		return false;
+
+	list_visitors.clear();
+
+	if (x1>x0){
+		xs=1;
+	} else {
+		xs = -1;
+	}
+	if (y1>y0){
+		ys=1;
+	} else {
+		ys = -1;
+	}
+	if (z1>z0){
+		zs=1;
+	} else {
+		zs = -1;
+	}
+
+	//Driving axis is X-axis
+	if (dx >=dy && dx >= dz)
+	{
+		d1 = 2*dy - dx;
+		d2 = 2*dz - dx;
+		while (x0 != x1)
+		{
+			x0 += xs;
+			if (d1>=0){
+				y0 += ys;
+				d1 -= 2*dx;
+			}
+			if (d2>=0){
+				z0 +=zs;
+				d2 -= 2*dx;				
+			}
+			d1 += 2*dy;
+			d2 += 2*dz;
+			//Check if visitor is occupied and add visitor
+			if (!discrete_world[getWorldIndex(x0, y0, z0)].notOccupied)
+			{
+				return false;
+			}
+			// JAC: Check how I need to return visitors (points or nodes)
+			// point.x = x0 * step;
+			// point.y = y0 * step;
+			// point.z = z0 * step;
+			point.x = x0;
+			point.y = y0;
+			point.z = z0;
+			list_visitors.insert(list_visitors.begin(), point);				
+		}
+		// tam=list_visitors.size();
+		// std::cout << "Visitors: " << tam << std::endl;
+	} 
+		//Driving axis is Y-axis
+	else if (dy >= dx && dy>= dz)
+	{
+		d1 = 2 * dx - dy;
+		d2 = 2 * dz - dy;
+		while (y0 != y1)
+		{
+			y0 += ys;
+			if (d1>=0){
+				x0 += xs;
+				d1 -= 2*dy;
+			}
+			if (d2>=0){
+				z0 +=zs;
+				d2 -= 2*dy;				
+			}
+			d1 += 2*dx;
+			d2 += 2*dz;
+			//Check if visitor is occupied and add visitor
+			if (!discrete_world[getWorldIndex(x0, y0, z0)].notOccupied)
+			{
+				return false;
+			}
+			// JAC: Check how I need to return visitors (points or nodes)
+			// point.x = x0 * step;
+			// point.y = y0 * step;
+			// point.z = z0 * step;
+			point.x = x0;
+			point.y = y0;
+			point.z = z0;
+			list_visitors.insert(list_visitors.begin(), point);			
+		}
+		// tam=list_visitors.size();
+		// std::cout << "Visitors: " << tam << std::endl;
+	} 
+	//Driving axis is Z-axis
+	else{
+		d1 = 2 * dy - dz;
+		d2 = 2 * dx - dz;
+		while (z0 != z1)
+		{
+			z0 += zs;
+			if (d1>=0){
+				y0 += ys;
+				d1 -= 2*dz;
+			}
+			if (d2>=0){
+				x0 +=xs;
+				d2 -= 2*dz;				
+			}
+			d1 += 2*dy;
+			d2 += 2*dx;
+			//Check if visitor is occupied and add visitor
+			if (!discrete_world[getWorldIndex(x0, y0, z0)].notOccupied)
+			{
+				return false;
+			}
+			// JAC: Check how I need to return visitors (points or nodes)
+			// point.x = x0 * step;
+			// point.y = y0 * step;
+			// point.z = z0 * step;
+			point.x = x0;
+			point.y = y0;
+			point.z = z0;
+			list_visitors.insert(list_visitors.begin(), point);						
+		}
+		// tam=list_visitors.size();
+		// std::cout << "Visitors: " << tam << std::endl;
+	}
+
+
+	return true;
+
+	// JAC: This is to access to the visitors and consider the safet cost
+	// for (int i = 0; i < last_path.size()-1; i++)
+	// {
+	//     x = last_path.at(i).x - last_path.at(i+1).x;
+	//     y = last_path.at(i).y - last_path.at(i+1).y;
+	//     z = last_path.at(i).z - last_path.at(i+1).z;
+	//     pathLength += sqrtf(x * x + y * y + z * z);
+	// }	
+
+	//https://gist.github.com/yamamushi/5823518
+	// int i, dx, dy, dz, l, m, n, x_inc, y_inc, z_inc, err_1, err_2, dx2, dy2, dz2;
+	// int point[3];
+
+	// if (isOccupied(p1) || isOccupied(p2))
+	// 	return false;
+
+    // float base = distanceBetween2nodes(p1, p2);
+	// if (base > line_of_sight/step )
+	// 	return false;
+
+	// point[0] = p1.point.x;
+    // point[1] = p1.point.y;
+    // point[2] = p1.point.z;
+	// dx = p2.point.x-p1.point.x;
+	// dy = p2.point.y-p1.point.y;
+	// dz = p2.point.z-p1.point.z;
+
+	// x_inc = (dx < 0) ? -1 : 1;
+    // l = abs(dx);
+    // y_inc = (dy < 0) ? -1 : 1;
+    // m = abs(dy);
+    // z_inc = (dz < 0) ? -1 : 1;
+    // n = abs(dz);
+    // dx2 = l << 1;
+    // dy2 = m << 1;
+    // dz2 = n << 1;
+
+	// if ((l >= m) && (l >= n)) {
+	// 	err_1 = dy2 - l;
+	// 	err_2 = dz2 - l;
+	// 	for (i = 0; i < l; i++) {
+	// 		//output->getTileAt(point[0], point[1], point[2])->setSymbol(symbol);
+	// 		if (err_1 > 0) {
+    //             point[1] += y_inc;
+    //             err_1 -= dx2;
+    //         }
+    //         if (err_2 > 0) {
+    //             point[2] += z_inc;
+    //             err_2 -= dx2;
+    //         }
+    //         err_1 += dy2;
+    //         err_2 += dz2;
+    //         point[0] += x_inc;
+	// 	}
+	// } else if ((m >= l) && (m >= n)) {
+    //     err_1 = dx2 - m;
+    //     err_2 = dz2 - m;
+    //     for (i = 0; i < m; i++) {
+    //         //output->getTileAt(point[0], point[1], point[2])->setSymbol(symbol);
+    //         if (err_1 > 0) {
+    //             point[0] += x_inc;
+    //             err_1 -= dy2;
+    //         }
+    //         if (err_2 > 0) {
+    //             point[2] += z_inc;
+    //             err_2 -= dy2;
+    //         }
+    //         err_1 += dx2;
+    //         err_2 += dz2;
+    //         point[1] += y_inc;
+    //     }
+    // } else {
+    //     err_1 = dy2 - n;
+    //     err_2 = dx2 - n;
+    //     for (i = 0; i < n; i++) {
+    //         //output->getTileAt(point[0], point[1], point[2])->setSymbol(symbol);
+    //         if (err_1 > 0) {
+    //             point[1] += y_inc;
+    //             err_1 -= dz2;
+    //         }
+    //         if (err_2 > 0) {
+    //             point[0] += x_inc;
+    //             err_2 -= dz2;
+    //         }
+    //         err_1 += dy2;
+    //         err_2 += dx2;
+    //         point[2] += z_inc;
+    //     }
+    // }
+
+	// return true;
+}
+
 
 bool ThetaStar3D::isOccupied(ThetaStarNode3D n)
 {
@@ -994,6 +1265,7 @@ void ThetaStar3D::computeLazyThetaStarPath(){
 			getNeighbors(*min_distance, neighbors);
 
 			//Check if exist line of sight.
+			//JAC: This is only executed if Lazy. NOT with Theta Star.
 			SetVertex(*min_distance, neighbors);
 
 			set<ThetaStarNode3D *, NodePointerComparator3D>::iterator it_;
@@ -1018,6 +1290,7 @@ void ThetaStar3D::computeLazyThetaStarPath(){
 		else //If there are not nodes, do not exist solution
 		{
 			noSolution = true;
+			//std::cerr << "Entra" << std::endl;
 		}
 	}
 
@@ -1091,6 +1364,7 @@ int ThetaStar3D::computePath(void)
 			erase_node->nodeInWorld->isInCandidateList = false;
 			erase_node->nodeInWorld->isInOpenList = false;
 		}
+		//std::cerr << "Introduce." << std::endl;
 	}
 
 	while (!candidates.empty())
@@ -1111,6 +1385,7 @@ int ThetaStar3D::computePath(void)
 	disc_initial->lineDistanceToFinalPoint = weightedDistanceToGoal(*disc_initial);
 	disc_initial->totalDistance = disc_initial->lineDistanceToFinalPoint + 0;
 	disc_initial->parentNode = disc_initial;
+	//ROS_INFO("Disc initial: [%f, %f, %f]", disc_initial->point.x*step,disc_initial->point.y*step,disc_initial->point.z*step);
 
 	open.insert(disc_initial);
 	disc_initial->nodeInWorld->isInOpenList = true;
@@ -1135,6 +1410,8 @@ int ThetaStar3D::computePath(void)
 	}else if(!noSolution){
 		computeLazyThetaStarPath();
 	}
+	//JAC: Include ThetaStar
+
     ftime(&finish);
 
 	if(!noSolution && last_path.size() != 0 && save_data_){
@@ -1159,37 +1436,37 @@ int ThetaStar3D::computePath(void)
 		float closest = std::numeric_limits<float>::max();
 		float dist;
 		std::cout << "Before " << discrete_world.size() << std::endl;
-		for(auto &it: last_path){
-			for(int i = 0; i < occupancy_marker.points.size(); i++){
-				x =  occupancy_marker.points[i].x - it.x;
-				y =  occupancy_marker.points[i].y - it.y;
-				z =  occupancy_marker.points[i].z - it.z;
-				dist = sqrtf(x*x+y*y+z*z);
-				if( dist < closest)
-					closest = dist;
-			}
-			closest_distances.push_back(closest);
-			closest = std::numeric_limits<float>::max();
-		}
+		// for(auto &it: last_path){
+		// 	for(int i = 0; i < occupancy_marker.points.size(); i++){
+		// 		x =  occupancy_marker.points[i].x - it.x;
+		// 		y =  occupancy_marker.points[i].y - it.y;
+		// 		z =  occupancy_marker.points[i].z - it.z;
+		// 		dist = sqrtf(x*x+y*y+z*z);
+		// 		if( dist < closest)
+		// 			closest = dist;
+		// 	}
+		// 	closest_distances.push_back(closest);
+		// 	closest = std::numeric_limits<float>::max();
+		// }
 		
-		auto minmax = std::minmax_element(closest_distances.begin()+1, closest_distances.end()-1);
-		float min   = std::numeric_limits<float>::max();
-		float max  = std::numeric_limits<float>::max();
+		// auto minmax = std::minmax_element(closest_distances.begin()+1, closest_distances.end()-1);
+		// float min   = std::numeric_limits<float>::max();
+		// float max  = std::numeric_limits<float>::max();
 
-		if(minmax.first != closest_distances.end()) 
-			min = *minmax.first;
+		// if(minmax.first != closest_distances.end()) 
+		// 	min = *minmax.first;
 		
-		if(minmax.second != closest_distances.end()) 
-			max = *minmax.second;
+		// if(minmax.second != closest_distances.end()) 
+		// 	max = *minmax.second;
 
-		auto init_closest = *closest_distances.begin();
-		auto final_closest = *closest_distances.end();
+		// auto init_closest = *closest_distances.begin();
+		// auto final_closest = *closest_distances.end();
 		
-		out_file_data_ << std::boolalpha << use_astar     << ", " << robot_radius_          << ", " << cost_scaling_factor_ << ", " << 
-		                  				cost_weight       << ", " << line_of_sight          << ", " << last_path.size()     << ", " << 
-										pathLength        << ", " << expanded_nodes_number_ << ", " << time_spent           <<  "," << 
-										init_closest      << ","  << final_closest          << ", " << min << ", " <<
-										max << std::endl;
+		// out_file_data_ << std::boolalpha << use_astar     << ", " << robot_radius_          << ", " << cost_scaling_factor_ << ", " << 
+		//                   				cost_weight       << ", " << line_of_sight          << ", " << last_path.size()     << ", " << 
+		// 								pathLength        << ", " << expanded_nodes_number_ << ", " << time_spent           <<  "," << 
+		// 								init_closest      << ","  << final_closest          << ", " << min << ", " <<
+		// 								max << std::endl;
 	}
 	return last_path.size();
 }
@@ -1562,13 +1839,35 @@ void ThetaStar3D::getNeighbors(ThetaStarNode3D &node, set<ThetaStarNode3D *, Nod
 							new_neighbor->node->nodeInWorld = new_neighbor;
 							new_neighbor->node->parentNode = &node;
 						}
-						if(use_astar && new_neighbor->notOccupied && !new_neighbor->isInCandidateList){
-							neighbors.insert(new_neighbor->node);
-							continue;
+						// if(use_astar && new_neighbor->notOccupied && !new_neighbor->isInCandidateList){
+						// 	neighbors.insert(new_neighbor->node);
+						// 	continue;
+						// }
+						// //JAC: Test with new_neighbor->notOccupied instead of lineofsight. Or use the previous condition.
+						// if (!use_astar && new_neighbor->notOccupied && new_neighbor->isInCandidateList)
+						// // if (!use_astar && new_neighbor->isInCandidateList || lineofsight(node, *new_neighbor->node))
+						// {
+						// 	neighbors.insert(new_neighbor->node);
+						// }
+						if(use_astar){
+							if(new_neighbor->notOccupied && !new_neighbor->isInCandidateList) {
+								neighbors.insert(new_neighbor->node);
+								continue;
+							}
 						}
-						if (!use_astar && new_neighbor->isInCandidateList || lineofsight(node, *new_neighbor->node))
-						{
-							neighbors.insert(new_neighbor->node);
+						//JAC: Test with new_neighbor->notOccupied instead of lineofsight. Or use the previous condition.
+						if (!use_astar){
+							// if (new_neighbor->notOccupied || lineofsight(node, *new_neighbor->node)) //como estaba
+							// if (new_neighbor->notOccupied && new_neighbor->isInCandidateList) //1a opcion No da solucion ya que nunca insert neighbors por la segunda condición al comienzo.
+							// if (new_neighbor->notOccupied && !new_neighbor->isInCandidateList) //2a opcion Parece que lo calcula pero peta el global planner tras mostrar el número de nodes expanded
+							// if (new_neighbor->isInCandidateList || lineofsight(node, *new_neighbor->node)) // ESte es el de Ricky //3a No tiene sentido el new_neighbor->notOccupied porque lineofsight ya lo verifica. En nodos explorados es lo mismo que considerarlo.
+							// if (lineofsight(node, *new_neighbor->node)) //4a No tiene sentido el new_neighbor->notOccupied porque lineofsight ya lo verifica. En nodos explorados es lo mismo que considerarlo.
+							if (bresenham3D(node, *new_neighbor->node))
+							// if (new_neighbor->isInCandidateList) //5a Esto confirma que considerar esto hace que no se inserte ningun vecino y no se pueda calcular la trayetoria.				
+						// if (!use_astar && new_neighbor->isInCandidateList || lineofsight(node, *new_neighbor->node))
+							{
+								neighbors.insert(new_neighbor->node);
+							}
 						}
 					}
 					else
@@ -1675,6 +1974,29 @@ float ThetaStar3D::weightedDistanceFromInitialPoint(ThetaStarNode3D node, ThetaS
 	return res;
 }
 
+//!Aqui tambien hay que meter el coste
+float ThetaStar3D::weightedDistanceFromInitialPoint_safety(ThetaStarNode3D node, ThetaStarNode3D parent)
+{
+	float res;
+	// TODO: Compute the new safety cost in the grid.hpp.
+	double cost = m_grid3d->getProbabilityFromPoint(node.point.x*step, node.point.y*step, node.point.z*step);
+
+	// double cost = m_grid3d->getProbabilityFromPoint(node.point.x, node.point.y, node.point.z);
+
+	if (isOccupied(node))
+		res = std::numeric_limits<float>::max();
+	else if (parent.distanceFromInitialPoint == std::numeric_limits<float>::max())
+		res = parent.distanceFromInitialPoint;
+	else
+	{
+		res = parent.distanceFromInitialPoint + cost * cost_weight + (sqrt(pow(node.point.x - parent.point.x, 2) +
+													  pow(node.point.y - parent.point.y, 2) +
+													  z_weight_cost * pow(node.point.z - parent.point.z, 2)));
+	}
+
+	return res;
+}
+
 void ThetaStar3D::ComputeCost(ThetaStarNode3D &s, ThetaStarNode3D &s2)
 {
 	double distanceParent2 = weightedDistanceBetween2nodes((*s.parentNode), s2);
@@ -1703,7 +2025,8 @@ void ThetaStar3D::UpdateVertex(ThetaStarNode3D &s, ThetaStarNode3D &s2)
 
 void ThetaStar3D::SetVertex(ThetaStarNode3D &s, set<ThetaStarNode3D *, NodePointerComparator3D> &neighbors)
 {
-	if (!lineofsight(*s.parentNode, s))
+	// if (!lineofsight(*s.parentNode, s))
+	if (!bresenham3D(*s.parentNode, s))
 	{
 		float g_value = std::numeric_limits<float>::max();
 		ThetaStarNode3D *parentCandidate = NULL;

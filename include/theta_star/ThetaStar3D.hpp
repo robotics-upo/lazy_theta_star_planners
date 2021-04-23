@@ -467,6 +467,8 @@ protected:
 		**/
 	float distanceFromInitialPoint(ThetaStarNode3D node, ThetaStarNode3D parent);
 	float weightedDistanceFromInitialPoint(ThetaStarNode3D node, ThetaStarNode3D parent);
+	float weightedDistanceFromInitialPoint_safety(ThetaStarNode3D node, ThetaStarNode3D parent);  //JAC: New function to compute the cost considering the safety cost
+	
 
 	/**
 		 Open and candidates node list, ordered by minor total distance (std::set --> listas ordenadas)
@@ -488,6 +490,14 @@ protected:
 			@return true if exists line of sight, false in the other case.
 		**/
 	bool lineofsight(ThetaStarNode3D &p1, ThetaStarNode3D &p2);
+
+	/**	
+		  Returns if exists line of sight between two points and the cells.
+			@param Position of first one point
+			@param Position of second one point
+			@return true if exists line of sight, false in the other case.
+		**/
+	bool bresenham3D(ThetaStarNode3D &p1, ThetaStarNode3D &p2);
 
 	/** 
 		 Check if a node is occupied
@@ -904,6 +914,7 @@ protected:
 
 	// Result path
 	vector<Vector3> last_path;
+	vector<Vector3> list_visitors; //JAC --> for the Bresenham line
 
 	// Lazy Theta* with Optimization:
 	float goal_weight;   // Reduction of the initial position distance weight C(s) = factor * g(s) + h(s)
