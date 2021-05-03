@@ -152,7 +152,7 @@ void ThetaStar3D::init(std::string plannerName, std::string frame_id, float ws_x
     switch_astar_server_ = nh->advertiseService("/theta_star_3d/switch_astar", &ThetaStar3D::switchAstar, this);
 
 	nh->param("/theta_star_3d/astar_mode", use_astar, false);
-	if(use_astar){
+		if(use_astar){
 		goal_weight = 1.0; //No goal weight
 		z_weight_cost  = 1.0;
 		cost_weight = 0.0;
@@ -1294,9 +1294,9 @@ void ThetaStar3D::computeLazyThetaStarPath(){
 		}
 	}
 
-// #ifdef SEND_EXPLORED_NODES_MARKERS
-// 	publishMarker(*min_distance, true);
-// #endif
+#ifdef SEND_EXPLORED_NODES_MARKERS
+	publishMarker(*min_distance, true);
+#endif
 
 #ifdef PRINT_EXPLORED_NODES_NUMBER
 	ROS_INFO("Theta Star: Expanded nodes: %d", expanded_nodes_number_);
@@ -1332,6 +1332,130 @@ void ThetaStar3D::computeLazyThetaStarPath(){
 		}
 	}
 }
+
+void ThetaStar3D::computeThetaStarPath(){
+	
+	ThetaStarNode3D *min_distance = disc_initial; // s : current node
+	bool noSolution = false;
+	long iter = 0;
+	ros::Time last_time_ = ros::Time::now();
+
+	while (!noSolution && (*min_distance) != (*disc_final))
+	{
+		iter++;
+		//std::cout << "Iteraciones " << iter << std::endl;
+		if (iter % 100 == 0)
+		{
+			if ((ros::Time::now() - last_time_).toSec() > timeout)
+			{
+				noSolution = true;
+				std::cerr << "Theta Star: Timeout. Iteractions:" << iter << std::endl;
+			}
+		}
+
+		//If there are more nodes...
+		//std::cout << "OPEN " << open.size() << std::endl;
+		if (!open.empty())
+		{
+			//Look for minimun distance node
+			min_distance = *open.begin();
+
+#ifdef SEND_EXPLORED_NODES_MARKERS
+			publishMarker(*min_distance, false);
+			//usleep(20000);
+#endif
+
+#ifdef PRINT_EXPLORED_NODES_NUMBER
+			expanded_nodes_number_++;
+#endif
+			open.erase(open.begin());
+			min_distance->nodeInWorld->isInOpenList = false;
+
+			//Insert it in candidate list
+			candidates.insert(min_distance);
+			min_distance->nodeInWorld->isInCandidateList = true;
+
+			//Look for Neighbors with line of sight
+			set<ThetaStarNode3D *, NodePointerComparator3D> neighbors;
+			getNeighbors(*min_distance, neighbors);
+
+			//Check if exist line of sight.
+			//JAC: This is only executed if Lazy. NOT with Theta Star.
+			//SetVertex(*min_distance, neighbors);
+			//std::cerr << "Vecinos" << std::endl;
+			// std::cout << "Candidatos " << candidates.size() << std::endl;
+			//std::cout << "Vecinos " << neighbors.size() << std::endl;
+
+			set<ThetaStarNode3D *, NodePointerComparator3D>::iterator it_;
+			it_ = neighbors.begin();
+			ThetaStarNode3D *new_node;
+			while (it_ != neighbors.end())
+			{
+				new_node = *it_;
+				if (!new_node->nodeInWorld->isInCandidateList)
+				{
+					//std::cout << "No candidate list " << std::endl;
+					if (!new_node->nodeInWorld->isInOpenList)
+					{
+						new_node->totalDistance = std::numeric_limits<float>::max();
+						new_node->lineDistanceToFinalPoint = weightedDistanceToGoal(*new_node);
+						new_node->parentNode = min_distance;
+						//std::cerr << "NO Open list" << std::endl;
+					}
+					//UpdateVertex(*min_distance, *new_node);
+					//std::cerr << "UPDATE" << std::endl;
+					UpdateVertexThetaStar(*min_distance, *new_node);
+				}
+				it_++;
+			}
+		}
+		else //If there are not nodes, do not exist solution
+		{
+			noSolution = true;
+			std::cerr << "Entra" << std::endl;
+			//std::cout << "OPEN2 " << open.size() << std::endl;
+		}
+	}
+
+#ifdef SEND_EXPLORED_NODES_MARKERS
+ 	publishMarker(*min_distance, true);
+#endif
+
+#ifdef PRINT_EXPLORED_NODES_NUMBER
+	ROS_INFO("Theta Star: Expanded nodes: %d", expanded_nodes_number_);
+#endif
+
+	//Path finished, get final path
+	last_path.clear();
+	ThetaStarNode3D *path_point;
+	Vector3 point;
+
+	path_point = min_distance;
+	if (noSolution)
+	{
+		std::cerr << "Imposible to calculate a solution" << std::endl;
+	}
+	ROS_INFO("Disc initial: [%f, %f, %f]", disc_initial->point.x*step,disc_initial->point.y*step,disc_initial->point.z*step);
+
+	while (!noSolution && path_point != disc_initial)
+	{
+		point.x = path_point->point.x * step;
+		point.y = path_point->point.y * step;
+		point.z = path_point->point.z * step;
+		//ROS_INFO("Inserting [%f, %f, %f]", point.x,point.y,point.z);
+		//ROS_INFO("Parent is [%f, %f, %f]", path_point->parentNode->point.x*step,path_point->parentNode->point.y*step,path_point->parentNode->point.z*step);
+
+		last_path.insert(last_path.begin(), point);
+
+		path_point = path_point->parentNode;
+		if (!path_point || (path_point == path_point->parentNode && path_point != disc_initial))
+		{
+			last_path.clear();
+			break;
+		}
+	}
+}
+
 int ThetaStar3D::computePath(void)
 {
 	//~ printf("Calculating...\n");
@@ -1407,8 +1531,12 @@ int ThetaStar3D::computePath(void)
 
 	if(use_astar && !noSolution){
 		computeAStarPath();
+		std::cout << "A STAR" << std::endl;
 	}else if(!noSolution){
-		computeLazyThetaStarPath();
+		//computeLazyThetaStarPath();
+		//std::cout << "LAZY THETA STAR" << std::endl;
+		computeThetaStarPath();
+		//std::cout << "THETA STAR" << std::endl;
 	}
 	//JAC: Include ThetaStar
 
@@ -1807,6 +1935,8 @@ void ThetaStar3D::getNeighbors(ThetaStarNode3D &node, set<ThetaStarNode3D *, Nod
 {
 	neighbors.clear();
 
+	//ROS_INFO("Expanded: %d, %d, %d", node.point.x, node.point.y, node.point.z);
+
 	DiscretePosition node_temp;
 
 	for (int i = -1; i < 2; i++)
@@ -1859,15 +1989,19 @@ void ThetaStar3D::getNeighbors(ThetaStarNode3D &node, set<ThetaStarNode3D *, Nod
 						if (!use_astar){
 							// if (new_neighbor->notOccupied || lineofsight(node, *new_neighbor->node)) //como estaba
 							// if (new_neighbor->notOccupied && new_neighbor->isInCandidateList) //1a opcion No da solucion ya que nunca insert neighbors por la segunda condición al comienzo.
-							// if (new_neighbor->notOccupied && !new_neighbor->isInCandidateList) //2a opcion Parece que lo calcula pero peta el global planner tras mostrar el número de nodes expanded
+							//if (new_neighbor->notOccupied && !new_neighbor->isInCandidateList) //2a opcion Parece que lo calcula pero peta el global planner tras mostrar el número de nodes expanded
 							// if (new_neighbor->isInCandidateList || lineofsight(node, *new_neighbor->node)) // ESte es el de Ricky //3a No tiene sentido el new_neighbor->notOccupied porque lineofsight ya lo verifica. En nodos explorados es lo mismo que considerarlo.
 							// if (lineofsight(node, *new_neighbor->node)) //4a No tiene sentido el new_neighbor->notOccupied porque lineofsight ya lo verifica. En nodos explorados es lo mismo que considerarlo.
-							if (bresenham3D(node, *new_neighbor->node))
 							// if (new_neighbor->isInCandidateList) //5a Esto confirma que considerar esto hace que no se inserte ningun vecino y no se pueda calcular la trayetoria.				
-						// if (!use_astar && new_neighbor->isInCandidateList || lineofsight(node, *new_neighbor->node))
+							// if (!use_astar && new_neighbor->isInCandidateList || lineofsight(node, *new_neighbor->node))
+							if(new_neighbor->notOccupied && !new_neighbor->isInCandidateList)
+							//if(!new_neighbor->isInCandidateList && bresenham3D(node, *new_neighbor->node))
+							//if (bresenham3D(node, *new_neighbor->node))
 							{
 								neighbors.insert(new_neighbor->node);
+								//std::cout << "Insert new neighbor " << std::endl;
 							}
+														
 						}
 					}
 					else
@@ -2008,6 +2142,44 @@ void ThetaStar3D::ComputeCost(ThetaStarNode3D &s, ThetaStarNode3D &s2)
 	}
 }
 
+void ThetaStar3D::ComputeCostThetaStar(ThetaStarNode3D &s, ThetaStarNode3D &s2)
+{
+	//Theta_Star
+	double distanceParent2 = weightedDistanceBetween2nodes((*s.parentNode), s2);
+	//std::cout<<"Theta* COMPUTE COST" << std::endl;
+	if (bresenham3D((*s.parentNode), s2)) {
+	//if (!lineofsight(*s.parentNode, s)) {
+		if (s.parentNode->distanceFromInitialPoint + distanceParent2 + s2.lineDistanceToFinalPoint < s2.totalDistance)
+		{
+			s2.parentNode = s.parentNode;
+			s2.distanceFromInitialPoint = weightedDistanceFromInitialPoint(s2, *s2.parentNode);
+			s2.totalDistance = s2.distanceFromInitialPoint + s2.lineDistanceToFinalPoint;
+		}
+		//std::cout<<"Theta* LINE OF SIGHT" << std::endl;
+	}
+	else
+	{
+		if (s.distanceFromInitialPoint + weightedDistanceBetween2nodes(s, s2) + s2.lineDistanceToFinalPoint < s2.totalDistance)
+		{
+			*s2.parentNode = s;		//parent.Node es un ThetaStarNode3D
+			s2.distanceFromInitialPoint = weightedDistanceFromInitialPoint(s2, *s2.parentNode);	
+			s2.totalDistance = s.distanceFromInitialPoint + weightedDistanceBetween2nodes(s, s2) + s2.lineDistanceToFinalPoint;
+		}
+		//std::cout<<"Theta* Path 1" << std::endl;
+	}
+	
+	//A_Star: CHECK
+	//double distanceA = s.distanceFromInitialPoint + weightedDistanceBetween2nodes(s, s2) + s2.lineDistanceToFinalPoint;
+	// if ((s.distanceFromInitialPoint + weightedDistanceBetween2nodes(s, s2) + s2.lineDistanceToFinalPoint) < s2.totalDistance)
+	// {
+	// 	*s2.parentNode = s;
+	// 	s2.distanceFromInitialPoint = weightedDistanceFromInitialPoint(s2, *s2.parentNode);	
+	// 	s2.totalDistance = s.distanceFromInitialPoint + weightedDistanceBetween2nodes(s, s2) + s2.lineDistanceToFinalPoint;
+	// 	//std::cout << "Cost:" << distanceA << std::endl;
+	// }
+	
+}
+
 void ThetaStar3D::UpdateVertex(ThetaStarNode3D &s, ThetaStarNode3D &s2)
 {
 	float g_old = s2.totalDistance;
@@ -2019,9 +2191,27 @@ void ThetaStar3D::UpdateVertex(ThetaStarNode3D &s, ThetaStarNode3D &s2)
 		{
 			open.erase(&s2);
 		}
-		open.insert(&s2);
+		open.insert(&s2);		
 	}
 }
+
+void ThetaStar3D::UpdateVertexThetaStar(ThetaStarNode3D &s, ThetaStarNode3D &s2)
+{
+	float g_old = s2.totalDistance;
+	
+	//std::cerr << "Compute Cost" << std::endl;
+	ComputeCostThetaStar(s, s2);
+	if (s2.totalDistance < g_old)
+	{
+		if (s2.nodeInWorld->isInOpenList)
+		{
+			open.erase(&s2);
+		}
+		open.insert(&s2);
+		//std::cerr << "INSERT Open list" << std::endl;
+	}
+}
+
 
 void ThetaStar3D::SetVertex(ThetaStarNode3D &s, set<ThetaStarNode3D *, NodePointerComparator3D> &neighbors)
 {
@@ -2039,6 +2229,9 @@ void ThetaStar3D::SetVertex(ThetaStarNode3D &s, set<ThetaStarNode3D *, NodePoint
 		while (it_ != neighbors.end())
 		{
 			new_node = *it_;
+			//Lazy searches in each expanded visible neighbor (it means that is in the Candidate List).
+			// We know that the node s has at least one expanded visible neighbor because the node s was added to the open list
+			// when Lazy expanded such a neighbor
 			if (new_node->nodeInWorld->isInCandidateList)
 			{
 				candidatesNotEmpty = true;

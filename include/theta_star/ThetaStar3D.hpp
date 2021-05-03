@@ -384,6 +384,7 @@ public:
 	int computePath(void);
 	void computeAStarPath();
 	void computeLazyThetaStarPath();
+	void computeThetaStarPath();
 	ThetaStarNode3D* findNodeOnList(set<ThetaStarNode3D *, NodePointerComparator3D> &_set, ThetaStarNode3D *node);
 
 	/**
@@ -480,6 +481,8 @@ protected:
 		**/
 	void ComputeCost(ThetaStarNode3D &s, ThetaStarNode3D &s2);
 	void UpdateVertex(ThetaStarNode3D &s, ThetaStarNode3D &s2);
+	void UpdateVertexThetaStar(ThetaStarNode3D &s, ThetaStarNode3D &s2);
+	void ComputeCostThetaStar(ThetaStarNode3D &s, ThetaStarNode3D &s2);
 	void SetVertex(ThetaStarNode3D &s, set<ThetaStarNode3D *, NodePointerComparator3D> &neighbors);
 	double g(ThetaStarNode3D &s);
 
