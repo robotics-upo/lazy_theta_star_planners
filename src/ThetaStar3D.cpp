@@ -2202,9 +2202,9 @@ bool ThetaStar3D::feasibleCatenary(ThetaStarNode3D &_p1, geometry_msgs::Vector3 
 
 		_points_catenary.clear();
 
-		biCat.setNumberPointsCatenary(_length*10.0);
+		// biCat.setNumberPointsCatenary(_length*10.0);
 		biCat.setFactorBisection(bound_bisection_a,bound_bisection_b);
-		biCat.configBisection(_length, _p2.x, _p2.y, _p2.z,_p0.x,_p0.y,_p0.z,_count,"cat_theta_star");
+		biCat.configBisection(_length, _p2.x, _p2.y, _p2.z,_p0.x,_p0.y,_p0.z);
 		biCat.getPointCatenary3D(_points_catenary);
 
 		int _n_points_cat_dis = ceil(1.5*ceil(_length)); // parameter to ignore collsion points in the begining and in the end of catenary
