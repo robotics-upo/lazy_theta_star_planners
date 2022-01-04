@@ -5,9 +5,10 @@ set(CMAKE_CXX_STANDARD 14)
 
 set(CMAKE_BUILD_TYPE Release) #None, Debug, Release, RelWithDebInfo, MinSizeRel
 
-if($ENV{ROS_DISTRO} STREQUAL "melodic" )
-add_definitions(-DMELODIC)
+if(($ENV{ROS_DISTRO} STREQUAL "melodic" ) OR ($ENV{ROS_DISTRO} STREQUAL "noetic" ) )
+add_definitions(-DNOETIC)
 endif()
+
 
 find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure

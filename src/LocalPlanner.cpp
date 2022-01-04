@@ -393,8 +393,10 @@ void LocalPlanner::plan()
         state.reset(new actionlib::SimpleClientGoalState(navigation_client_2d_ptr->getState()));
     }
 
-    seconds = finishT.time - startT.time - 1;
-    milliseconds = (1000 - startT.millitm) + finishT.millitm;
+    // seconds = finishT.time - startT.time - 1;
+    // milliseconds = (1000 - startT.millitm) + finishT.millitm;
+    seconds = finishT.tv_sec - startT.tv_sec - 1;
+    milliseconds = (1000000000 - startT.tv_nsec) + finishT.tv_nsec;
     publishExecutePathFeedback();
 
     if (*state == actionlib::SimpleClientGoalState::SUCCEEDED)
@@ -421,7 +423,9 @@ void LocalPlanner::calculatePath2D()
 {
     ROS_INFO("Calculating");
 
-    ftime(&startT);
+    // ftime(&startT);
+    clock_gettime(CLOCK_REALTIME, &startT);
+
     if (mapReceived && mapGeometryConfigured)
     {
         ROS_INFO_COND(debug, PRINTF_BLUE "Local Planner: Global trj received and local costmap received");
@@ -530,7 +534,8 @@ void LocalPlanner::calculatePath2D()
             clearMarkers();
         }
     }
-    ftime(&finishT);
+    // ftime(&finishT);
+    clock_gettime(CLOCK_REALTIME, &finishT);
 }
 void LocalPlanner::calculatePath3D()
 {
@@ -638,7 +643,7 @@ void LocalPlanner::publishExecutePathFeedback()
 
     if (planningStatus.data.find("OK") > 0)
     {
-        planningRate.data = 1000 / milliseconds;
+        planningRate.data = 1000000000 / milliseconds;
     }
     else
     {
@@ -1143,14 +1148,17 @@ bool LocalPlanner::transformTrajectoryToFrame(std::string dest_frame)
     return true;
 }
 //Auxiliar functions
-void LocalPlanner::showTime(string message, struct timeb st, struct timeb ft)
+void LocalPlanner::showTime(string message, struct timespec st, struct timespec ft)
 {
     float seconds, milliseconds;
 
-    seconds = ft.time - st.time - 1;
+    // seconds = ft.time - st.time - 1;
+    // milliseconds = (1000000000 - st.millitm) + ft.millitm;
 
-    milliseconds = (1000 - st.millitm) + ft.millitm;
-    cout << message << (milliseconds + seconds * 1000) << " ms" << endl;
+    seconds = ft.tv_sec - st.tv_sec - 1;
+    milliseconds = (1000000000 - st.tv_nsec) + ft.tv_nsec;
+
+    cout << message << (milliseconds + seconds * 1000000000) << " ms" << endl;
 }
 //Add the occupied borders around received costmap
 void LocalPlanner::inflateCostMap()

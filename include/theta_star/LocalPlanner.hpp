@@ -13,7 +13,7 @@
 #include <cstdlib>
 #include <string>
 #include <math.h>
-#include <ctime>
+#include <time.h>
 #include <sys/timeb.h>
 #include <fstream>
 
@@ -119,7 +119,8 @@ private:
     void calculatePath3D();
 
     //Auxiliar functions
-    void showTime(string message, struct timeb st, struct timeb ft);
+    // void showTime(string message, struct timeb st, struct timeb ft);
+    void showTime(string message, struct timespec st, struct timespec ft);
     bool pointInside(geometry_msgs::Vector3 p);
     geometry_msgs::Point makePoint(const geometry_msgs::Vector3 &vec);
 
@@ -152,7 +153,8 @@ private:
     bool mapGeometryConfigured;
     //Flow control flags
     //To calculate planning time
-    struct timeb startT, finishT;
+    // struct timeb startT, finishT;
+    struct timespec startT, finishT;
 
     //Theta star algorithm parameters
     //Geometric params
