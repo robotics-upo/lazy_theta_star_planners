@@ -759,7 +759,8 @@ bool GlobalPlanner::calculatePath()
         ROS_INFO_COND(debug, PRINTF_MAGENTA "Global Planner: Goal and start successfull set");
         
         // Path calculation
-        ftime(&start);
+        // ftime(&start);
+        clock_gettime(CLOCK_REALTIME, &start);
         if (use3d)
         {
             number_of_points = theta3D.computePath();
@@ -768,10 +769,13 @@ bool GlobalPlanner::calculatePath()
         {
             number_of_points = theta2D.computePath();
         }
-        ftime(&finish);
+        // ftime(&finish);
+        clock_gettime(CLOCK_REALTIME, &finish);
 
-        seconds = finish.time - start.time - 1;
-        milliseconds = (1000 - start.millitm) + finish.millitm;
+        // seconds = finish.time - start.time - 1;
+        // milliseconds = (1000 - start.millitm) + finish.millitm;
+        seconds = finish.tv_sec - start.tv_sec - 1;
+        milliseconds = (1000000000.0 - start.tv_nsec) + finish.tv_nsec;
 
         if (write_data_for_analysis){
             std::ofstream ofs;
@@ -779,7 +783,7 @@ bool GlobalPlanner::calculatePath()
             ofs.open(output_file.c_str(), std::ofstream::app);
             if (ofs.is_open()) {
                 std::cout << "Saving time initial planning data in output file: " << output_file << std::endl;
-                ofs << (milliseconds + seconds * 1000.0)/1000.0 <<std::endl;
+                ofs << (milliseconds + seconds * 1000000000.0)/1000000000.0 <<std::endl;
             } 
             else {
                 std::cout << "Couldn't be open the output data file for time initial planning" << std::endl;
@@ -787,7 +791,7 @@ bool GlobalPlanner::calculatePath()
             ofs.close();
         }
 
-        ROS_INFO(PRINTF_YELLOW "Global Planner: Time Spent in Global Path Calculation: %.1f ms", milliseconds + seconds * 1000);
+        ROS_INFO(PRINTF_YELLOW "Global Planner: Time Spent in Global Path Calculation: %.1f ms", milliseconds + seconds * 1000000000.0);
         ROS_INFO(PRINTF_YELLOW "Global Planner: Number of points: %d", number_of_points);
 
         if (number_of_points > 0)

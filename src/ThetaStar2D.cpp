@@ -975,36 +975,36 @@ bool ThetaStar2D::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform in
     return true;
 }
 
-bool ThetaStar2D::getTrajectoryYawInAdvanceWithFinalYaw(Trajectory &trajectory, Transform init_pose, double final_yaw_ref)
-{
-    if (!trajectoryParamsConfigured)
-        return false;
+// bool ThetaStar2D::getTrajectoryYawInAdvanceWithFinalYaw(Trajectory &trajectory, Transform init_pose, double final_yaw_ref)
+// {
+//     if (!trajectoryParamsConfigured)
+//         return false;
 
-    // Get the current trajectory with yaw in advance
-    getTrajectoryYawInAdvance(trajectory, init_pose);
+//     // Get the current trajectory with yaw in advance
+//     getTrajectoryYawInAdvance(trajectory, init_pose);
 
-    // Modify the last yaw reference and the time if it's neccesary
-    double last_wp_yaw = getYawFromQuat(trajectory.points.back().transforms[0].rotation);
-    double dyaw = fabs(final_yaw_ref - last_wp_yaw);
-    if (dyaw > 0.0)
-    {
-        // Set new yaw
-        tf::Quaternion q;
-        q.setRPY(0.0, 0.0, final_yaw_ref);
-        trajectory.points.back().transforms[0].rotation.x = q.x();
-        trajectory.points.back().transforms[0].rotation.y = q.y();
-        trajectory.points.back().transforms[0].rotation.z = q.z();
-        trajectory.points.back().transforms[0].rotation.w = q.w();
+//     // Modify the last yaw reference and the time if it's neccesary
+//     double last_wp_yaw = getYawFromQuat(trajectory.points.back().transforms[0].rotation);
+//     double dyaw = fabs(final_yaw_ref - last_wp_yaw);
+//     if (dyaw > 0.0)
+//     {
+//         // Set new yaw
+//         tf::Quaternion q;
+//         q.setRPY(0.0, 0.0, final_yaw_ref);
+//         trajectory.points.back().transforms[0].rotation.x = q.x();
+//         trajectory.points.back().transforms[0].rotation.y = q.y();
+//         trajectory.points.back().transforms[0].rotation.z = q.z();
+//         trajectory.points.back().transforms[0].rotation.w = q.w();
 
-        // Check if its neccesary more time (only if trajectory is longer than only one wp)
-        int traj_size = trajectory.points.size();
-        if (traj_size > 1)
-        {
-            double pre_last_yaw = getYawFromQuat(trajectory.points.at(traj_size - 2).transforms[0].rotation);
-            dyaw = getDyaw(final_yaw_ref, pre_last_yaw);
-        }
-    }
-}
+//         // Check if its neccesary more time (only if trajectory is longer than only one wp)
+//         int traj_size = trajectory.points.size();
+//         if (traj_size > 1)
+//         {
+//             double pre_last_yaw = getYawFromQuat(trajectory.points.at(traj_size - 2).transforms[0].rotation);
+//             dyaw = getDyaw(final_yaw_ref, pre_last_yaw);
+//         }
+//     }
+// }
 
 void ThetaStar2D::getNeighbors(ThetaStarNode2D &node, set<ThetaStarNode2D *, NodePointerComparator2D> &neighbors)
 {

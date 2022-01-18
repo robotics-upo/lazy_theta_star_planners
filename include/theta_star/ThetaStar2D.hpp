@@ -380,7 +380,7 @@ class ThetaStar2D
 		bool getTrajectoryYawFixed(Trajectory &trajectory, double fixed_yaw); // Simple Trayectory with fixed yaw. Times are computed by Dxyz
 		bool getTrajectoryYawAtTime(Trajectory &trajectory, Transform intial_pose);	// Yaw ahead from Wp[k] to Wp[k+1] as reference from Wp[k] to Wp[k+1]. Times are computed by max(Dxyz,Dyaw)
 		bool getTrajectoryYawInAdvance(Trajectory &trajectory, Transform intial_pose); // Yaw ahead from Wp[k] to Wp[k+1] as reference from Wp[k-1] to Wp[k]. Times are computed by max(Dxyz,Dyaw)
-		bool getTrajectoryYawInAdvanceWithFinalYaw(Trajectory &trajectory, Transform intial_pose,  double final_yaw_ref); // Idem but it forces the last wp attitude
+		// bool getTrajectoryYawInAdvanceWithFinalYaw(Trajectory &trajectory, Transform intial_pose,  double final_yaw_ref); // Idem but it forces the last wp attitude
 
 		/**
 		 Configure if printf ROS_WARN() or not 

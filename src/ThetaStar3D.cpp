@@ -1651,44 +1651,40 @@ bool ThetaStar3D::getTrajectoryYawInAdvance(Trajectory &trajectory, Transform in
 	return true;
 }
 
-bool ThetaStar3D::getTrajectoryYawInAdvanceWithFinalYaw(Trajectory &trajectory, Transform init_pose, double final_yaw_ref)
-{
-	if (!trajectoryParamsConfigured)
-		return false;
+// bool ThetaStar3D::getTrajectoryYawInAdvanceWithFinalYaw(Trajectory &trajectory, Transform init_pose, double final_yaw_ref)
+// {
+// 	if (!trajectoryParamsConfigured)
+// 		return false;
 
-	// Get the current trajectory with yaw in advance
-	getTrajectoryYawInAdvance(trajectory, init_pose);
+// 	// Get the current trajectory with yaw in advance
+// 	getTrajectoryYawInAdvance(trajectory, init_pose);
 
-	// Modify the last yaw reference and the time if it's neccesary
-	double last_wp_yaw = getYawFromQuat(trajectory.points.back().transforms[0].rotation);
-	double dyaw = fabs(final_yaw_ref - last_wp_yaw);
-	if (dyaw > 0.0)
-	{
-		// Set new yaw
-		tf::Quaternion q;
-		q.setRPY(0.0, 0.0, final_yaw_ref);
-		trajectory.points.back().transforms[0].rotation.x = q.x();
-		trajectory.points.back().transforms[0].rotation.y = q.y();
-		trajectory.points.back().transforms[0].rotation.z = q.z();
-		trajectory.points.back().transforms[0].rotation.w = q.w();
+// 	// Modify the last yaw reference and the time if it's neccesary
+// 	double last_wp_yaw = getYawFromQuat(trajectory.points.back().transforms[0].rotation);
+// 	double dyaw = fabs(final_yaw_ref - last_wp_yaw);
+// 	if (dyaw > 0.0)// Set new yaw
+// 	{
+// 		tf::Quaternion q;
+// 		q.setRPY(0.0, 0.0, final_yaw_ref);
+// 		trajectory.points.back().transforms[0].rotation.x = q.x();
+// 		trajectory.points.back().transforms[0].rotation.y = q.y();
+// 		trajectory.points.back().transforms[0].rotation.z = q.z();
+// 		trajectory.points.back().transforms[0].rotation.w = q.w();
 
-		// Check if its neccesary more time (only if trajectory is longer than only one wp)
-		int traj_size = trajectory.points.size();
-		if (traj_size > 1)
-		{
-			double pre_last_yaw = getYawFromQuat(trajectory.points.at(traj_size - 2).transforms[0].rotation);
-			double pre_last_time = trajectory.points.at(traj_size - 2).time_from_start.toSec();
-			dyaw = getDyaw(final_yaw_ref, pre_last_yaw);
-			double current_dt = trajectory.points.back().time_from_start.toSec() - pre_last_time;
-			double new_dt = dyaw / w_yaw;
-			if (new_dt > current_dt)
-			{
-				// Set new time
-				trajectory.points.back().time_from_start = ros::Duration(new_dt + pre_last_time);
-			}
-		}
-	}
-}
+// 		// Check if its neccesary more time (only if trajectory is longer than only one wp)
+// 		int traj_size = trajectory.points.size();
+// 		if (traj_size > 1)
+// 		{
+// 			double pre_last_yaw = getYawFromQuat(trajectory.points.at(traj_size - 2).transforms[0].rotation);
+// 			double pre_last_time = trajectory.points.at(traj_size - 2).time_from_start.toSec();
+// 			dyaw = getDyaw(final_yaw_ref, pre_last_yaw);
+// 			double current_dt = trajectory.points.back().time_from_start.toSec() - pre_last_time;
+// 			double new_dt = dyaw / w_yaw;
+// 			if (new_dt > current_dt) // Set new time
+// 				trajectory.points.back().time_from_start = ros::Duration(new_dt + pre_last_time);
+// 		}
+// 	}
+// }
 
 void ThetaStar3D::getNeighbors(ThetaStarNode3D &node, set<ThetaStarNode3D *, NodePointerComparator3D> &neighbors)
 {
@@ -2176,7 +2172,6 @@ void ThetaStar3D::confPrintRosWarn(bool print)
 bool ThetaStar3D::feasibleCatenary(ThetaStarNode3D &_p1, geometry_msgs::Vector3 _p2 , geometry_msgs::Vector3 _p0)
 {
 	bool _p_cat_occupied= true;
-	std::vector<geometry_msgs::Point> _points_catenary;
 	geometry_msgs::Vector3 _p1_new;
 	DiscretePosition _p_occ;
 	
@@ -2196,10 +2191,10 @@ bool ThetaStar3D::feasibleCatenary(ThetaStarNode3D &_p1, geometry_msgs::Vector3 
 		
 		double _length = _dist + _mF;
 
-		if(_length > 15 ){
+		if(_length > 15 )
 			return false;
-		}
 
+		std::vector<geometry_msgs::Point> _points_catenary;
 		_points_catenary.clear();
 
 		// biCat.setNumberPointsCatenary(_length*10.0);
@@ -2249,6 +2244,7 @@ bool ThetaStar3D::feasibleCatenary(ThetaStarNode3D &_p1, geometry_msgs::Vector3 
 		}
 		_count++;
 	}
+	return false;
 }
 
 void ThetaStar3D::configCatenaryCompute(bool _u_c, bool _u_s_p, double _mf, double _ba, double _bb, double _l_m, geometry_msgs::Vector3 _v3){

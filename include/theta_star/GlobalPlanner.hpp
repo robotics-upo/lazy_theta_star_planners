@@ -36,7 +36,8 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <dynamic_reconfigure/server.h>
 #include <theta_star_2d/GlobalPlannerConfig.h>
 
-#include <ctime>
+// #include <ctime>
+#include <time.h>
 #include <sys/timeb.h>
 
 #include <costmap_2d/costmap_2d.h>
@@ -233,7 +234,8 @@ private:
     std_msgs::String percent_achieved, ETA;
     std_msgs::UInt8 globalWaypoint;
     int timesReplaned;
-    struct timeb start, finish;
+    // struct timeb start, finish;
+    struct timespec start, finish;
     float seconds, milliseconds;
     float minPathLenght;
     ros::Time start_time;
