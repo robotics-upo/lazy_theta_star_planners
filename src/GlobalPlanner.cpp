@@ -19,11 +19,9 @@ GlobalPlanner::GlobalPlanner(string node_name_)
     tf2_list.reset(new tf2_ros::TransformListener(*tfBuffer));
     if (!use3d)
     {
-#ifdef MELODIC
+#if defined MELODIC || defined NOETIC
         global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", *tfBuffer.get()));
-#endif
-
-#ifndef MELODIC
+#else
         tf_list_ptr.reset(new tf::TransformListener(ros::Duration(5)));
         global_costmap_ptr.reset(new costmap_2d::Costmap2DROS("global_costmap", *tf_list_ptr)); //In ros kinetic the constructor uses tf instead of tf2 :(
 #endif

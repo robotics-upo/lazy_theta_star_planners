@@ -119,12 +119,11 @@ int main(int argc, char **argv)
 
     ros::ServiceServer check_env = n.advertiseService("check_env", &checkEnvSrv);
     // ros::Subscriber add_obstacle_sub = n.subscribe<nix_common::AddObstacles>("add_obstacle", 1, &setObstacleCallback);
-#ifdef MELODIC
+#if defined MELODIC || defined NOETIC
     tf2_ros::Buffer buffer(ros::Duration(5));
     tf2_ros::TransformListener tf(buffer);
     costmap_ptr.reset(new costmap_2d::Costmap2DROS("costmap", buffer));
-#endif
-#ifndef MELODIC
+#else
     tf::TransformListener tfListener(ros::Duration(5));
     costmap_ptr.reset(new costmap_2d::Costmap2DROS("costmap", tfListener));
 #endif

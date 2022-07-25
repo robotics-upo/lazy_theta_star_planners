@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD 14)
 if($ENV{ROS_DISTRO} STREQUAL "melodic" )
 add_definitions(-DMELODIC)
 endif()
+if($ENV{ROS_DISTRO} STREQUAL "noetic" )
+add_definitions(-DNOETIC)
+endif()
 
 find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
