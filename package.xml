@@ -47,8 +47,12 @@
   <build_depend>marsupial_optimizer</build_depend> 
   <exec_depend>marsupial_optimizer</exec_depend> 
   <build_export_depend>marsupial_optimizer</build_export_depend>
-
-
+  <build_depend>catenary_checker</build_depend>
+  <exec_depend>catenary_checker</exec_depend>
+  <build_export_depend>catenary_checker</build_export_depend>
+  <build_depend>costmap_2d</build_depend> 
+  <exec_depend>costmap_2d</exec_depend> 
+  <build_export_depend>costmap_2d</build_export_depend>
 
 
 </package>

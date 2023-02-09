@@ -9,7 +9,6 @@ if(($ENV{ROS_DISTRO} STREQUAL "melodic" ) OR ($ENV{ROS_DISTRO} STREQUAL "noetic"
 add_definitions(-DNOETIC)
 endif()
 
-
 find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
   upo_actions
@@ -22,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_conversions
   pcl_ros
   marsupial_optimizer
+  catenary_checker
 )
 find_package(Boost REQUIRED COMPONENTS system)
 
@@ -43,20 +43,53 @@ generate_dynamic_reconfigure_options(
 )
 
 catkin_package(
-  INCLUDE_DIRS include
-  CATKIN_DEPENDS roscpp upo_actions message_runtime octomap_msgs octomap_ros pcl_conversions pcl_ros marsupial_optimizer
+  INCLUDE_DIRS include/ 
+  ${EXTERNAL_INCLUDE_DIRS}
+  LIBRARIES 
+  ${EXTERNAL_LIBS}
+  CATKIN_DEPENDS 
+  roscpp 
+  costmap_2d
+  upo_actions 
+  message_runtime 
+  octomap_msgs 
+  octomap_ros 
+  pcl_conversions 
+  pcl_ros 
+  marsupial_optimizer 
+  catenary_checker
   DEPENDS octomap_msgs octomap_ros
-  LIBRARIES ${EXTERNAL_LIBS} 
 )
+
+find_package(PCL 1.8 REQUIRED)
+
+find_package(Qt5 REQUIRED COMPONENTS
+  Charts
+  Widgets
+)
+
+find_package(Qt5Charts REQUIRED)
+
 ###########
 ## Build ##
 ###########
 
-include_directories(include/
+message(STATUS "LAZY_PRINT include dir: ${catkin_INCLUDE_DIRS}")
+
+include_directories(include/ 
   ${catkin_INCLUDE_DIRS}
   ${PROJECT_SOURCE_DIR}
   ${Boost_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
+  ${Qt5_INCLUDE_DIRS}
+  ${Qt5Charts_INCLUDE_DIRS}
+  ${Qt5Widgets_INCLUDE_DIRS}
 )
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+
+set(EXTERNAL_INCLUDE_DIRS ${PCL_INCLUDE_DIRS} )
+set(EXTERNAL_LIBS  ${PCL_LIBRARIES} )
 
 #add_executable(sim_planner_node src/sim_planner_node.cpp src/ThetaStar.cpp)
 #target_link_libraries(sim_planner_node ${catkin_LIBRARIES})
@@ -64,34 +97,27 @@ include_directories(include/
 #add_dependencies(sim_planner_node ${catkin_EXPORTED_TARGETS})
 
 add_executable(global_planner_node src/global_planner_node.cpp src/GlobalPlanner.cpp src/ThetaStar2D.cpp src/ThetaStar3D.cpp )
-target_link_libraries(global_planner_node  marsupial_optimizer ${catkin_LIBRARIES} ${EXTERNAL_LIBS})
-add_dependencies(global_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(global_planner_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(global_planner_node catenary_checker ${catkin_LIBRARIES} ${EXTERNAL_LIBS} Qt5::Charts
+Qt5::Widgets dbscan_line )
 
 add_executable(local_planner_node src/local_planner_node.cpp src/LocalPlanner.cpp src/ThetaStar2D.cpp src/ThetaStar3D.cpp )
-target_link_libraries(local_planner_node marsupial_optimizer ${catkin_LIBRARIES} ${EXTERNAL_LIBS})
-add_dependencies(local_planner_node ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(local_planner_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(local_planner_node catenary_checker ${catkin_LIBRARIES} ${EXTERNAL_LIBS} Qt5::Charts
+Qt5::Widgets dbscan_line)
 
 add_executable(custom_costmap_node src/custom_costmap_node.cpp)
+add_dependencies(custom_costmap_node ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
 target_link_libraries(custom_costmap_node ${catkin_LIBRARIES})
-add_dependencies(custom_costmap_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-
-add_executable(action_goal_interface_node src/action_goal_interface_node.cpp)
 
 add_executable(goal_publisher_node src/goal_publisher.cpp)
+add_dependencies(goal_publisher_node ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
 target_link_libraries(goal_publisher_node ${catkin_LIBRARIES})
-add_dependencies(goal_publisher_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-target_link_libraries( action_goal_interface_node
-  ${catkin_LIBRARIES}
-)
-
-add_dependencies(action_goal_interface_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_executable(action_goal_interface_node src/action_goal_interface_node.cpp)
+target_link_libraries( action_goal_interface_node ${catkin_LIBRARIES})
+add_dependencies(action_goal_interface_node ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
 
 add_executable(hmi_fake src/hmi_fake.cpp)
-
-target_link_libraries( hmi_fake
-  ${catkin_LIBRARIES}
-)
-
-add_dependencies(hmi_fake ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries( hmi_fake  ${catkin_LIBRARIES})
+add_dependencies(hmi_fake ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})

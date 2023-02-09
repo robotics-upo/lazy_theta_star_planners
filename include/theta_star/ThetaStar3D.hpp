@@ -18,7 +18,8 @@
 #include <ros/ros.h>
 #include <geometry_msgs/Vector3.h>
 #include <geometry_msgs/Point.h>
-#include "misc/bisection_catenary_3D.h"
+
+#include "catenary_checker/bisection_catenary_3D.h"
 
 #include <visualization_msgs/Marker.h>
 

@@ -56,7 +56,8 @@ Global Planner Class using the Lazy ThetaStar 2d Algorithm
 #include <pcl_ros/transforms.h>
 
 #include <tf/transform_listener.h>
-#include "misc/bisection_catenary_3D.h"
+
+#include "catenary_checker/bisection_catenary_3D.h"
 
 
 namespace PathPlanners
