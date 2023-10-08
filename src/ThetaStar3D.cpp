@@ -2194,7 +2194,7 @@ bool ThetaStar3D::feasibleCatenary(ThetaStarNode3D &_p1, geometry_msgs::Vector3 
 		if(_length > 15 )
 			return false;
 
-		std::vector<geometry_msgs::Point> _points_catenary;
+		std::vector<geometry_msgs::Vector3> _points_catenary;
 		_points_catenary.clear();
 
 		// biCat.setNumberPointsCatenary(_length*10.0);
