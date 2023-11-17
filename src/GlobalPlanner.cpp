@@ -567,12 +567,13 @@ bool GlobalPlanner::replan()
     flg_replan_status.data = true;
     replan_status_pub.publish(flg_replan_status);
 
+    bool ret_val = false;
     if (calculatePath())
     {
         ++timesReplaned;
         ROS_INFO_COND(debug, "Global Planner: Succesfully calculated path");
         sendPathToLocalPlannerServer();
-        return true;
+        ret_val = true;
     }
     else if (timesReplaned > 5)
     {
@@ -585,8 +586,8 @@ bool GlobalPlanner::replan()
 
         make_plan_server_ptr->setAborted(make_plan_res, "Tried to replan and aborted after replanning 5 times");
         execute_path_client_ptr->cancelAllGoals();
-        return false;
     }
+    return false;
 }
 
 void GlobalPlanner::clearMarkers()
